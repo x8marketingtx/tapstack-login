@@ -1,0 +1,268 @@
+.vendor-page {
+  position: relative;
+}
+
+.vendor-top {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.vendor-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-top: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #374151;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.vendor-heading {
+  min-width: 0;
+}
+
+.vendor-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+  line-height: 1.15;
+}
+
+.vendor-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.vendor-points {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #ede9fe;
+  color: #7c3aed;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vendor-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.vendor-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #bfdbfe;
+}
+
+.vendor-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.vendor-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #2563eb;
+  letter-spacing: -0.02em;
+}
+
+.games-section {
+  flex: 1;
+}
+
+.games-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+}
+
+.games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.game-card {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.game-favorite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  color: #d1d5db;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.game-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.game-info {
+  min-width: 0;
+}
+
+.game-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.game-badge {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.game-badge--status.active {
+  background: #dcfce7;
+  color: #059669;
+}
+
+.game-badge--status.inactive {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.game-badge--mode.game-badge--auto {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+
+.game-badge--mode.game-badge--manual {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.game-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.game-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.game-balance-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.game-balance-label {
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.game-balance {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.game-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.game-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fff;
+}
+
+.game-btn--load {
+  border: 1px solid #93c5fd;
+  color: #2563eb;
+}
+
+.game-btn--redeem {
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+}
+
+.chat-fab {
+  position: absolute;
+  right: 16px;
+  bottom: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-size: 22px;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+}
+
+.chat-fab-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+}

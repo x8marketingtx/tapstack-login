@@ -1,0 +1,417 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1f2e;
+  padding: 24px;
+}
+
+.phone-frame {
+  width: 100%;
+  max-width: 390px;
+  background: #0f1419;
+  border-radius: 40px;
+  padding: 12px;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.screen {
+  background: #f7f6f2;
+  border-radius: 32px;
+  min-height: 780px;
+  padding: 28px 28px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.screen--admin {
+  padding: 0;
+  align-items: stretch;
+  background: #fff;
+}
+
+.screen--otp {
+  padding: 0;
+  align-items: stretch;
+}
+
+.screen--dashboard {
+  position: relative;
+  padding: 0;
+  align-items: stretch;
+  background: #f8f7f4;
+  overflow: hidden;
+}
+
+.webview-badge {
+  display: inline-block;
+  margin-bottom: 36px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #4a4f57;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.logo {
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.title-tap {
+  color: #c4a035;
+}
+
+.title-stack {
+  color: #2f9e62;
+}
+
+.subtitle {
+  margin: 0;
+  color: #9a9a96;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 4px;
+  background: #eceae4;
+  border-radius: 12px;
+}
+
+.toggle--admin {
+  background: #f3f4f6;
+  margin-bottom: 24px;
+}
+
+.toggle-option {
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: #7a8494;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.toggle--players .toggle-option.active {
+  background: #fff;
+  color: #111;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.toggle--admin .toggle-option.active {
+  background: #fce8ec;
+  color: #b91c1c;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.phone-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 52px;
+  border: 1px solid #dddcd6;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.country-code {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-right: 12px;
+  border-right: 1px solid #e8e7e2;
+}
+
+.flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dial-code {
+  color: #333;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.phone-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #111;
+  font-size: 15px;
+}
+
+.phone-field input::placeholder {
+  color: #b8b8b4;
+}
+
+.login-button {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: #eceef1;
+  color: #9ca3af;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.login-button:not(:disabled) {
+  background: #a8cce8;
+  color: #4a7fb0;
+}
+
+.login-button:not(:disabled):hover {
+  background: #96bce0;
+}
+
+.login-button:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+.login-button:disabled {
+  cursor: not-allowed;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 48px;
+  color: #9a9a96;
+  font-size: 14px;
+  text-align: center;
+}
+
+.footer a {
+  color: #111;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
+}
+
+/* Admin portal */
+
+.admin-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 780px;
+}
+
+.admin-header {
+  background: #152238;
+  padding: 8px 24px 28px;
+  color: #fff;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 20px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.status-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.admin-shield {
+  flex-shrink: 0;
+}
+
+.admin-portal-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.admin-heading {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.admin-subheading {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.admin-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 24px 32px;
+  background: #fff;
+}
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.text-field {
+  width: 100%;
+  height: 48px;
+  margin-bottom: 20px;
+  padding: 0 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  font-size: 15px;
+  outline: none;
+}
+
+.text-field:focus {
+  border-color: #cbd5e1;
+}
+
+.password-field {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.password-input {
+  margin-bottom: 0;
+  padding-right: 72px;
+}
+
+.show-password {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+
+.forgot-link {
+  color: #b91c1c;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
+.admin-login-button {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: #e8edf2;
+  color: #94a3b8;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.admin-login-button:not(:disabled):hover {
+  background: #dce3eb;
+  color: #64748b;
+}
+
+.admin-login-button:disabled {
+  cursor: not-allowed;
+}
+
+.apply-link {
+  margin-top: auto;
+  padding-top: 32px;
+  color: #152238;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.apply-link:hover {
+  color: #1e3a5f;
+}
