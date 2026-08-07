@@ -251,12 +251,7 @@ function PortalLogin({
   const [email, setEmail] = useState('you@arcade.com')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const isAdminPortal = portalType === 'admin'
-  const isNumericPassword = /^\d+$/.test(password.trim())
-  const canSubmit =
-    email.trim().length > 0 &&
-    (portalType === 'distributor' ||
-      (isAdminPortal ? isNumericPassword : password.trim().length > 0))
+  const canSubmit = email.trim().length > 0 && password.trim().length > 0
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -303,7 +298,6 @@ function PortalLogin({
               type={showPassword ? 'text' : 'password'}
               className="text-field password-input"
               autoComplete="current-password"
-              inputMode={isAdminPortal ? 'numeric' : 'text'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
