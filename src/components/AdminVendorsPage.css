@@ -1,0 +1,230 @@
+.admin-vendors-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-vendors-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.admin-vendors-title {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-vendors-create-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-vendors-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #9ca3af;
+}
+
+.admin-vendors-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.admin-vendors-search input::placeholder {
+  color: #9ca3af;
+}
+
+.admin-vendors-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-vendors-summary-card {
+  padding: 10px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  text-align: center;
+}
+
+.admin-vendors-summary-value {
+  margin: 0 0 2px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.admin-vendors-summary-value--green {
+  color: #059669;
+}
+
+.admin-vendors-summary-value--orange {
+  color: #f97316;
+}
+
+.admin-vendors-summary-value--red {
+  color: #ef4444;
+}
+
+.admin-vendors-summary-label {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.admin-vendors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-vendor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.admin-vendor-card-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.admin-vendor-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-vendor-card-head {
+  min-width: 0;
+}
+
+.admin-vendor-name {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-vendor-meta {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.admin-vendor-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.admin-vendor-card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.admin-vendor-status {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-vendor-status--active {
+  background: #dcfce7;
+  color: #059669;
+}
+
+.admin-vendor-status--pending {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.admin-vendor-status--suspended {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.admin-vendor-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #d1d5db;
+}
+
+.admin-vendor-revenue {
+  margin: 0;
+  color: #059669;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-vendor-averages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.admin-vendor-amount {
+  font-weight: 700;
+}
+
+.admin-vendor-amount--in {
+  color: #059669;
+}
+
+.admin-vendor-amount--redeem {
+  color: #ef4444;
+}

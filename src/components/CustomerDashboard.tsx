@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { VENDORS, type Vendor } from '../data/vendors'
-import { TapStackLogo, TapStackWordmark } from './TapStackLogo'
+import BottomNav, { type DashboardTab } from './BottomNav'
+import DashboardHeader from './DashboardHeader'
+import AccountPage from './AccountPage'
+import EarnPage from './EarnPage'
+import GiveawayPage from './GiveawayPage'
+import PromosPage from './PromosPage'
 import VendorPage from './VendorPage'
 import './CustomerDashboard.css'
 
@@ -69,35 +74,17 @@ const ACTIVITIES: {
   },
 ]
 
-export default function CustomerDashboard() {
-  const [vendorCode, setVendorCode] = useState('')
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
-
-  if (selectedVendor) {
-    return <VendorPage vendor={selectedVendor} onBack={() => setSelectedVendor(null)} />
-  }
-
+function GamesHome({
+  vendorCode,
+  onVendorCodeChange,
+  onVendorSelect,
+}: {
+  vendorCode: string
+  onVendorCodeChange: (value: string) => void
+  onVendorSelect: (vendor: Vendor) => void
+}) {
   return (
-    <div className="dashboard">
-      <header className="dash-header">
-        <div className="dash-brand">
-          <TapStackLogo size={28} />
-          <TapStackWordmark />
-        </div>
-
-        <div className="dash-header-meta">
-          <div className="level-badge">
-            <span className="level-label">Lv 7</span>
-            <div className="level-bar">
-              <div className="level-fill" style={{ width: '62%' }} />
-            </div>
-          </div>
-          <button type="button" className="user-avatar" aria-label="Profile">
-            JS
-          </button>
-        </div>
-      </header>
-
+    <>
       <section className="balance-card">
         <div className="balance-top">
           <div>
@@ -130,7 +117,7 @@ export default function CustomerDashboard() {
               className="add-vendor-input"
               placeholder="Enter vendor code..."
               value={vendorCode}
-              onChange={(event) => setVendorCode(event.target.value)}
+              onChange={(event) => onVendorCodeChange(event.target.value)}
             />
             <button type="button" className="add-vendor-go">
               Go
@@ -149,7 +136,7 @@ export default function CustomerDashboard() {
               key={vendor.initials}
               type="button"
               className="vendor-card"
-              onClick={() => setSelectedVendor(vendor)}
+              onClick={() => onVendorSelect(vendor)}
             >
               <div
                 className="vendor-icon"
@@ -200,29 +187,52 @@ export default function CustomerDashboard() {
           ))}
         </ul>
       </section>
+    </>
+  )
+}
 
-      <nav className="bottom-nav" aria-label="Main navigation">
-        <button type="button" className="nav-item nav-item--active">
-          <span className="nav-icon">🎮</span>
-          <span>Games</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">⚡</span>
-          <span>Earn</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">🎟️</span>
-          <span>Giveaway</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">🎁</span>
-          <span>Promos</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">🏦</span>
-          <span>Account</span>
-        </button>
-      </nav>
+export default function CustomerDashboard() {
+  const [vendorCode, setVendorCode] = useState('')
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
+  const [activeTab, setActiveTab] = useState<DashboardTab>('games')
+
+  function handleTabChange(tab: DashboardTab) {
+    setSelectedVendor(null)
+    setActiveTab(tab)
+  }
+
+  if (selectedVendor) {
+    return (
+      <VendorPage
+        vendor={selectedVendor}
+        activeTab={activeTab}
+        onBack={() => setSelectedVendor(null)}
+        onTabChange={handleTabChange}
+      />
+    )
+  }
+
+  return (
+    <div className="dashboard">
+      <DashboardHeader />
+
+      {activeTab === 'games' && (
+        <GamesHome
+          vendorCode={vendorCode}
+          onVendorCodeChange={setVendorCode}
+          onVendorSelect={setSelectedVendor}
+        />
+      )}
+
+      {activeTab === 'earn' && <EarnPage />}
+
+      {activeTab === 'giveaway' && <GiveawayPage />}
+
+      {activeTab === 'promos' && <PromosPage />}
+
+      {activeTab === 'account' && <AccountPage />}
+
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   )
 }

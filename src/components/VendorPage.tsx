@@ -1,34 +1,20 @@
 import type { Vendor } from '../data/vendors'
-import { TapStackLogo, TapStackWordmark } from './TapStackLogo'
+import BottomNav, { type DashboardTab } from './BottomNav'
+import DashboardHeader from './DashboardHeader'
 import './CustomerDashboard.css'
 import './VendorPage.css'
 
 type VendorPageProps = {
   vendor: Vendor
+  activeTab: DashboardTab
   onBack: () => void
+  onTabChange: (tab: DashboardTab) => void
 }
 
-export default function VendorPage({ vendor, onBack }: VendorPageProps) {
+export default function VendorPage({ vendor, activeTab, onBack, onTabChange }: VendorPageProps) {
   return (
     <div className="dashboard vendor-page">
-      <header className="dash-header">
-        <div className="dash-brand">
-          <TapStackLogo size={28} />
-          <TapStackWordmark />
-        </div>
-
-        <div className="dash-header-meta">
-          <div className="level-badge">
-            <span className="level-label">Lv 7</span>
-            <div className="level-bar">
-              <div className="level-fill" style={{ width: '62%' }} />
-            </div>
-          </div>
-          <button type="button" className="user-avatar" aria-label="Profile">
-            JS
-          </button>
-        </div>
-      </header>
+      <DashboardHeader />
 
       <div className="vendor-top">
         <button type="button" className="vendor-back" onClick={onBack} aria-label="Back">
@@ -102,28 +88,7 @@ export default function VendorPage({ vendor, onBack }: VendorPageProps) {
         <span className="chat-fab-badge">1</span>
       </button>
 
-      <nav className="bottom-nav" aria-label="Main navigation">
-        <button type="button" className="nav-item nav-item--active">
-          <span className="nav-icon">🎮</span>
-          <span>Games</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">⚡</span>
-          <span>Earn</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">🎟️</span>
-          <span>Giveaway</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">🎁</span>
-          <span>Promos</span>
-        </button>
-        <button type="button" className="nav-item">
-          <span className="nav-icon">🏦</span>
-          <span>Account</span>
-        </button>
-      </nav>
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
     </div>
   )
 }

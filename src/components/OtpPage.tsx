@@ -66,7 +66,7 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
       </button>
 
       <div className="otp-brand">
-        <TapStackLogo size={56} />
+        <TapStackLogo height={72} />
         <h1 className="otp-title">Enter verification code</h1>
         <p className="otp-subtitle">
           We sent a code to <strong>+1 {phone}</strong>

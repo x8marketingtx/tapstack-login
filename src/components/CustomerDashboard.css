@@ -27,20 +27,6 @@
   margin: 0;
 }
 
-.wordmark {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.wordmark-tap {
-  color: #c4a035;
-}
-
-.wordmark-stack {
-  color: #2f9e62;
-}
-
 .dash-header-meta {
   display: flex;
   align-items: center;
@@ -464,8 +450,24 @@
   font-weight: 500;
 }
 
-.nav-item--active {
+.nav-item--active.nav-item--games {
   color: #059669;
+}
+
+.nav-item--active.nav-item--earn {
+  color: #d97706;
+}
+
+.nav-item--active.nav-item--giveaway {
+  color: #db2777;
+}
+
+.nav-item--active.nav-item--promos {
+  color: #dc2626;
+}
+
+.nav-item--active.nav-item--account {
+  color: #7c3aed;
 }
 
 .nav-icon {

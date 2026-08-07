@@ -48,6 +48,13 @@
   overflow: hidden;
 }
 
+.screen--apply {
+  padding: 0;
+  align-items: stretch;
+  background: #f8f9fb;
+  overflow: hidden;
+}
+
 .webview-badge {
   display: inline-block;
   margin-bottom: 36px;
@@ -67,24 +74,32 @@
   margin-bottom: 40px;
 }
 
-.logo {
+.login-brand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 16px;
 }
 
-.title {
-  margin: 0 0 8px;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+.tapstack-icon {
+  display: block;
+  height: 72px;
+  width: auto;
+  object-fit: contain;
 }
 
-.title-tap {
-  color: #c4a035;
+.login-brand-stack .tapstack-logo {
+  margin-bottom: 0;
 }
 
-.title-stack {
-  color: #2f9e62;
+.logo {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.tapstack-logo {
+  object-fit: contain;
 }
 
 .subtitle {
@@ -101,28 +116,38 @@
   gap: 16px;
 }
 
-.toggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+.role-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.role-dropdown--portal {
+  margin-bottom: 24px;
+}
+
+.role-dropdown-shell {
   padding: 4px;
   background: #eceae4;
   border-radius: 12px;
 }
 
-.toggle--admin {
+.role-dropdown--portal .role-dropdown-shell {
   background: #f3f4f6;
-  margin-bottom: 24px;
 }
 
-.toggle-option {
-  border: none;
-  background: transparent;
+.role-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   padding: 10px 16px;
+  border: none;
   border-radius: 10px;
-  color: #7a8494;
+  background: #fff;
+  color: #111;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -130,17 +155,71 @@
     box-shadow 0.15s ease;
 }
 
-.toggle--players .toggle-option.active {
+.role-dropdown--portal .role-dropdown-trigger {
+  background: #fff;
+}
+
+.role-dropdown--portal.role-dropdown--open .role-dropdown-trigger {
+  background: #fce8ec;
+  color: #b91c1c;
+}
+
+.role-dropdown-chevron {
+  flex-shrink: 0;
+  color: #7a8494;
+  transition: transform 0.15s ease;
+}
+
+.role-dropdown--open .role-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.role-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #eceae4;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.role-dropdown--portal .role-dropdown-menu {
+  background: #f3f4f6;
+}
+
+.role-dropdown-option {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: #7a8494;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.role-dropdown-option.active {
   background: #fff;
   color: #111;
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.toggle--admin .toggle-option.active {
+.role-dropdown--portal .role-dropdown-option.active {
   background: #fce8ec;
   color: #b91c1c;
-  font-weight: 600;
   box-shadow: none;
 }
 
@@ -230,13 +309,20 @@
   text-align: center;
 }
 
-.footer a {
+.footer a,
+.footer-link {
+  padding: 0;
+  border: none;
+  background: none;
   color: #111;
+  font: inherit;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.footer a:hover {
+.footer a:hover,
+.footer-link:hover {
   text-decoration: underline;
 }
 
@@ -402,14 +488,20 @@
 }
 
 .apply-link {
+  display: block;
+  width: 100%;
   margin-top: auto;
-  padding-top: 32px;
+  padding: 32px 0 0;
+  border: none;
+  background: none;
   color: #152238;
+  font: inherit;
   font-size: 15px;
   font-weight: 500;
   text-align: center;
   text-decoration: underline;
   text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .apply-link:hover {

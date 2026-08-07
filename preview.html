@@ -74,23 +74,11 @@
       }
 
       .logo {
+        display: block;
         margin-bottom: 16px;
-      }
-
-      .title {
-        margin: 0 0 8px;
-        font-size: 32px;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        line-height: 1.1;
-      }
-
-      .title-tap {
-        color: #c4a035;
-      }
-
-      .title-stack {
-        color: #2f9e62;
+        height: 96px;
+        width: auto;
+        object-fit: contain;
       }
 
       .subtitle {
@@ -214,15 +202,11 @@
           <span class="webview-badge">webview</span>
 
           <div class="brand">
-            <svg class="logo" width="72" height="72" viewBox="0 0 72 72" fill="none" aria-hidden="true">
-              <path d="M12 48 L36 60 L60 48 L36 36 Z" fill="#2d8f5f" fill-opacity="0.45" />
-              <path d="M12 36 L36 48 L60 36 L36 24 Z" fill="#34a36b" fill-opacity="0.65" />
-              <path d="M12 24 L36 36 L60 24 L36 12 Z" fill="#3fbf78" />
-              <text x="36" y="30" text-anchor="middle" fill="#c9a227" font-size="18" font-weight="700" font-family="Inter, sans-serif">T</text>
-            </svg>
-            <h1 class="title">
-              <span class="title-tap">Tap</span><span class="title-stack">Stack</span>
-            </h1>
+            <img
+              class="logo"
+              src="src/assets/tapstack-logo.png"
+              alt="TapStack"
+            />
             <p class="subtitle">Log in to your wallet</p>
           </div>
 

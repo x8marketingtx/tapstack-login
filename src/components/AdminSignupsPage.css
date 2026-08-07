@@ -1,0 +1,165 @@
+.admin-signups-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-signups-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 20px;
+}
+
+.admin-signups-title {
+  margin: 0;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-signups-meta {
+  margin: 0;
+  color: #f97316;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-signups-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-signups-filter {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #9ca3af;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-signups-filter--active {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.admin-signups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-signup-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.admin-signup-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+
+.admin-signup-icon--vendor {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+.admin-signup-icon--person {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.admin-signup-info {
+  min-width: 0;
+}
+
+.admin-signup-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.admin-signup-name {
+  margin: 0;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-signup-code {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.admin-signup-applicant,
+.admin-signup-revenue {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.admin-signup-revenue {
+  margin-top: 2px;
+}
+
+.admin-signup-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-signup-status {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.admin-signup-status--pending {
+  background: #f97316;
+  color: #fff;
+}
+
+.admin-signup-status--approved {
+  background: #6fae63;
+  color: #fff;
+}
+
+.admin-signup-status--rejected {
+  background: #f87171;
+  color: #fff;
+}
+
+.admin-signup-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #d1d5db;
+}

@@ -1,0 +1,122 @@
+.admin-distributors-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-distributors-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.admin-distributors-title {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-distributors-meta {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.admin-distributors-create-btn {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-distributors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-distributor-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.admin-distributor-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #1e3a5f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-distributor-info {
+  min-width: 0;
+}
+
+.admin-distributor-name {
+  margin: 0 0 4px;
+  overflow: hidden;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-distributor-meta {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.admin-distributor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-distributor-status {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-distributor-status--active {
+  background: #6fae63;
+  color: #fff;
+}
+
+.admin-distributor-status--suspended {
+  background: #f59e0b;
+  color: #fff;
+}
+
+.admin-distributor-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #d1d5db;
+}

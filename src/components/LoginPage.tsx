@@ -1,8 +1,92 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import tapstackIcon from '../assets/tapstack-icon.png'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
 
-type UserType = 'players' | 'admin'
+type UserType = 'players' | 'vendor' | 'distributor' | 'admin'
+
+const ROLE_OPTIONS: { value: UserType; label: string }[] = [
+  { value: 'players', label: 'Players' },
+  { value: 'vendor', label: 'Vendor' },
+  { value: 'distributor', label: 'Distributor' },
+  { value: 'admin', label: 'Admin' },
+]
+
+function RoleDropdown({
+  userType,
+  onChange,
+  variant,
+}: {
+  userType: UserType
+  onChange: (type: UserType) => void
+  variant: 'players' | 'portal'
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const selectedLabel = ROLE_OPTIONS.find((option) => option.value === userType)?.label ?? 'Players'
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
+
+  return (
+    <div
+      ref={rootRef}
+      className={`role-dropdown role-dropdown--${variant} ${open ? 'role-dropdown--open' : ''}`}
+    >
+      <div className="role-dropdown-shell">
+        <button
+          type="button"
+          className="role-dropdown-trigger"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span>{selectedLabel}</span>
+          <svg className="role-dropdown-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
+      {open && (
+        <ul className="role-dropdown-menu" role="listbox" aria-label="Account type">
+          {ROLE_OPTIONS.map((option) => (
+            <li key={option.value} role="none">
+              <button
+                type="button"
+                role="option"
+                aria-selected={userType === option.value}
+                className={`role-dropdown-option ${userType === option.value ? 'active' : ''}`}
+                onClick={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                }}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 function AdminShieldIcon() {
   return (
@@ -58,51 +142,16 @@ function StatusBar() {
   )
 }
 
-function RoleToggle({
-  userType,
-  onChange,
-  variant,
-}: {
-  userType: UserType
-  onChange: (type: UserType) => void
-  variant: 'players' | 'admin'
-}) {
-  return (
-    <div
-      className={`toggle toggle--${variant}`}
-      role="tablist"
-      aria-label="User type"
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={userType === 'players'}
-        className={`toggle-option ${userType === 'players' ? 'active' : ''}`}
-        onClick={() => onChange('players')}
-      >
-        Players
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={userType === 'admin'}
-        className={`toggle-option ${userType === 'admin' ? 'active' : ''}`}
-        onClick={() => onChange('admin')}
-      >
-        Admin
-      </button>
-    </div>
-  )
-}
-
 function PlayersLogin({
   userType,
   onUserTypeChange,
   onSubmitPhone,
+  onSignUp,
 }: {
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onSubmitPhone: (phone: string) => void
+  onSignUp: () => void
 }) {
   const [phone, setPhone] = useState('')
   const canSubmit = phone.trim().length > 0
@@ -118,16 +167,15 @@ function PlayersLogin({
       <span className="webview-badge">webview</span>
 
       <div className="brand">
-        <TapStackLogo />
-        <h1 className="title">
-          <span className="title-tap">Tap</span>
-          <span className="title-stack">Stack</span>
-        </h1>
+        <div className="login-brand-stack">
+          <img src={tapstackIcon} alt="" className="tapstack-icon" aria-hidden="true" />
+          <TapStackLogo height={56} />
+        </div>
         <p className="subtitle">Log in to your wallet</p>
       </div>
 
       <form className="form" onSubmit={handleSubmit}>
-        <RoleToggle userType={userType} onChange={onUserTypeChange} variant="players" />
+        <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="players" />
 
         <div className="phone-field">
           <div className="country-code">
@@ -153,48 +201,86 @@ function PlayersLogin({
       </form>
 
       <p className="footer">
-        New to TapStack? <a href="#signup">Sign up</a>
+        New to TapStack?{' '}
+        <button type="button" className="footer-link" onClick={onSignUp}>
+          Sign up
+        </button>
       </p>
     </>
   )
 }
 
-function AdminLogin({
+const PORTAL_COPY: Record<
+  Exclude<UserType, 'players'>,
+  { label: string; heading: string; subheading: string; accent: 'vendor' | 'distributor' | 'admin' }
+> = {
+  vendor: {
+    label: 'VENDOR PORTAL',
+    heading: 'Welcome back',
+    subheading: 'Sign in to your vendor console',
+    accent: 'vendor',
+  },
+  distributor: {
+    label: 'DISTRIBUTOR PORTAL',
+    heading: 'Welcome back',
+    subheading: 'Sign in to your distributor console',
+    accent: 'distributor',
+  },
+  admin: {
+    label: 'ADMIN PORTAL',
+    heading: 'Welcome back',
+    subheading: 'Sign in to your admin console',
+    accent: 'admin',
+  },
+}
+
+function PortalLogin({
+  portalType,
   userType,
   onUserTypeChange,
+  onSubmit,
+  onApply,
 }: {
+  portalType: Exclude<UserType, 'players'>
   userType: UserType
   onUserTypeChange: (type: UserType) => void
+  onSubmit: () => void
+  onApply: () => void
 }) {
+  const copy = PORTAL_COPY[portalType]
   const [email, setEmail] = useState('you@arcade.com')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-
-  const canSubmit = email.trim().length > 0 && password.trim().length > 0
+  const isAdminPortal = portalType === 'admin'
+  const isNumericPassword = /^\d+$/.test(password.trim())
+  const canSubmit =
+    email.trim().length > 0 &&
+    (portalType === 'distributor' ||
+      (isAdminPortal ? isNumericPassword : password.trim().length > 0))
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!canSubmit) return
-    alert(`Demo admin login: ${email}`)
+    onSubmit()
   }
 
   return (
-    <div className="admin-screen">
+    <div className={`admin-screen admin-screen--${copy.accent}`}>
       <div className="admin-header">
         <StatusBar />
 
         <div className="admin-brand">
           <AdminShieldIcon />
-          <span className="admin-portal-label">ADMIN PORTAL</span>
+          <span className="admin-portal-label">{copy.label}</span>
         </div>
 
-        <h1 className="admin-heading">Welcome back</h1>
-        <p className="admin-subheading">Sign in to your admin console</p>
+        <h1 className="admin-heading">{copy.heading}</h1>
+        <p className="admin-subheading">{copy.subheading}</p>
       </div>
 
       <div className="admin-body">
         <form className="admin-form" onSubmit={handleSubmit}>
-          <RoleToggle userType={userType} onChange={onUserTypeChange} variant="admin" />
+          <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="portal" />
 
           <label className="field-label" htmlFor="admin-email">
             Email
@@ -217,6 +303,7 @@ function AdminLogin({
               type={showPassword ? 'text' : 'password'}
               className="text-field password-input"
               autoComplete="current-password"
+              inputMode={isAdminPortal ? 'numeric' : 'text'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
@@ -240,9 +327,9 @@ function AdminLogin({
           </button>
         </form>
 
-        <a href="#apply" className="apply-link">
+        <button type="button" className="apply-link" onClick={onApply}>
           Apply for an Account
-        </a>
+        </button>
       </div>
     </div>
   )
@@ -252,15 +339,57 @@ type LoginPageProps = {
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onPlayersPhoneSubmit: (phone: string) => void
+  onVendorLogin: () => void
+  onDistributorLogin: () => void
+  onAdminLogin: () => void
+  onSignUp: () => void
+  onApply: () => void
 }
 
 export default function LoginPage({
   userType,
   onUserTypeChange,
   onPlayersPhoneSubmit,
+  onVendorLogin,
+  onDistributorLogin,
+  onAdminLogin,
+  onSignUp,
+  onApply,
 }: LoginPageProps) {
+  if (userType === 'vendor') {
+    return (
+      <PortalLogin
+        portalType="vendor"
+        userType={userType}
+        onUserTypeChange={onUserTypeChange}
+        onSubmit={onVendorLogin}
+        onApply={onApply}
+      />
+    )
+  }
+
+  if (userType === 'distributor') {
+    return (
+      <PortalLogin
+        portalType="distributor"
+        userType={userType}
+        onUserTypeChange={onUserTypeChange}
+        onSubmit={onDistributorLogin}
+        onApply={onApply}
+      />
+    )
+  }
+
   if (userType === 'admin') {
-    return <AdminLogin userType={userType} onUserTypeChange={onUserTypeChange} />
+    return (
+      <PortalLogin
+        portalType="admin"
+        userType={userType}
+        onUserTypeChange={onUserTypeChange}
+        onSubmit={onAdminLogin}
+        onApply={onApply}
+      />
+    )
   }
 
   return (
@@ -268,6 +397,7 @@ export default function LoginPage({
       userType={userType}
       onUserTypeChange={onUserTypeChange}
       onSubmitPhone={onPlayersPhoneSubmit}
+      onSignUp={onSignUp}
     />
   )
 }
