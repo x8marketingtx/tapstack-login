@@ -273,7 +273,7 @@ function VendorHome({
   )
 }
 
-export default function VendorDashboard() {
+export default function VendorDashboard({ onLogout: _onLogout }: { onLogout?: () => void }) {
   const [activeTab, setActiveTab] = useState<VendorTab>('home')
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [walletBalance, setWalletBalance] = useState('$12,440.00')

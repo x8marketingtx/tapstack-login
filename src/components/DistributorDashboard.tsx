@@ -274,7 +274,7 @@ function DistributorHome({
   )
 }
 
-export default function DistributorDashboard() {
+export default function DistributorDashboard({ onLogout: _onLogout }: { onLogout?: () => void }) {
   const [activeTab, setActiveTab] = useState<DistributorTab>('home')
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [walletBalance, setWalletBalance] = useState('$8,640.00')

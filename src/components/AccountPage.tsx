@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { PlayerProfile } from './ProfilePage'
 import './AccountPage.css'
 
 const QUICK_AMOUNTS = [10, 25, 50]
@@ -65,11 +66,19 @@ const TRANSACTIONS: {
 ]
 
 export default function AccountPage({
-  cashBalance = '$125.00',
+  cashBalance = '$0.00',
+  pointsBalance = 0,
+  profile,
+  loading = false,
   onTopUp,
+  onOpenProfile,
 }: {
   cashBalance?: string
+  pointsBalance?: number
+  profile: PlayerProfile
+  loading?: boolean
   onTopUp?: () => void
+  onOpenProfile?: () => void
 }) {
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('')
@@ -113,16 +122,18 @@ export default function AccountPage({
   return (
     <div className="account-page">
       <section className="profile-card">
-        <div className="profile-avatar">MA</div>
+        <div className="profile-avatar">{profile.initials}</div>
         <div className="profile-info">
           <span className="profile-label">YOUR USERNAME</span>
           <div className="profile-username-row">
-            <span className="profile-username">@marcus_r</span>
-            <button type="button" className="profile-edit-btn">
-              Edit
-            </button>
+            <span className="profile-username">{profile.username}</span>
+            {onOpenProfile ? (
+              <button type="button" className="profile-edit-btn" onClick={onOpenProfile}>
+                Profile
+              </button>
+            ) : null}
           </div>
-          <p className="profile-hint">Share to receive wallet transfers</p>
+          <p className="profile-hint">{profile.displayName} · Share to receive wallet transfers</p>
         </div>
       </section>
 
@@ -130,7 +141,11 @@ export default function AccountPage({
         <div className="account-balance-top">
           <div>
             <p className="account-balance-label">CASH BALANCE</p>
-            <p className="account-balance-amount">{cashBalance}</p>
+            {loading ? (
+              <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
+            ) : (
+              <p className="account-balance-amount">{cashBalance}</p>
+            )}
           </div>
           <div className="account-balance-icon" aria-hidden="true">
             💵
@@ -138,11 +153,11 @@ export default function AccountPage({
         </div>
         <div className="account-balance-actions">
           {onTopUp ? (
-            <button type="button" className="account-topup-btn" onClick={onTopUp}>
+            <button type="button" className="account-topup-btn" onClick={onTopUp} disabled={loading}>
               + Top Up with Wert
             </button>
           ) : null}
-          <button type="button" className="account-withdraw-btn">
+          <button type="button" className="account-withdraw-btn" disabled={loading}>
             Withdraw
           </button>
         </div>
@@ -215,7 +230,11 @@ export default function AccountPage({
         <div className="points-top">
           <div>
             <p className="points-label">POINTS BALANCE</p>
-            <p className="points-balance">3,400 pts</p>
+            {loading ? (
+              <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
+            ) : (
+              <p className="points-balance">{pointsBalance.toLocaleString()} pts</p>
+            )}
           </div>
           <button type="button" className="points-star-btn" aria-label="Points rewards">
             ⭐

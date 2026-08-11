@@ -205,7 +205,7 @@ function AdminOverviewPage() {
   )
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ onLogout: _onLogout }: { onLogout?: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
 
   return (

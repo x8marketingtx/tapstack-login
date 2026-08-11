@@ -5,6 +5,10 @@
  */
 
 const TOKEN_KEY = 'tapstack_token'
+const ROLE_KEY = 'tapstack_role'
+const USER_KEY = 'tapstack_user'
+
+export type SessionRole = 'player' | 'vendor' | 'distributor' | 'admin'
 
 export function getApiBase(): string {
   const origin = (import.meta.env.VITE_WP_API_URL as string | undefined)?.replace(/\/$/, '') || ''
@@ -18,6 +22,77 @@ export function getToken(): string | null {
 export function setToken(token: string | null): void {
   if (token) localStorage.setItem(TOKEN_KEY, token)
   else localStorage.removeItem(TOKEN_KEY)
+}
+
+export function getSessionRole(): SessionRole | null {
+  const role = localStorage.getItem(ROLE_KEY)
+  if (role === 'player' || role === 'vendor' || role === 'distributor' || role === 'admin') {
+    return role
+  }
+  return null
+}
+
+export function getSessionUser(): TapstackUser | null {
+  const raw = localStorage.getItem(USER_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as TapstackUser
+  } catch {
+    return null
+  }
+}
+
+export function setSession(input: {
+  token: string
+  role: SessionRole
+  user?: TapstackUser | null
+}): void {
+  setToken(input.token)
+  localStorage.setItem(ROLE_KEY, input.role)
+  if (input.user) localStorage.setItem(USER_KEY, JSON.stringify(input.user))
+  else localStorage.removeItem(USER_KEY)
+}
+
+/** Offline / demo login when WordPress API is not configured. */
+export function setDemoSession(role: SessionRole, user?: Partial<TapstackUser>): void {
+  setSession({
+    token: `demo:${role}`,
+    role,
+    user: {
+      id: 0,
+      email: user?.email || `${role}@tapstack.demo`,
+      displayName: user?.displayName || role.charAt(0).toUpperCase() + role.slice(1),
+      role,
+      ...user,
+    },
+  })
+}
+
+export function clearSession(): void {
+  setToken(null)
+  localStorage.removeItem(ROLE_KEY)
+  localStorage.removeItem(USER_KEY)
+}
+
+export function homeViewForRole(role: SessionRole): 'customer' | 'vendor' | 'admin' | 'distributor' {
+  if (role === 'vendor') return 'vendor'
+  if (role === 'distributor') return 'distributor'
+  if (role === 'admin') return 'admin'
+  return 'customer'
+}
+
+export function roleForView(view: 'customer' | 'vendor' | 'admin' | 'distributor'): SessionRole {
+  if (view === 'vendor') return 'vendor'
+  if (view === 'distributor') return 'distributor'
+  if (view === 'admin') return 'admin'
+  return 'player'
+}
+
+export function canAccessView(view: string, role: SessionRole | null): boolean {
+  if (view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor') {
+    return role === roleForView(view)
+  }
+  return true
 }
 
 export class ApiError extends Error {
@@ -83,21 +158,28 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 export const tapstackApi = {
   health: () => apiRequest<{ ok: boolean; version: string }>('/health', { auth: false }),
 
-  requestOtp: (phone: string) =>
-    apiRequest<{ ok: boolean; phone: string; demoCode?: string }>('/auth/otp/request', {
+  requestOtp: (phone: string, intent: 'login' | 'signup' = 'login') =>
+    apiRequest<{ ok: boolean; phone: string; demoCode?: string; intent?: string }>('/auth/otp/request', {
+      method: 'POST',
+      body: { phone, intent },
+      auth: false,
+    }),
+
+  playerExists: (phone: string) =>
+    apiRequest<{ exists: boolean; phone: string }>('/auth/player/exists', {
       method: 'POST',
       body: { phone },
       auth: false,
     }),
 
-  verifyOtp: (phone: string, code: string) =>
+  verifyOtp: (phone: string, code: string, profile?: { fullName?: string; email?: string }) =>
     apiRequest<{
       token: string
       user: TapstackUser
       wallet: { balance: number; points: number; currency: string }
     }>('/auth/otp/verify', {
       method: 'POST',
-      body: { phone, code },
+      body: { phone, code, ...profile },
       auth: false,
     }),
 
@@ -108,13 +190,23 @@ export const tapstackApi = {
       auth: false,
     }),
 
-  me: () => apiRequest<{ user: TapstackUser }>('/auth/me'),
+  me: () =>
+    apiRequest<{ user: TapstackUser; level?: number; levelProgressPct?: number }>('/auth/me'),
+
+  updateProfile: (profile: { fullName?: string; email?: string; phone?: string }) =>
+    apiRequest<{ ok: boolean; user: TapstackUser }>('/auth/profile', {
+      method: 'POST',
+      body: profile,
+    }),
 
   logout: async () => {
     try {
-      await apiRequest('/auth/logout', { method: 'POST' })
+      const token = getToken()
+      if (token && !token.startsWith('demo:')) {
+        await apiRequest('/auth/logout', { method: 'POST' })
+      }
     } finally {
-      setToken(null)
+      clearSession()
     }
   },
 
@@ -168,6 +260,8 @@ export type TapstackUser = {
   id: number
   email: string
   displayName: string
+  firstName?: string
+  lastName?: string
   role: 'player' | 'vendor' | 'distributor' | 'admin'
   phone?: string
   username?: string

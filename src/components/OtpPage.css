@@ -7,11 +7,35 @@
 }
 
 .otp-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   align-self: flex-start;
-  margin-bottom: 24px;
-  color: #6b7280;
-  font-size: 14px;
-  font-weight: 500;
+  width: 40px;
+  height: 40px;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+.otp-back:hover {
+  background: #fff;
+  border-color: rgba(17, 24, 39, 0.14);
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
+}
+
+.otp-back:active {
+  transform: scale(0.96);
 }
 
 .otp-brand {

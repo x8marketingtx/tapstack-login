@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { ApiError, isApiConfigured, setToken, tapstackApi } from '../api/client'
+import { ApiError, isApiConfigured, setDemoSession, setSession, tapstackApi } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './OtpPage.css'
 
@@ -57,7 +57,7 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
       try {
         setLoading(true)
         const res = await tapstackApi.verifyOtp(phone, code)
-        setToken(res.token)
+        setSession({ token: res.token, role: 'player', user: res.user })
         onVerify()
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Verification failed.')
@@ -68,6 +68,7 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
     }
 
     if (code === DEMO_OTP) {
+      setDemoSession('player', { phone, displayName: 'Marcus Rivera', email: 'player@tapstack.demo' })
       onVerify()
       return
     }
@@ -77,8 +78,16 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
 
   return (
     <div className="otp-page">
-      <button type="button" className="otp-back" onClick={onBack}>
-        ← Back
+      <button type="button" className="otp-back" onClick={onBack} aria-label="Go back">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path
+            d="M11.25 3.75 L6 9 L11.25 14.25"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       <div className="otp-brand">

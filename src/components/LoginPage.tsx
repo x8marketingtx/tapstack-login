@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
-import { ApiError, isApiConfigured, setToken, tapstackApi } from '../api/client'
+import { ApiError, isApiConfigured, setDemoSession, setSession, tapstackApi } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
 
-type UserType = 'players' | 'vendor' | 'distributor' | 'admin'
+type UserType = 'players' | 'vendor' | 'admin'
 
 const ROLE_OPTIONS: { value: UserType; label: string }[] = [
   { value: 'players', label: 'Players' },
   { value: 'vendor', label: 'Vendor' },
-  { value: 'distributor', label: 'Distributor' },
   { value: 'admin', label: 'Admin' },
 ]
 
@@ -167,7 +166,24 @@ function PlayersLogin({
     if (isApiConfigured()) {
       try {
         setLoading(true)
-        await tapstackApi.requestOtp(phone.trim())
+        try {
+          const lookup = await tapstackApi.playerExists(phone.trim())
+          if (!lookup.exists) {
+            setError('No account found for this phone number. Please sign up first.')
+            return
+          }
+        } catch (lookupErr) {
+          // Older plugin builds may not have /auth/player/exists yet.
+          if (
+            lookupErr instanceof ApiError &&
+            (lookupErr.code === 'tapstack_account_missing' ||
+              lookupErr.message.toLowerCase().includes('no account found'))
+          ) {
+            setError(lookupErr.message)
+            return
+          }
+        }
+        await tapstackApi.requestOtp(phone.trim(), 'login')
         onSubmitPhone(phone.trim())
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not send code.')
@@ -231,26 +247,22 @@ function PlayersLogin({
 }
 
 const PORTAL_COPY: Record<
-  Exclude<UserType, 'players'>,
-  { label: string; heading: string; subheading: string; accent: 'vendor' | 'distributor' | 'admin' }
+  'vendor' | 'admin',
+  { label: string; heading: string; subheading: string; accent: 'vendor' | 'admin'; demoEmail: string }
 > = {
   vendor: {
     label: 'VENDOR PORTAL',
     heading: 'Welcome back',
     subheading: 'Sign in to your vendor console',
     accent: 'vendor',
-  },
-  distributor: {
-    label: 'DISTRIBUTOR PORTAL',
-    heading: 'Welcome back',
-    subheading: 'Sign in to your distributor console',
-    accent: 'distributor',
+    demoEmail: 'vendor@tapstack.demo',
   },
   admin: {
     label: 'ADMIN PORTAL',
     heading: 'Welcome back',
     subheading: 'Sign in to your admin console',
     accent: 'admin',
+    demoEmail: 'admin@tapstack.demo',
   },
 }
 
@@ -261,20 +273,14 @@ function PortalLogin({
   onSubmit,
   onApply,
 }: {
-  portalType: Exclude<UserType, 'players'>
+  portalType: 'vendor' | 'admin'
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onSubmit: () => void
   onApply: () => void
 }) {
   const copy = PORTAL_COPY[portalType]
-  const demoEmail =
-    portalType === 'vendor'
-      ? 'vendor@tapstack.demo'
-      : portalType === 'distributor'
-        ? 'distributor@tapstack.demo'
-        : 'admin@tapstack.demo'
-  const [email, setEmail] = useState(isApiConfigured() ? demoEmail : 'you@arcade.com')
+  const [email, setEmail] = useState(isApiConfigured() ? copy.demoEmail : 'you@arcade.com')
   const [password, setPassword] = useState(isApiConfigured() ? 'password' : '')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -290,7 +296,18 @@ function PortalLogin({
       try {
         setLoading(true)
         const res = await tapstackApi.portalLogin(email.trim(), password, portalType)
-        setToken(res.token)
+        if (res.user.role !== portalType) {
+          throw new ApiError(
+            portalType === 'admin' ? 'This account is not an admin.' : 'This account is not a vendor.',
+            403,
+            'tapstack_role_mismatch',
+          )
+        }
+        setSession({
+          token: res.token,
+          role: portalType,
+          user: res.user,
+        })
         onSubmit()
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Login failed.')
@@ -300,6 +317,7 @@ function PortalLogin({
       return
     }
 
+    setDemoSession(portalType)
     onSubmit()
   }
 
@@ -321,11 +339,11 @@ function PortalLogin({
         <form className="admin-form" onSubmit={handleSubmit}>
           <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="portal" />
 
-          <label className="field-label" htmlFor="admin-email">
+          <label className="field-label" htmlFor={`${portalType}-email`}>
             Email
           </label>
           <input
-            id="admin-email"
+            id={`${portalType}-email`}
             type="email"
             className="text-field"
             autoComplete="email"
@@ -333,12 +351,12 @@ function PortalLogin({
             onChange={(event) => setEmail(event.target.value)}
           />
 
-          <label className="field-label" htmlFor="admin-password">
+          <label className="field-label" htmlFor={`${portalType}-password`}>
             Password
           </label>
           <div className="password-field">
             <input
-              id="admin-password"
+              id={`${portalType}-password`}
               type={showPassword ? 'text' : 'password'}
               className="text-field password-input"
               autoComplete="current-password"
@@ -380,7 +398,6 @@ type LoginPageProps = {
   onUserTypeChange: (type: UserType) => void
   onPlayersPhoneSubmit: (phone: string) => void
   onVendorLogin: () => void
-  onDistributorLogin: () => void
   onAdminLogin: () => void
   onSignUp: () => void
   onApply: () => void
@@ -391,7 +408,6 @@ export default function LoginPage({
   onUserTypeChange,
   onPlayersPhoneSubmit,
   onVendorLogin,
-  onDistributorLogin,
   onAdminLogin,
   onSignUp,
   onApply,
@@ -403,18 +419,6 @@ export default function LoginPage({
         userType={userType}
         onUserTypeChange={onUserTypeChange}
         onSubmit={onVendorLogin}
-        onApply={onApply}
-      />
-    )
-  }
-
-  if (userType === 'distributor') {
-    return (
-      <PortalLogin
-        portalType="distributor"
-        userType={userType}
-        onUserTypeChange={onUserTypeChange}
-        onSubmit={onDistributorLogin}
         onApply={onApply}
       />
     )

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { VENDORS, type Vendor } from '../data/vendors'
+import { getToken, getSessionUser, isApiConfigured, setSession, tapstackApi } from '../api/client'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import AccountPage from './AccountPage'
@@ -8,6 +9,11 @@ import GiveawayPage from './GiveawayPage'
 import PromosPage from './PromosPage'
 import VendorPage from './VendorPage'
 import TopUpModal from './TopUpModal'
+import ProfilePage, {
+  DEMO_PLAYER_PROFILE,
+  profileFromUser,
+  type PlayerProfile,
+} from './ProfilePage'
 import './CustomerDashboard.css'
 
 type ActivityAmount = {
@@ -80,33 +86,50 @@ function GamesHome({
   onVendorCodeChange,
   onVendorSelect,
   cashBalance,
+  pointsBalance,
+  loading,
   onTopUp,
 }: {
   vendorCode: string
   onVendorCodeChange: (value: string) => void
   onVendorSelect: (vendor: Vendor) => void
   cashBalance: string
+  pointsBalance: number
+  loading?: boolean
   onTopUp: () => void
 }) {
   return (
     <>
-      <section className="balance-card">
+      <section className="balance-card" aria-busy={loading || undefined}>
         <div className="balance-top">
           <div>
             <p className="balance-label">CASH BALANCE</p>
-            <p className="balance-amount">{cashBalance}</p>
+            {loading ? (
+              <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
+            ) : (
+              <p className="balance-amount">{cashBalance}</p>
+            )}
           </div>
           <div className="points-badge">
             <span className="points-label">POINTS</span>
-            <span className="points-value">3,400 pts</span>
+            {loading ? (
+              <div className="dash-skeleton dash-skeleton--points" aria-hidden="true" />
+            ) : (
+              <span className="points-value">{pointsBalance.toLocaleString()} pts</span>
+            )}
           </div>
         </div>
 
         <div className="balance-actions">
-          <button type="button" className="balance-btn balance-btn--send" onClick={onTopUp}>
+          <button
+            type="button"
+            className="balance-btn balance-btn--send"
+            onClick={onTopUp}
+            disabled={loading}
+          >
             + Top Up
           </button>
-          <button type="button" className="balance-btn balance-btn--withdraw">
+          <button type="button" className="balance-btn balance-btn--withdraw" disabled={loading}>
             Withdraw
           </button>
         </div>
@@ -196,16 +219,85 @@ function GamesHome({
   )
 }
 
-export default function CustomerDashboard() {
+export default function CustomerDashboard({ onLogout }: { onLogout: () => void }) {
+  const shouldLoadFromApi = isApiConfigured() && Boolean(getToken())
+  const cachedUser = getSessionUser()
   const [vendorCode, setVendorCode] = useState('')
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('games')
+  const [showProfile, setShowProfile] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
-  const [cashBalance, setCashBalance] = useState('$125.00')
+  const [loading, setLoading] = useState(shouldLoadFromApi)
+  const [cashBalance, setCashBalance] = useState(shouldLoadFromApi ? '' : '$125.00')
+  const [pointsBalance, setPointsBalance] = useState(shouldLoadFromApi ? 0 : 3400)
+  const [profile, setProfile] = useState<PlayerProfile | null>(() => {
+    if (cachedUser) return profileFromUser(cachedUser)
+    return shouldLoadFromApi ? null : DEMO_PLAYER_PROFILE
+  })
+
+  useEffect(() => {
+    if (!shouldLoadFromApi) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [dash, me] = await Promise.all([
+          tapstackApi.customerDashboard(),
+          tapstackApi.me().catch(() => null),
+        ])
+        if (cancelled) return
+
+        const user = me?.user ?? dash.user
+        const level = me?.level ?? dash.level
+        const levelProgressPct = me?.levelProgressPct ?? dash.levelProgressPct
+        const nextProfile = profileFromUser(user, level, levelProgressPct)
+
+        setCashBalance(dash.wallet.cashBalance)
+        setPointsBalance(dash.wallet.points)
+        setProfile(nextProfile)
+
+        const token = getToken()
+        if (token) {
+          setSession({ token, role: 'player', user })
+        }
+      } catch {
+        if (!cancelled) {
+          const fallback = getSessionUser()
+          if (fallback) {
+            setProfile(profileFromUser(fallback))
+          } else {
+            setProfile({
+              displayName: 'Player',
+              username: '@player',
+              email: '—',
+              phone: '—',
+              initials: 'P',
+              level: 1,
+              levelProgressPct: 0,
+            })
+          }
+          setCashBalance((value) => value || '$0.00')
+          setPointsBalance((value) => value || 0)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldLoadFromApi])
 
   function handleTabChange(tab: DashboardTab) {
     setSelectedVendor(null)
+    setShowProfile(false)
     setActiveTab(tab)
+  }
+
+  function openProfile() {
+    setSelectedVendor(null)
+    setShowProfile(true)
   }
 
   if (selectedVendor) {
@@ -219,33 +311,68 @@ export default function CustomerDashboard() {
     )
   }
 
+  const headerProfile = profile
+
   return (
     <div className="dashboard">
       <div className="dashboard-scroll">
-        <DashboardHeader />
-
-        {activeTab === 'games' && (
-          <GamesHome
-            vendorCode={vendorCode}
-            onVendorCodeChange={setVendorCode}
-            onVendorSelect={setSelectedVendor}
-            cashBalance={cashBalance}
-            onTopUp={() => setTopUpOpen(true)}
+        {showProfile && headerProfile ? (
+          <ProfilePage
+            profile={headerProfile}
+            onBack={() => setShowProfile(false)}
+            onLogout={onLogout}
+            onProfileChange={setProfile}
           />
-        )}
+        ) : (
+          <>
+            <DashboardHeader
+              loading={loading && !headerProfile}
+              level={headerProfile?.level}
+              levelProgressPct={headerProfile?.levelProgressPct}
+              initials={headerProfile?.initials}
+              onProfileClick={openProfile}
+            />
 
-        {activeTab === 'earn' && <EarnPage onTopUp={() => setTopUpOpen(true)} />}
+            {activeTab === 'games' && (
+              <GamesHome
+                vendorCode={vendorCode}
+                onVendorCodeChange={setVendorCode}
+                onVendorSelect={setSelectedVendor}
+                cashBalance={cashBalance || '$0.00'}
+                pointsBalance={pointsBalance}
+                loading={loading}
+                onTopUp={() => setTopUpOpen(true)}
+              />
+            )}
 
-        {activeTab === 'giveaway' && <GiveawayPage />}
+            {activeTab === 'earn' && <EarnPage onTopUp={() => setTopUpOpen(true)} />}
 
-        {activeTab === 'promos' && <PromosPage />}
+            {activeTab === 'giveaway' && <GiveawayPage />}
 
-        {activeTab === 'account' && (
-          <AccountPage cashBalance={cashBalance} onTopUp={() => setTopUpOpen(true)} />
+            {activeTab === 'promos' && <PromosPage />}
+
+            {activeTab === 'account' && headerProfile && (
+              <AccountPage
+                cashBalance={cashBalance || '$0.00'}
+                pointsBalance={pointsBalance}
+                profile={headerProfile}
+                loading={loading}
+                onTopUp={() => setTopUpOpen(true)}
+                onOpenProfile={openProfile}
+              />
+            )}
+
+            {activeTab === 'account' && loading && !headerProfile ? (
+              <div className="account-loading-skel" aria-busy="true">
+                <div className="dash-skeleton dash-skeleton--card" />
+                <div className="dash-skeleton dash-skeleton--card" />
+              </div>
+            ) : null}
+          </>
         )}
       </div>
 
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      {!showProfile ? <BottomNav activeTab={activeTab} onTabChange={handleTabChange} /> : null}
 
       <TopUpModal
         open={topUpOpen}
@@ -255,6 +382,7 @@ export default function CustomerDashboard() {
         onSuccess={(wallet) => {
           if (wallet) {
             setCashBalance(`$${wallet.balance.toFixed(2)}`)
+            setPointsBalance(wallet.points)
           }
         }}
       />
