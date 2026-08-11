@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { ApiError, isApiConfigured, setToken, tapstackApi } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './OtpPage.css'
 
@@ -13,10 +14,11 @@ type OtpPageProps = {
 export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
   const [digits, setDigits] = useState(['', '', '', '', ''])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   const code = digits.join('')
-  const canSubmit = code.length === 5
+  const canSubmit = code.length === 5 && !loading
 
   function updateDigit(index: number, value: string) {
     const next = value.replace(/\D/g, '').slice(-1)
@@ -47,9 +49,23 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
     inputsRef.current[Math.min(pasted.length, 4)]?.focus()
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!canSubmit) return
+    if (code.length !== 5) return
+
+    if (isApiConfigured()) {
+      try {
+        setLoading(true)
+        const res = await tapstackApi.verifyOtp(phone, code)
+        setToken(res.token)
+        onVerify()
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Verification failed.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
 
     if (code === DEMO_OTP) {
       onVerify()
@@ -98,7 +114,7 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
         {error ? <p className="otp-error">{error}</p> : null}
 
         <button type="submit" className="otp-button" disabled={!canSubmit}>
-          Verify
+          {loading ? 'Verifying…' : 'Verify'}
         </button>
       </form>
     </div>

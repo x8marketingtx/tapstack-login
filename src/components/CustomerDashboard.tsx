@@ -7,6 +7,7 @@ import EarnPage from './EarnPage'
 import GiveawayPage from './GiveawayPage'
 import PromosPage from './PromosPage'
 import VendorPage from './VendorPage'
+import TopUpModal from './TopUpModal'
 import './CustomerDashboard.css'
 
 type ActivityAmount = {
@@ -78,10 +79,14 @@ function GamesHome({
   vendorCode,
   onVendorCodeChange,
   onVendorSelect,
+  cashBalance,
+  onTopUp,
 }: {
   vendorCode: string
   onVendorCodeChange: (value: string) => void
   onVendorSelect: (vendor: Vendor) => void
+  cashBalance: string
+  onTopUp: () => void
 }) {
   return (
     <>
@@ -89,7 +94,7 @@ function GamesHome({
         <div className="balance-top">
           <div>
             <p className="balance-label">CASH BALANCE</p>
-            <p className="balance-amount">$125.00</p>
+            <p className="balance-amount">{cashBalance}</p>
           </div>
           <div className="points-badge">
             <span className="points-label">POINTS</span>
@@ -98,8 +103,8 @@ function GamesHome({
         </div>
 
         <div className="balance-actions">
-          <button type="button" className="balance-btn balance-btn--send">
-            Send
+          <button type="button" className="balance-btn balance-btn--send" onClick={onTopUp}>
+            + Top Up
           </button>
           <button type="button" className="balance-btn balance-btn--withdraw">
             Withdraw
@@ -195,6 +200,8 @@ export default function CustomerDashboard() {
   const [vendorCode, setVendorCode] = useState('')
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('games')
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [cashBalance, setCashBalance] = useState('$125.00')
 
   function handleTabChange(tab: DashboardTab) {
     setSelectedVendor(null)
@@ -214,25 +221,43 @@ export default function CustomerDashboard() {
 
   return (
     <div className="dashboard">
-      <DashboardHeader />
+      <div className="dashboard-scroll">
+        <DashboardHeader />
 
-      {activeTab === 'games' && (
-        <GamesHome
-          vendorCode={vendorCode}
-          onVendorCodeChange={setVendorCode}
-          onVendorSelect={setSelectedVendor}
-        />
-      )}
+        {activeTab === 'games' && (
+          <GamesHome
+            vendorCode={vendorCode}
+            onVendorCodeChange={setVendorCode}
+            onVendorSelect={setSelectedVendor}
+            cashBalance={cashBalance}
+            onTopUp={() => setTopUpOpen(true)}
+          />
+        )}
 
-      {activeTab === 'earn' && <EarnPage />}
+        {activeTab === 'earn' && <EarnPage onTopUp={() => setTopUpOpen(true)} />}
 
-      {activeTab === 'giveaway' && <GiveawayPage />}
+        {activeTab === 'giveaway' && <GiveawayPage />}
 
-      {activeTab === 'promos' && <PromosPage />}
+        {activeTab === 'promos' && <PromosPage />}
 
-      {activeTab === 'account' && <AccountPage />}
+        {activeTab === 'account' && (
+          <AccountPage cashBalance={cashBalance} onTopUp={() => setTopUpOpen(true)} />
+        )}
+      </div>
 
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+
+      <TopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        ownerType="player"
+        title="Top up cash balance"
+        onSuccess={(wallet) => {
+          if (wallet) {
+            setCashBalance(`$${wallet.balance.toFixed(2)}`)
+          }
+        }}
+      />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import DistributorVendorsPage from './DistributorVendorsPage'
 import DistributorAnalyticsPage from './DistributorAnalyticsPage'
 import DistributorInvoicesPage from './DistributorInvoicesPage'
 import DistributorSettingsPage from './DistributorSettingsPage'
+import TopUpModal from './TopUpModal'
 import './DistributorDashboard.css'
 
 type EarningsRange = 'today' | '7d' | '30d' | 'custom'
@@ -69,7 +70,13 @@ function DistributorHeader() {
   )
 }
 
-function DistributorHome() {
+function DistributorHome({
+  walletBalance,
+  onTopUp,
+}: {
+  walletBalance: string
+  onTopUp: () => void
+}) {
   const [range, setRange] = useState<EarningsRange>('today')
 
   return (
@@ -96,7 +103,7 @@ function DistributorHome() {
               </svg>
               Wallet Balance
             </p>
-            <p className="distributor-wallet-amount">$8,640.00</p>
+            <p className="distributor-wallet-amount">{walletBalance}</p>
             <p className="distributor-wallet-meta">USDC · from your vendors</p>
           </div>
           <span className="distributor-wallet-pending">Pending $3,200</span>
@@ -131,7 +138,7 @@ function DistributorHome() {
         </div>
 
         <div className="distributor-wallet-actions">
-          <button type="button" className="distributor-wallet-btn distributor-wallet-btn--outline">
+          <button type="button" className="distributor-wallet-btn distributor-wallet-btn--outline" onClick={onTopUp}>
             + Top Up
           </button>
           <button type="button" className="distributor-wallet-btn distributor-wallet-btn--outline">
@@ -269,6 +276,8 @@ function DistributorHome() {
 
 export default function DistributorDashboard() {
   const [activeTab, setActiveTab] = useState<DistributorTab>('home')
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [walletBalance, setWalletBalance] = useState('$8,640.00')
 
   return (
     <div className="distributor-dashboard">
@@ -276,7 +285,7 @@ export default function DistributorDashboard() {
         {activeTab === 'home' ? (
           <>
             <DistributorHeader />
-            <DistributorHome />
+            <DistributorHome walletBalance={walletBalance} onTopUp={() => setTopUpOpen(true)} />
           </>
         ) : activeTab === 'vendors' ? (
           <DistributorVendorsPage />
@@ -289,6 +298,16 @@ export default function DistributorDashboard() {
         )}
       </div>
       <DistributorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+      <TopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        ownerType="distributor"
+        title="Top up USDC wallet"
+        onSuccess={(wallet) => {
+          if (wallet) setWalletBalance(`$${wallet.balance.toFixed(2)}`)
+        }}
+      />
     </div>
   )
 }

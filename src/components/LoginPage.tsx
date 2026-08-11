@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
+import { ApiError, isApiConfigured, setToken, tapstackApi } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
 
@@ -154,11 +155,28 @@ function PlayersLogin({
   onSignUp: () => void
 }) {
   const [phone, setPhone] = useState('')
-  const canSubmit = phone.trim().length > 0
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const canSubmit = phone.trim().length > 0 && !loading
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!canSubmit) return
+    if (!phone.trim()) return
+    setError('')
+
+    if (isApiConfigured()) {
+      try {
+        setLoading(true)
+        await tapstackApi.requestOtp(phone.trim())
+        onSubmitPhone(phone.trim())
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Could not send code.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     onSubmitPhone(phone.trim())
   }
 
@@ -195,8 +213,10 @@ function PlayersLogin({
           />
         </div>
 
+        {error ? <p className="otp-error" style={{ marginTop: 8 }}>{error}</p> : null}
+
         <button type="submit" className="login-button" disabled={!canSubmit}>
-          Log In
+          {loading ? 'Sending…' : 'Log In'}
         </button>
       </form>
 
@@ -248,14 +268,38 @@ function PortalLogin({
   onApply: () => void
 }) {
   const copy = PORTAL_COPY[portalType]
-  const [email, setEmail] = useState('you@arcade.com')
-  const [password, setPassword] = useState('')
+  const demoEmail =
+    portalType === 'vendor'
+      ? 'vendor@tapstack.demo'
+      : portalType === 'distributor'
+        ? 'distributor@tapstack.demo'
+        : 'admin@tapstack.demo'
+  const [email, setEmail] = useState(isApiConfigured() ? demoEmail : 'you@arcade.com')
+  const [password, setPassword] = useState(isApiConfigured() ? 'password' : '')
   const [showPassword, setShowPassword] = useState(false)
-  const canSubmit = email.trim().length > 0 && password.trim().length > 0
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const canSubmit = email.trim().length > 0 && password.trim().length > 0 && !loading
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!canSubmit) return
+    if (!email.trim() || !password.trim()) return
+    setError('')
+
+    if (isApiConfigured()) {
+      try {
+        setLoading(true)
+        const res = await tapstackApi.portalLogin(email.trim(), password, portalType)
+        setToken(res.token)
+        onSubmit()
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Login failed.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     onSubmit()
   }
 
@@ -316,8 +360,10 @@ function PortalLogin({
             </a>
           </div>
 
+          {error ? <p className="otp-error">{error}</p> : null}
+
           <button type="submit" className="admin-login-button" disabled={!canSubmit}>
-            Log In
+            {loading ? 'Signing in…' : 'Log In'}
           </button>
         </form>
 

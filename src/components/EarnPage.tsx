@@ -1,5 +1,9 @@
 import './EarnPage.css'
 
+type EarnPageProps = {
+  onTopUp?: () => void
+}
+
 const MINI_GAMES = [
   { name: 'Spin Wheel', icon: '🎡', reward: '+50–500 pts', bg: '#ffedd5', tap: true },
   { name: 'Scratch Card', icon: '🎫', reward: '+10–200 pts', bg: '#dcfce7', tap: true },
@@ -68,7 +72,7 @@ const DEPOSIT_MISSIONS: {
   },
 ]
 
-export default function EarnPage() {
+export default function EarnPage({ onTopUp }: EarnPageProps) {
   return (
     <div className="earn-page">
       <div className="earn-hero">
@@ -152,7 +156,7 @@ export default function EarnPage() {
           <div className="current-mission-bar">
             <div className="current-mission-fill" style={{ width: '70%' }} />
           </div>
-          <button type="button" className="current-mission-btn">
+          <button type="button" className="current-mission-btn" onClick={onTopUp}>
             + Top Up to Progress
           </button>
         </div>

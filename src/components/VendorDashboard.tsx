@@ -5,6 +5,7 @@ import VendorOrdersPage from './VendorOrdersPage'
 import VendorAnalyticsPage from './VendorAnalyticsPage'
 import VendorPromosPage from './VendorPromosPage'
 import VendorSettingsPage from './VendorSettingsPage'
+import TopUpModal from './TopUpModal'
 import './VendorDashboard.css'
 
 function VendorHeader() {
@@ -37,7 +38,13 @@ function VendorHeader() {
   )
 }
 
-function VendorHome() {
+function VendorHome({
+  walletBalance,
+  onTopUp,
+}: {
+  walletBalance: string
+  onTopUp: () => void
+}) {
   return (
     <div className="vendor-home">
       <section className="vendor-store-row">
@@ -104,7 +111,7 @@ function VendorHome() {
         <div className="vendor-wallet-top">
           <div>
             <p className="vendor-wallet-label">WALLET BALANCE</p>
-            <p className="vendor-wallet-amount">$12,440.00</p>
+            <p className="vendor-wallet-amount">{walletBalance}</p>
             <p className="vendor-wallet-meta">USDC · Available</p>
           </div>
           <svg className="vendor-wallet-graphic" viewBox="0 0 80 80" fill="none" aria-hidden="true">
@@ -115,7 +122,7 @@ function VendorHome() {
         </div>
 
         <div className="vendor-wallet-actions">
-          <button type="button" className="vendor-wallet-btn vendor-wallet-btn--outline">
+          <button type="button" className="vendor-wallet-btn vendor-wallet-btn--outline" onClick={onTopUp}>
             + Top Up
           </button>
           <button type="button" className="vendor-wallet-btn vendor-wallet-btn--outline">
@@ -268,13 +275,17 @@ function VendorHome() {
 
 export default function VendorDashboard() {
   const [activeTab, setActiveTab] = useState<VendorTab>('home')
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [walletBalance, setWalletBalance] = useState('$12,440.00')
 
   return (
     <div className="vendor-dashboard">
       <VendorHeader />
 
       <main className="vendor-main">
-        {activeTab === 'home' && <VendorHome />}
+        {activeTab === 'home' && (
+          <VendorHome walletBalance={walletBalance} onTopUp={() => setTopUpOpen(true)} />
+        )}
         {activeTab === 'orders' && <VendorOrdersPage />}
         {activeTab === 'analytics' && <VendorAnalyticsPage />}
         {activeTab === 'promos' && <VendorPromosPage />}
@@ -282,6 +293,16 @@ export default function VendorDashboard() {
       </main>
 
       <VendorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+
+      <TopUpModal
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        ownerType="vendor"
+        title="Top up USDC wallet"
+        onSuccess={(wallet) => {
+          if (wallet) setWalletBalance(`$${wallet.balance.toFixed(2)}`)
+        }}
+      />
     </div>
   )
 }

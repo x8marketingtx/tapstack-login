@@ -42,6 +42,8 @@
 
 .screen--dashboard {
   position: relative;
+  height: 780px;
+  min-height: 780px;
   padding: 0;
   align-items: stretch;
   background: #f8f7f4;
@@ -49,6 +51,9 @@
 }
 
 .screen--apply {
+  position: relative;
+  height: 780px;
+  min-height: 780px;
   padding: 0;
   align-items: stretch;
   background: #f8f9fb;

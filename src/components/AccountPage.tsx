@@ -64,7 +64,13 @@ const TRANSACTIONS: {
   },
 ]
 
-export default function AccountPage() {
+export default function AccountPage({
+  cashBalance = '$125.00',
+  onTopUp,
+}: {
+  cashBalance?: string
+  onTopUp?: () => void
+}) {
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('')
   const [selectedQuickAmount, setSelectedQuickAmount] = useState<number | null>(null)
@@ -124,15 +130,22 @@ export default function AccountPage() {
         <div className="account-balance-top">
           <div>
             <p className="account-balance-label">CASH BALANCE</p>
-            <p className="account-balance-amount">$125.00</p>
+            <p className="account-balance-amount">{cashBalance}</p>
           </div>
           <div className="account-balance-icon" aria-hidden="true">
             💵
           </div>
         </div>
-        <button type="button" className="account-withdraw-btn">
-          Withdraw
-        </button>
+        <div className="account-balance-actions">
+          {onTopUp ? (
+            <button type="button" className="account-topup-btn" onClick={onTopUp}>
+              + Top Up with Wert
+            </button>
+          ) : null}
+          <button type="button" className="account-withdraw-btn">
+            Withdraw
+          </button>
+        </div>
       </section>
 
       <section className="send-card">

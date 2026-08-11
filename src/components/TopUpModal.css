@@ -1,0 +1,140 @@
+.topup-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 20, 25, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.topup-modal {
+  width: 100%;
+  max-width: 360px;
+  padding: 18px 16px 20px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.topup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.topup-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.topup-close {
+  border: none;
+  background: #f3f4f6;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  font-size: 20px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.topup-copy {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.topup-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.topup-preset {
+  padding: 10px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.topup-preset--active {
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.topup-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.topup-amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #111827;
+  font-weight: 700;
+}
+
+.topup-amount-wrap input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  outline: none;
+}
+
+.topup-status {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #047857;
+}
+
+.topup-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #dc2626;
+}
+
+.topup-submit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 13px 16px;
+  border: none;
+  border-radius: 12px;
+  background: #059669;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topup-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
