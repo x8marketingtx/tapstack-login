@@ -2,8 +2,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 100%;
-  padding: 28px 28px 32px;
+  height: 100%;
+  min-height: 0;
+  padding: 28px 28px max(32px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .otp-back {
@@ -139,4 +142,44 @@
 
 .otp-button:disabled {
   cursor: not-allowed;
+}
+
+@media (max-width: 430px) {
+  .otp-page {
+    padding: 20px 16px max(24px, env(safe-area-inset-bottom));
+  }
+
+  .otp-brand {
+    margin-bottom: 28px;
+  }
+
+  .otp-title {
+    font-size: 22px;
+  }
+
+  .otp-inputs {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .otp-digit {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    max-width: 56px;
+    height: 52px;
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 360px) {
+  .otp-inputs {
+    gap: 6px;
+  }
+
+  .otp-digit {
+    height: 48px;
+    border-radius: 10px;
+    font-size: 18px;
+  }
 }

@@ -548,10 +548,16 @@
   z-index: 5;
   display: flex;
   flex-direction: column;
-  padding: 8px 4px 6px;
+  padding: 8px 4px max(6px, env(safe-area-inset-bottom));
   border-top: 1px solid #e5e7eb;
   background: #fff;
   border-radius: 0 0 32px 32px;
+}
+
+@media (max-width: 430px) {
+  .vendor-bottom-nav {
+    border-radius: 0;
+  }
 }
 
 .vendor-bottom-nav-items {

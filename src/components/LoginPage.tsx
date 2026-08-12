@@ -197,7 +197,7 @@ function PlayersLogin({
   }
 
   return (
-    <>
+    <div className="login-shell">
       <span className="webview-badge">webview</span>
 
       <div className="brand">
@@ -208,41 +208,43 @@ function PlayersLogin({
         <p className="subtitle">Log in to your wallet</p>
       </div>
 
-      <form className="form" onSubmit={handleSubmit}>
-        <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="players" />
+      <div className="login-panel">
+        <form className="form" onSubmit={handleSubmit}>
+          <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="players" />
 
-        <div className="phone-field">
-          <div className="country-code">
-            <span className="flag" aria-hidden="true">
-              🇺🇸
-            </span>
-            <span className="dial-code">+1</span>
+          <div className="phone-field">
+            <div className="country-code">
+              <span className="flag" aria-hidden="true">
+                🇺🇸
+              </span>
+              <span className="dial-code">+1</span>
+            </div>
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel-national"
+              placeholder="Phone number"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              aria-label="Phone number"
+            />
           </div>
-          <input
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel-national"
-            placeholder="Phone number"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-            aria-label="Phone number"
-          />
-        </div>
 
-        {error ? <p className="otp-error" style={{ marginTop: 8 }}>{error}</p> : null}
+          {error ? <p className="otp-error" style={{ marginTop: 8 }}>{error}</p> : null}
 
-        <button type="submit" className="login-button" disabled={!canSubmit}>
-          {loading ? 'Sending…' : 'Log In'}
-        </button>
-      </form>
+          <button type="submit" className="login-button" disabled={!canSubmit}>
+            {loading ? 'Sending…' : 'Log In'}
+          </button>
+        </form>
 
-      <p className="footer">
-        New to TapStack?{' '}
-        <button type="button" className="footer-link" onClick={onSignUp}>
-          Sign up
-        </button>
-      </p>
-    </>
+        <p className="footer">
+          New to TapStack?{' '}
+          <button type="button" className="footer-link" onClick={onSignUp}>
+            Sign up
+          </button>
+        </p>
+      </div>
+    </div>
   )
 }
 

@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react'
-import { VENDORS, type Vendor } from '../data/vendors'
-import { getToken, getSessionUser, isApiConfigured, setSession, tapstackApi } from '../api/client'
+import {
+  createVendorFromName,
+  loadLocalVendors,
+  saveLocalVendors,
+  vendorFromApi,
+  type Vendor,
+} from '../data/vendors'
+import {
+  ApiError,
+  getToken,
+  getSessionUser,
+  isApiConfigured,
+  setSession,
+  tapstackApi,
+} from '../api/client'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import AccountPage from './AccountPage'
@@ -33,65 +46,29 @@ const ACTIVITIES: {
     iconBg: '#dcfce7',
     title: 'Top Up — Card ending 4242',
     date: 'Jun 5',
-    amounts: [{ text: '+$100.00', variant: 'cash-positive' }],
-  },
-  {
-    icon: '🎮',
-    iconBg: '#dbeafe',
-    title: 'Ocean Sluggerz — Golden Dragon',
-    date: 'Jun 5',
-    amounts: [
-      { text: '-$25.00', variant: 'cash-negative' },
-      { text: '+250 pts', variant: 'points-positive' },
-    ],
-  },
-  {
-    icon: '⭐',
-    iconBg: '#fef9c3',
-    title: 'Spin Wheel reward',
-    date: 'Jun 4',
-    amounts: [{ text: '+150 pts', variant: 'points-positive' }],
-  },
-  {
-    icon: '🔄',
-    iconBg: '#ede9fe',
-    title: 'Points redeemed for cash',
-    date: 'Jun 4',
-    amounts: [
-      { text: '+$10.00', variant: 'cash-positive' },
-      { text: '-1,000 pts', variant: 'points-negative' },
-    ],
-  },
-  {
-    icon: '🎮',
-    iconBg: '#dbeafe',
-    title: 'Victory Valley — Fire Kirin',
-    date: 'Jun 3',
-    amounts: [
-      { text: '-$12.50', variant: 'cash-negative' },
-      { text: '+125 pts', variant: 'points-positive' },
-    ],
-  },
-  {
-    icon: '🏦',
-    iconBg: '#ffedd5',
-    title: 'Withdraw — Bank',
-    date: 'Jun 1',
-    amounts: [{ text: '-$50.00', variant: 'cash-negative' }],
+    amounts: [{ text: '+$25.00', variant: 'cash-positive' }],
   },
 ]
 
 function GamesHome({
-  vendorCode,
-  onVendorCodeChange,
+  vendorName,
+  onVendorNameChange,
+  onAddVendor,
+  addingVendor,
+  addError,
+  vendors,
   onVendorSelect,
   cashBalance,
   pointsBalance,
   loading,
   onTopUp,
 }: {
-  vendorCode: string
-  onVendorCodeChange: (value: string) => void
+  vendorName: string
+  onVendorNameChange: (value: string) => void
+  onAddVendor: () => void
+  addingVendor: boolean
+  addError: string
+  vendors: Vendor[]
   onVendorSelect: (vendor: Vendor) => void
   cashBalance: string
   pointsBalance: number
@@ -99,130 +76,155 @@ function GamesHome({
   onTopUp: () => void
 }) {
   return (
-    <>
-      <section className="balance-card" aria-busy={loading || undefined}>
-        <div className="balance-top">
-          <div>
-            <p className="balance-label">CASH BALANCE</p>
-            {loading ? (
-              <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
-            ) : (
-              <p className="balance-amount">{cashBalance}</p>
-            )}
+    <div className="games-home-desktop">
+      <div className="games-home-sidebar">
+        <section className="balance-card" aria-busy={loading || undefined}>
+          <div className="balance-top">
+            <div>
+              <p className="balance-label">CASH BALANCE</p>
+              {loading ? (
+                <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
+              ) : (
+                <p className="balance-amount">{cashBalance}</p>
+              )}
+            </div>
+            <div className="points-badge">
+              <span className="points-label">POINTS</span>
+              {loading ? (
+                <div className="dash-skeleton dash-skeleton--points" aria-hidden="true" />
+              ) : (
+                <span className="points-value">{pointsBalance.toLocaleString()} pts</span>
+              )}
+            </div>
           </div>
-          <div className="points-badge">
-            <span className="points-label">POINTS</span>
-            {loading ? (
-              <div className="dash-skeleton dash-skeleton--points" aria-hidden="true" />
-            ) : (
-              <span className="points-value">{pointsBalance.toLocaleString()} pts</span>
-            )}
-          </div>
-        </div>
 
-        <div className="balance-actions">
-          <button
-            type="button"
-            className="balance-btn balance-btn--send"
-            onClick={onTopUp}
-            disabled={loading}
-          >
-            + Top Up
-          </button>
-          <button type="button" className="balance-btn balance-btn--withdraw" disabled={loading}>
-            Withdraw
-          </button>
-        </div>
-      </section>
-
-      <section className="add-vendor">
-        <div className="add-vendor-icon">+</div>
-        <div className="add-vendor-content">
-          <p className="add-vendor-title">Add Vendor</p>
-          <div className="add-vendor-row">
-            <input
-              type="text"
-              className="add-vendor-input"
-              placeholder="Enter vendor code..."
-              value={vendorCode}
-              onChange={(event) => onVendorCodeChange(event.target.value)}
-            />
-            <button type="button" className="add-vendor-go">
-              Go
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="vendors-section">
-        <h2 className="vendors-title">Your Vendors</h2>
-        <p className="vendors-subtitle">Tap to view games &amp; manage your Game IDs</p>
-
-        <div className="vendors-grid">
-          {VENDORS.map((vendor) => (
+          <div className="balance-actions">
             <button
-              key={vendor.initials}
               type="button"
-              className="vendor-card"
-              onClick={() => onVendorSelect(vendor)}
+              className="balance-btn balance-btn--send"
+              onClick={onTopUp}
+              disabled={loading}
             >
-              <div
-                className="vendor-icon"
-                style={{ background: vendor.color, color: vendor.text }}
-              >
-                {vendor.initials}
-              </div>
-              <div className="vendor-info">
-                <span className="vendor-name">{vendor.name}</span>
-                <span className="vendor-handle">
-                  <span className="vendor-game-icon" aria-hidden="true">
-                    🎮
-                  </span>
-                  {vendor.handle}
-                </span>
-              </div>
+              + Top Up
             </button>
-          ))}
-        </div>
-      </section>
+            <button type="button" className="balance-btn balance-btn--withdraw" disabled={loading}>
+              Withdraw
+            </button>
+          </div>
+        </section>
 
-      <section className="activity-section">
-        <div className="activity-header">
-          <h2 className="activity-title">Recent Activity</h2>
-          <button type="button" className="activity-see-all">
-            See all
-          </button>
-        </div>
+        <section className="add-vendor">
+          <div className="add-vendor-icon">+</div>
+          <div className="add-vendor-content">
+            <p className="add-vendor-title">Add Vendor</p>
+            <form
+              className="add-vendor-row"
+              onSubmit={(event) => {
+                event.preventDefault()
+                onAddVendor()
+              }}
+            >
+              <input
+                type="text"
+                className="add-vendor-input"
+                placeholder="Enter vendor name..."
+                value={vendorName}
+                onChange={(event) => onVendorNameChange(event.target.value)}
+                aria-label="Vendor name"
+                disabled={addingVendor}
+              />
+              <button
+                type="submit"
+                className="add-vendor-go"
+                disabled={addingVendor || !vendorName.trim()}
+              >
+                {addingVendor ? '…' : 'Go'}
+              </button>
+            </form>
+            {addError ? <p className="add-vendor-error">{addError}</p> : null}
+          </div>
+        </section>
+      </div>
 
-        <ul className="activity-list">
-          {ACTIVITIES.map((item) => (
-            <li key={`${item.title}-${item.date}`} className="activity-item">
-              <div className="activity-icon" style={{ background: item.iconBg }}>
-                {item.icon}
-              </div>
-              <div className="activity-details">
-                <p className="activity-name">{item.title}</p>
-                <p className="activity-date">{item.date}</p>
-              </div>
-              <div className="activity-amounts">
-                {item.amounts.map((amount) => (
-                  <span key={amount.text} className={`activity-amount activity-amount--${amount.variant}`}>
-                    {amount.text}
-                  </span>
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </>
+      <div className="games-home-main">
+        <section className="vendors-section">
+          <h2 className="vendors-title">Your Vendors</h2>
+          <p className="vendors-subtitle">
+            {vendors.length === 0
+              ? 'Add a vendor by name to get started'
+              : 'Tap to view games & manage your Game IDs'}
+          </p>
+
+          {vendors.length === 0 ? (
+            <div className="vendors-empty">
+              <p className="vendors-empty-title">No vendors yet</p>
+              <p className="vendors-empty-copy">Type a vendor name above and tap Go to add them.</p>
+            </div>
+          ) : (
+            <div className="vendors-grid">
+              {vendors.map((vendor) => (
+                <button
+                  key={vendor.id ?? `${vendor.name}-${vendor.handle}`}
+                  type="button"
+                  className="vendor-card"
+                  onClick={() => onVendorSelect(vendor)}
+                >
+                  <div
+                    className="vendor-icon"
+                    style={{ background: vendor.color, color: vendor.text }}
+                  >
+                    {vendor.initials}
+                  </div>
+                  <div className="vendor-info">
+                    <span className="vendor-name">{vendor.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="activity-section">
+          <div className="activity-header">
+            <h2 className="activity-title">Recent Activity</h2>
+            <button type="button" className="activity-see-all">
+              See all
+            </button>
+          </div>
+
+          <ul className="activity-list">
+            {ACTIVITIES.map((item) => (
+              <li key={`${item.title}-${item.date}`} className="activity-item">
+                <div className="activity-icon" style={{ background: item.iconBg }}>
+                  {item.icon}
+                </div>
+                <div className="activity-details">
+                  <p className="activity-name">{item.title}</p>
+                  <p className="activity-date">{item.date}</p>
+                </div>
+                <div className="activity-amounts">
+                  {item.amounts.map((amount) => (
+                    <span key={amount.text} className={`activity-amount activity-amount--${amount.variant}`}>
+                      {amount.text}
+                    </span>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </div>
   )
 }
 
 export default function CustomerDashboard({ onLogout }: { onLogout: () => void }) {
   const shouldLoadFromApi = isApiConfigured() && Boolean(getToken())
   const cachedUser = getSessionUser()
-  const [vendorCode, setVendorCode] = useState('')
+  const [vendorName, setVendorName] = useState('')
+  const [vendors, setVendors] = useState<Vendor[]>(() => loadLocalVendors())
+  const [addingVendor, setAddingVendor] = useState(false)
+  const [addError, setAddError] = useState('')
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('games')
   const [showProfile, setShowProfile] = useState(false)
@@ -241,9 +243,10 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
     let cancelled = false
     ;(async () => {
       try {
-        const [dash, me] = await Promise.all([
+        const [dash, me, vendorRes] = await Promise.all([
           tapstackApi.customerDashboard(),
           tapstackApi.me().catch(() => null),
+          tapstackApi.customerVendors().catch(() => ({ vendors: [] as never[] })),
         ])
         if (cancelled) return
 
@@ -255,6 +258,26 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
         setCashBalance(dash.wallet.cashBalance)
         setPointsBalance(dash.wallet.points)
         setProfile(nextProfile)
+
+        // Only show vendors the player has added locally. Never hydrate the
+        // full seeded catalog if the API still returns every vendor.
+        const saved = loadLocalVendors()
+        const apiVendors = (vendorRes.vendors ?? []).map(vendorFromApi)
+        if (saved.length === 0) {
+          setVendors([])
+        } else {
+          const byKey = new Map<string, Vendor>()
+          for (const vendor of apiVendors) {
+            byKey.set(String(vendor.id ?? vendor.name.toLowerCase()), vendor)
+            byKey.set(vendor.name.toLowerCase(), vendor)
+          }
+          const refreshed = saved.map((vendor) => {
+            const key = String(vendor.id ?? vendor.name.toLowerCase())
+            return byKey.get(key) ?? byKey.get(vendor.name.toLowerCase()) ?? vendor
+          })
+          setVendors(refreshed)
+          saveLocalVendors(refreshed)
+        }
 
         const token = getToken()
         if (token) {
@@ -278,6 +301,7 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
           }
           setCashBalance((value) => value || '$0.00')
           setPointsBalance((value) => value || 0)
+          setVendors(loadLocalVendors())
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -288,6 +312,48 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
       cancelled = true
     }
   }, [shouldLoadFromApi])
+
+  async function handleAddVendor() {
+    const name = vendorName.trim()
+    if (!name || addingVendor) return
+
+    setAddError('')
+    const already = vendors.some((vendor) => vendor.name.toLowerCase() === name.toLowerCase())
+    if (already) {
+      setAddError('That vendor is already in your list.')
+      return
+    }
+
+    setAddingVendor(true)
+    try {
+      let next: Vendor
+      if (shouldLoadFromApi) {
+        try {
+          const res = await tapstackApi.linkVendor(name)
+          next = vendorFromApi(res.vendor)
+        } catch {
+          // Older plugin builds may not support name linking yet.
+          next = createVendorFromName(name)
+        }
+      } else {
+        next = createVendorFromName(name)
+      }
+
+      setVendors((current) => {
+        if (current.some((vendor) => vendor.name.toLowerCase() === next.name.toLowerCase())) {
+          return current
+        }
+        const updated = [next, ...current]
+        saveLocalVendors(updated)
+        return updated
+      })
+      setVendorName('')
+    } catch (err) {
+      setAddError(err instanceof ApiError ? err.message : 'Could not add vendor.')
+    } finally {
+      setAddingVendor(false)
+    }
+  }
 
   function handleTabChange(tab: DashboardTab) {
     setSelectedVendor(null)
@@ -305,6 +371,8 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
       <VendorPage
         vendor={selectedVendor}
         activeTab={activeTab}
+        cashBalance={cashBalance || '$0.00'}
+        pointsBalance={pointsBalance}
         onBack={() => setSelectedVendor(null)}
         onTabChange={handleTabChange}
       />
@@ -335,8 +403,15 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
 
             {activeTab === 'games' && (
               <GamesHome
-                vendorCode={vendorCode}
-                onVendorCodeChange={setVendorCode}
+                vendorName={vendorName}
+                onVendorNameChange={(value) => {
+                  setVendorName(value)
+                  if (addError) setAddError('')
+                }}
+                onAddVendor={handleAddVendor}
+                addingVendor={addingVendor}
+                addError={addError}
+                vendors={vendors}
                 onVendorSelect={setSelectedVendor}
                 cashBalance={cashBalance || '$0.00'}
                 pointsBalance={pointsBalance}

@@ -289,11 +289,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 4px 6px;
+  padding: 8px 4px max(6px, env(safe-area-inset-bottom));
   border-top: 1px solid #e5e7eb;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   border-radius: 0 0 32px 32px;
+}
+
+@media (max-width: 430px) {
+  .apply-bottom-nav {
+    border-radius: 0;
+  }
 }
 
 .apply-bottom-nav-item {

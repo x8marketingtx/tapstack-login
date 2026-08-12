@@ -1,3 +1,5 @@
+import type { ApiVendor } from '../api/client'
+
 export type VendorGame = {
   name: string
   icon: string
@@ -8,39 +10,184 @@ export type VendorGame = {
 }
 
 export type Vendor = {
+  id?: number | string
   initials: string
   name: string
   handle: string
   color: string
   text: string
+  code?: string
   games: VendorGame[]
 }
 
-const OCEAN_SLUGGERZ_GAMES: VendorGame[] = [
-  { name: 'Golden Dragon', icon: '🐉', iconBg: '#dcfce7', active: true, mode: 'auto', balance: '$0.00' },
-  { name: 'River Sweeps', icon: '🌊', iconBg: '#dbeafe', active: true, mode: 'auto', balance: '$0.00' },
-  { name: 'Fire Kirin', icon: '🐟', iconBg: '#dbeafe', active: true, mode: 'manual', balance: '$12.50' },
-  { name: 'Panda Master', icon: '🐼', iconBg: '#f3f4f6', active: false, mode: 'auto', balance: '$5.00' },
-  { name: 'Ultra Monster', icon: '👾', iconBg: '#ede9fe', active: true, mode: 'manual', balance: '$0.00' },
+const PALETTE: Array<{ color: string; text: string }> = [
+  { color: '#dbeafe', text: '#2563eb' },
+  { color: '#dcfce7', text: '#16a34a' },
+  { color: '#ffedd5', text: '#ea580c' },
+  { color: '#ede9fe', text: '#7c3aed' },
+  { color: '#d1fae5', text: '#059669' },
+  { color: '#fce7f3', text: '#db2777' },
+  { color: '#cffafe', text: '#0891b2' },
+  { color: '#fef9c3', text: '#ca8a04' },
 ]
 
-function defaultGames(vendorName: string): VendorGame[] {
+function hashName(name: string): number {
+  let hash = 0
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  }
+  return hash
+}
+
+export function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+}
+
+export function handleFromName(name: string): string {
+  return name
+    .trim()
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .join('')
+    .slice(0, 24) || 'Vendor'
+}
+
+export function defaultGames(vendorName: string): VendorGame[] {
   return [
     { name: `${vendorName} Classic`, icon: '🎰', iconBg: '#fef3c7', active: true, mode: 'auto', balance: '$0.00' },
-    { name: `${vendorName} Pro`, icon: '🎯', iconBg: '#dbeafe', active: true, mode: 'manual', balance: '$8.00' },
+    { name: `${vendorName} Pro`, icon: '🎯', iconBg: '#dbeafe', active: true, mode: 'manual', balance: '$0.00' },
     { name: `${vendorName} Deluxe`, icon: '💎', iconBg: '#ede9fe', active: true, mode: 'auto', balance: '$0.00' },
   ]
 }
 
-export const VENDORS: Vendor[] = [
-  { initials: 'OS', name: 'Ocean Sluggerz', handle: 'Oceansluggerz', color: '#dbeafe', text: '#2563eb', games: OCEAN_SLUGGERZ_GAMES },
-  { initials: 'VV', name: 'Victory Valley', handle: 'Valley', color: '#dcfce7', text: '#16a34a', games: defaultGames('Victory Valley') },
-  { initials: 'GD', name: 'Golden Dragon', handle: 'GoldenDragon', color: '#ffedd5', text: '#ea580c', games: defaultGames('Golden Dragon') },
-  { initials: 'IG', name: 'Innercore Games', handle: 'Innercore', color: '#ede9fe', text: '#7c3aed', games: defaultGames('Innercore Games') },
-  { initials: 'LC', name: 'Lucky Clover', handle: 'Luckyclover', color: '#d1fae5', text: '#059669', games: defaultGames('Lucky Clover') },
-  { initials: 'DS', name: 'Dream Sweeps', handle: 'dreamsweeps', color: '#fce7f3', text: '#db2777', games: defaultGames('Dream Sweeps') },
-  { initials: 'BD', name: 'Blue Dragon', handle: 'Bluedragon', color: '#dbeafe', text: '#0284c7', games: defaultGames('Blue Dragon') },
-  { initials: 'FW', name: 'Fantasy World', handle: 'Fantasy', color: '#ffedd5', text: '#f97316', games: defaultGames('Fantasy World') },
-  { initials: 'LB', name: 'Lucky Bucks', handle: '4luckybucks', color: '#fef9c3', text: '#ca8a04', games: defaultGames('Lucky Bucks') },
-  { initials: 'RS', name: 'River Sweeps', handle: 'RiverSweeps', color: '#cffafe', text: '#0891b2', games: defaultGames('River Sweeps') },
-]
+export function createVendorFromName(name: string, id?: number | string): Vendor {
+  const trimmed = name.trim()
+  const palette = PALETTE[hashName(trimmed.toLowerCase()) % PALETTE.length]
+  return {
+    id: id ?? `local-${trimmed.toLowerCase().replace(/\s+/g, '-')}`,
+    initials: initialsFromName(trimmed),
+    name: trimmed,
+    handle: handleFromName(trimmed),
+    color: palette.color,
+    text: palette.text,
+    games: defaultGames(trimmed),
+  }
+}
+
+const GAME_ICONS: Record<string, string> = {
+  'golden dragon': '🐉',
+  'river sweeps': '🌊',
+  'fire kirin': '🐟',
+  'panda master': '🐼',
+  'ultra monster': '👾',
+  classic: '🎰',
+  pro: '🎯',
+  deluxe: '💎',
+}
+
+function looksLikeBrokenEscape(value: string): boolean {
+  return /\\u[0-9a-fA-F]{4}/i.test(value) || /(?:^|[^a-z])u[0-9a-fA-F]{4}/i.test(value)
+}
+
+export function decodeIcon(value: string | undefined | null, gameName?: string): string {
+  const fallbackFromName = (() => {
+    const key = (gameName || '').trim().toLowerCase()
+    if (!key) return '🎮'
+    if (GAME_ICONS[key]) return GAME_ICONS[key]
+    for (const [name, icon] of Object.entries(GAME_ICONS)) {
+      if (key.includes(name)) return icon
+    }
+    return '🎮'
+  })()
+
+  if (!value) return fallbackFromName
+  const trimmed = String(value).trim()
+  if (!trimmed) return fallbackFromName
+
+  // Already a real emoji / short symbol
+  if (!looksLikeBrokenEscape(trimmed) && !/^[\\u0-9a-fA-F]+$/i.test(trimmed)) {
+    // Reject leftover surrogate garbage like "udc09" fragments
+    if (/^ud[c-f][0-9a-f]/i.test(trimmed) || trimmed.length <= 4 && /^[a-z0-9]+$/i.test(trimmed)) {
+      return fallbackFromName
+    }
+    return trimmed
+  }
+
+  // Normalize every uXXXX / \uXXXX chunk into proper JSON unicode escapes.
+  const normalized = trimmed
+    .replace(/\\u([0-9a-fA-F]{4})/gi, (_, hex: string) => `\\u${hex}`)
+    .replace(/(?<!\\)u([0-9a-fA-F]{4})/gi, (_, hex: string) => `\\u${hex}`)
+
+  try {
+    const decoded = JSON.parse(`"${normalized.replace(/"/g, '\\"')}"`) as string
+    if (decoded && !looksLikeBrokenEscape(decoded) && !/^ud[c-f]/i.test(decoded)) {
+      return decoded
+    }
+  } catch {
+    // fall through
+  }
+
+  // Manual code-point decode for sequences like ud83dudc09
+  const hexes = [...trimmed.matchAll(/u([0-9a-fA-F]{4})/gi)].map((match) => match[1])
+  if (hexes.length > 0) {
+    try {
+      const chars = hexes.map((hex) => String.fromCharCode(parseInt(hex, 16))).join('')
+      if (chars && !/^ud[c-f]/i.test(chars)) return chars
+    } catch {
+      // fall through
+    }
+  }
+
+  return fallbackFromName
+}
+
+export function vendorFromApi(vendor: ApiVendor): Vendor {
+  return {
+    id: vendor.id,
+    initials: vendor.initials || initialsFromName(vendor.name),
+    name: vendor.name,
+    handle: vendor.handle || handleFromName(vendor.name),
+    color: vendor.color || '#dbeafe',
+    text: vendor.text || '#2563eb',
+    code: vendor.code,
+    games: (vendor.games?.length ? vendor.games : defaultGames(vendor.name)).map((game) => ({
+      ...game,
+      icon: decodeIcon(game.icon, game.name),
+      iconBg: game.iconBg || '#eef2ff',
+      balance: '$0.00',
+    })),
+  }
+}
+
+const STORAGE_KEY = 'tapstack.player.vendors'
+
+export function loadLocalVendors(): Vendor[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Vendor[]
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((vendor) => ({
+      ...vendor,
+      games: (vendor.games ?? []).map((game) => ({
+        ...game,
+        icon: decodeIcon(game.icon, game.name),
+        balance: '$0.00',
+      })),
+    }))
+  } catch {
+    return []
+  }
+}
+
+export function saveLocalVendors(vendors: Vendor[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(vendors))
+  } catch {
+    // ignore quota / private mode
+  }
+}

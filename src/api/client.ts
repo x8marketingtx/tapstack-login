@@ -212,10 +212,10 @@ export const tapstackApi = {
 
   customerDashboard: () => apiRequest<CustomerDashboard>('/customer/dashboard'),
   customerVendors: () => apiRequest<{ vendors: ApiVendor[] }>('/customer/vendors'),
-  linkVendor: (vendorCode: string) =>
+  linkVendor: (vendorName: string) =>
     apiRequest<{ ok: boolean; vendor: ApiVendor }>('/customer/vendors/link', {
       method: 'POST',
-      body: { vendorCode },
+      body: { vendorName: vendorName.trim(), name: vendorName.trim() },
     }),
   customerActivity: () => apiRequest<{ activity: unknown[] }>('/customer/activity'),
   customerPromos: () => apiRequest<{ promos: unknown[] }>('/customer/promos'),

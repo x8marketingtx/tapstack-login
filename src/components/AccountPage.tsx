@@ -24,44 +24,7 @@ const TRANSACTIONS: {
     iconBg: '#dcfce7',
     title: 'Top Up — Card ending 4242',
     meta: 'Jun 5 · Platform',
-    amounts: [{ text: '+$100.00', variant: 'cash-positive' }],
-  },
-  {
-    icon: '🎮',
-    iconBg: '#dbeafe',
-    title: 'Ocean Sluggerz — Golden Dragon',
-    meta: 'Jun 5 · Ocean Sluggerz',
-    amounts: [
-      { text: '-$25.00', variant: 'cash-negative' },
-      { text: '+250 pts', variant: 'points-positive' },
-    ],
-  },
-  {
-    icon: '⭐',
-    iconBg: '#fef9c3',
-    title: 'Spin Wheel reward',
-    meta: 'Jun 4 · Platform',
-    amounts: [{ text: '+150 pts', variant: 'points-positive' }],
-  },
-  {
-    icon: '🔄',
-    iconBg: '#ede9fe',
-    title: 'Points redeemed for cash',
-    meta: 'Jun 4 · Platform',
-    amounts: [
-      { text: '+$10.00', variant: 'cash-positive' },
-      { text: '-1,000 pts', variant: 'points-negative' },
-    ],
-  },
-  {
-    icon: '🎮',
-    iconBg: '#dbeafe',
-    title: 'Victory Valley — Fire Kirin',
-    meta: 'Jun 3 · Victory Valley',
-    amounts: [
-      { text: '-$12.50', variant: 'cash-negative' },
-      { text: '+125 pts', variant: 'points-positive' },
-    ],
+    amounts: [{ text: '+$25.00', variant: 'cash-positive' }],
   },
 ]
 

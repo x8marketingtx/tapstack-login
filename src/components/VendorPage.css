@@ -2,12 +2,18 @@
   position: relative;
 }
 
+.vendor-page-body {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
 .vendor-top {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: start;
-  margin-bottom: 14px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .vendor-back {
@@ -16,26 +22,48 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  margin-top: 2px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
   color: #374151;
   font-size: 18px;
   line-height: 1;
+  cursor: pointer;
 }
 
 .vendor-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vendor-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.vendor-heading-text {
   min-width: 0;
 }
 
 .vendor-title {
-  margin: 0 0 4px;
-  font-size: 22px;
+  margin: 0 0 2px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #111827;
-  line-height: 1.15;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .vendor-subtitle {
@@ -56,17 +84,17 @@
 
 .vendor-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 280px);
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 
 .vendor-stat-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
-  padding: 14px 12px;
+  padding: 14px 16px;
   border-radius: 14px;
   background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
   border: 1px solid #bfdbfe;
@@ -82,7 +110,7 @@
 .vendor-stat-value {
   font-size: 22px;
   font-weight: 700;
-  color: #2563eb;
+  color: #1d4ed8;
   letter-spacing: -0.02em;
 }
 
@@ -91,7 +119,7 @@
 }
 
 .games-title {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -108,14 +136,23 @@
 }
 
 .game-card {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  gap: 10px;
+  display: flex;
   align-items: center;
-  padding: 12px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.game-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
 .game-favorite {
@@ -124,11 +161,13 @@
   justify-content: center;
   width: 24px;
   height: 24px;
+  flex-shrink: 0;
   border: none;
   background: none;
   color: #d1d5db;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
+  cursor: pointer;
 }
 
 .game-icon {
@@ -137,6 +176,10 @@
   justify-content: center;
   width: 44px;
   height: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
   border-radius: 12px;
   font-size: 22px;
   line-height: 1;
@@ -144,6 +187,7 @@
 
 .game-info {
   min-width: 0;
+  flex: 1;
 }
 
 .game-badges {
@@ -183,9 +227,12 @@
 
 .game-name {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-side {
@@ -193,6 +240,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .game-balance-wrap {
@@ -218,11 +266,12 @@
 }
 
 .game-btn {
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   background: #fff;
+  cursor: pointer;
 }
 
 .game-btn--load {
@@ -250,6 +299,7 @@
   color: #fff;
   font-size: 22px;
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+  cursor: pointer;
 }
 
 .chat-fab-badge {
@@ -265,4 +315,40 @@
   font-size: 10px;
   font-weight: 700;
   line-height: 18px;
+}
+
+@media (max-width: 560px) {
+  .game-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .game-side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .game-balance-wrap {
+    align-items: flex-start;
+  }
+
+  .vendor-avatar {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .vendor-page-body {
+    max-width: 760px;
+  }
+
+  .vendor-title {
+    font-size: 24px;
+  }
+
+  .games-list {
+    gap: 12px;
+  }
 }
