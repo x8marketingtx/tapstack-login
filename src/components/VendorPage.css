@@ -226,13 +226,32 @@
 }
 
 .game-name {
-  margin: 0;
+  margin: 0 0 6px;
   font-size: 15px;
   font-weight: 700;
   color: #111827;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.game-connect {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid #c4b5fd;
+  border-radius: 999px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.game-connect--linked {
+  border-color: #86efac;
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .game-side {
@@ -284,6 +303,140 @@
   color: #dc2626;
 }
 
+.connect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 20, 25, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.connect-modal {
+  width: 100%;
+  max-width: 380px;
+  padding: 18px 16px 20px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.connect-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.connect-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.connect-close {
+  border: none;
+  background: #f3f4f6;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  font-size: 20px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.connect-copy {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.connect-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.connect-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.connect-input {
+  width: 100%;
+  height: 44px;
+  margin-bottom: 12px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+  color: #111827;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.connect-input:focus {
+  outline: none;
+  border-color: #a78bfa;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+}
+
+.connect-password-row {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.connect-password-row .connect-input {
+  margin-bottom: 0;
+  padding-right: 64px;
+}
+
+.connect-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.connect-error {
+  margin: 0 0 10px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.connect-submit {
+  height: 46px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.connect-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .chat-fab {
   position: absolute;
   right: 16px;
@@ -315,6 +468,12 @@
   font-size: 10px;
   font-weight: 700;
   line-height: 18px;
+}
+
+@media (min-width: 600px) {
+  .connect-overlay {
+    align-items: center;
+  }
 }
 
 @media (max-width: 560px) {
