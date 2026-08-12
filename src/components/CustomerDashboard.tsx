@@ -387,6 +387,7 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
         {showProfile && headerProfile ? (
           <ProfilePage
             profile={headerProfile}
+            expectedRole="player"
             onBack={() => setShowProfile(false)}
             onLogout={onLogout}
             onProfileChange={setProfile}

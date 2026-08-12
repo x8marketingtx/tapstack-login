@@ -1,4 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import {
+  getSessionUser,
+  getToken,
+  isApiConfigured,
+  setSession,
+  tapstackApi,
+} from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import VendorBottomNav, { type VendorTab } from './VendorBottomNav'
 import VendorOrdersPage from './VendorOrdersPage'
@@ -6,9 +13,26 @@ import VendorAnalyticsPage from './VendorAnalyticsPage'
 import VendorPromosPage from './VendorPromosPage'
 import VendorSettingsPage from './VendorSettingsPage'
 import TopUpModal from './TopUpModal'
+import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
 import './VendorDashboard.css'
 
-function VendorHeader() {
+const DEMO_VENDOR_PROFILE: PlayerProfile = {
+  displayName: 'Lucky Strike Arcade',
+  username: '@luckystrike',
+  email: 'vendor@tapstack.demo',
+  phone: '+1 555 812 4200',
+  initials: 'LS',
+  level: 1,
+  levelProgressPct: 0,
+}
+
+function VendorHeader({
+  initials,
+  onProfileClick,
+}: {
+  initials: string
+  onProfileClick: () => void
+}) {
   return (
     <header className="vendor-dash-header">
       <div className="vendor-dash-header-row">
@@ -29,8 +53,13 @@ function VendorHeader() {
             <span className="vendor-badge">2</span>
           </button>
 
-          <button type="button" className="vendor-avatar-button" aria-label="Profile">
-            LC
+          <button
+            type="button"
+            className="vendor-avatar-button"
+            aria-label="Open profile"
+            onClick={onProfileClick}
+          >
+            {initials}
           </button>
         </div>
       </div>
@@ -40,18 +69,24 @@ function VendorHeader() {
 
 function VendorHome({
   walletBalance,
+  storeName,
+  storeInitials,
   onTopUp,
+  onProfileClick,
 }: {
   walletBalance: string
+  storeName: string
+  storeInitials: string
   onTopUp: () => void
+  onProfileClick: () => void
 }) {
   return (
     <div className="vendor-home">
       <section className="vendor-store-row">
-        <div className="vendor-store-info">
-          <div className="vendor-store-avatar">LS</div>
-          <span className="vendor-store-name">Lucky Strike Arcade</span>
-        </div>
+        <button type="button" className="vendor-store-info" onClick={onProfileClick}>
+          <div className="vendor-store-avatar">{storeInitials}</div>
+          <span className="vendor-store-name">{storeName}</span>
+        </button>
         <button type="button" className="vendor-icon-button" aria-label="Notifications">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
@@ -273,26 +308,112 @@ function VendorHome({
   )
 }
 
-export default function VendorDashboard({ onLogout: _onLogout }: { onLogout?: () => void }) {
+export default function VendorDashboard({ onLogout }: { onLogout?: () => void }) {
+  const shouldLoadFromApi = isApiConfigured() && Boolean(getToken())
+  const cachedUser = getSessionUser()
   const [activeTab, setActiveTab] = useState<VendorTab>('home')
+  const [showProfile, setShowProfile] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [walletBalance, setWalletBalance] = useState('$12,440.00')
+  const [profile, setProfile] = useState<PlayerProfile>(() => {
+    if (cachedUser?.role === 'vendor') return profileFromUser(cachedUser)
+    return DEMO_VENDOR_PROFILE
+  })
+
+  useEffect(() => {
+    if (!shouldLoadFromApi) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [me, dash] = await Promise.all([
+          tapstackApi.me().catch(() => null),
+          tapstackApi.vendorDashboard().catch(() => null),
+        ])
+        if (cancelled) return
+
+        if (me?.user?.role === 'vendor') {
+          const next = profileFromUser(me.user, me.level, me.levelProgressPct)
+          setProfile(next)
+          const token = getToken()
+          if (token) {
+            setSession({ token, role: 'vendor', user: me.user })
+          }
+        } else if (getSessionUser()?.role === 'vendor') {
+          setProfile(profileFromUser(getSessionUser()!))
+        } else {
+          // Never paint a player/customer account onto the vendor portal.
+          setProfile(DEMO_VENDOR_PROFILE)
+        }
+
+        const balance = (dash as { wallet?: { balance?: number; amount?: number } } | null)?.wallet
+        const amount = balance?.balance ?? balance?.amount
+        if (typeof amount === 'number') {
+          setWalletBalance(
+            amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' }),
+          )
+        }
+      } catch {
+        const saved = getSessionUser()
+        if (saved?.role === 'vendor') {
+          setProfile(profileFromUser(saved))
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldLoadFromApi])
+
+  function openProfile() {
+    setShowProfile(true)
+  }
+
+  function handleLogout() {
+    onLogout?.()
+  }
+
+  const initials = profile.initials || initialsFromName(profile.displayName)
 
   return (
     <div className="vendor-dashboard">
-      <VendorHeader />
+      {!showProfile ? (
+        <VendorHeader initials={initials} onProfileClick={openProfile} />
+      ) : null}
 
-      <main className="vendor-main">
-        {activeTab === 'home' && (
-          <VendorHome walletBalance={walletBalance} onTopUp={() => setTopUpOpen(true)} />
+      <main className={`vendor-main ${showProfile ? 'vendor-main--profile' : ''}`}>
+        {showProfile ? (
+          <ProfilePage
+            profile={profile}
+            showLevel={false}
+            expectedRole="vendor"
+            onBack={() => setShowProfile(false)}
+            onLogout={handleLogout}
+            onProfileChange={setProfile}
+          />
+        ) : (
+          <>
+            {activeTab === 'home' && (
+              <VendorHome
+                walletBalance={walletBalance}
+                storeName={profile.displayName}
+                storeInitials={initials}
+                onTopUp={() => setTopUpOpen(true)}
+                onProfileClick={openProfile}
+              />
+            )}
+            {activeTab === 'orders' && <VendorOrdersPage />}
+            {activeTab === 'analytics' && <VendorAnalyticsPage />}
+            {activeTab === 'promos' && <VendorPromosPage />}
+            {activeTab === 'settings' && <VendorSettingsPage />}
+          </>
         )}
-        {activeTab === 'orders' && <VendorOrdersPage />}
-        {activeTab === 'analytics' && <VendorAnalyticsPage />}
-        {activeTab === 'promos' && <VendorPromosPage />}
-        {activeTab === 'settings' && <VendorSettingsPage />}
       </main>
 
-      <VendorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      {!showProfile ? (
+        <VendorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      ) : null}
 
       <TopUpModal
         open={topUpOpen}

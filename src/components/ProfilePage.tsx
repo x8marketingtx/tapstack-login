@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ApiError, getToken, isApiConfigured, setSession, tapstackApi, type TapstackUser } from '../api/client'
+import { ApiError, getSessionRole, getToken, isApiConfigured, setSession, tapstackApi, type SessionRole, type TapstackUser } from '../api/client'
 import './ProfilePage.css'
 
 export type PlayerProfile = {
@@ -78,6 +78,9 @@ type ProfilePageProps = {
   onBack: () => void
   onLogout: () => void
   onProfileChange: (profile: PlayerProfile) => void
+  showLevel?: boolean
+  /** Only hydrate/save session data for this role (avoids player data on vendor portal). */
+  expectedRole?: SessionRole
 }
 
 export default function ProfilePage({
@@ -85,6 +88,8 @@ export default function ProfilePage({
   onBack,
   onLogout,
   onProfileChange,
+  showLevel = true,
+  expectedRole,
 }: ProfilePageProps) {
   const [loggingOut, setLoggingOut] = useState(false)
   const [loading, setLoading] = useState(isApiConfigured())
@@ -117,12 +122,20 @@ export default function ProfilePage({
       try {
         const res = await tapstackApi.me()
         if (cancelled) return
+
+        const userRole = res.user.role as SessionRole
+        if (expectedRole && userRole && userRole !== expectedRole) {
+          // Token belongs to a different portal — keep the profile we were given.
+          return
+        }
+
         const next = profileFromUser(res.user, res.level, res.levelProgressPct)
         setLocalProfile(next)
         onProfileChange(next)
         const token = getToken()
+        const role = expectedRole || userRole || getSessionRole() || 'player'
         if (token) {
-          setSession({ token, role: 'player', user: res.user })
+          setSession({ token, role, user: res.user })
         }
         setFullName(next.displayName)
         setEmail(isPlaceholderEmail(next.email) ? '' : next.email)
@@ -139,7 +152,7 @@ export default function ProfilePage({
     return () => {
       cancelled = true
     }
-  }, [onProfileChange])
+  }, [expectedRole, onProfileChange])
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault()
@@ -166,8 +179,9 @@ export default function ProfilePage({
         setLocalProfile(next)
         onProfileChange(next)
         const token = getToken()
+        const role = expectedRole || (res.user.role as SessionRole) || getSessionRole() || 'player'
         if (token) {
-          setSession({ token, role: 'player', user: res.user })
+          setSession({ token, role, user: res.user })
         }
         setEditing(false)
       } else {
@@ -228,15 +242,17 @@ export default function ProfilePage({
 
       <section className="profile-hero">
         <div className="profile-hero-top">
-          <div className="profile-level-badge">
-            <span className="profile-level-label">Lv {shown.level}</span>
-            <div className="profile-level-bar">
-              <div
-                className="profile-level-fill"
-                style={{ width: `${Math.min(100, Math.max(0, shown.levelProgressPct))}%` }}
-              />
+          {showLevel ? (
+            <div className="profile-level-badge">
+              <span className="profile-level-label">Lv {shown.level}</span>
+              <div className="profile-level-bar">
+                <div
+                  className="profile-level-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, shown.levelProgressPct))}%` }}
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
           <div className="profile-hero-avatar" aria-hidden="true">
             {shown.initials}
           </div>

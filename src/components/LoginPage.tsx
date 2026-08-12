@@ -319,7 +319,12 @@ function PortalLogin({
       return
     }
 
-    setDemoSession(portalType)
+    setDemoSession(portalType, {
+      displayName: portalType === 'vendor' ? 'Lucky Strike Arcade' : undefined,
+      email: portalType === 'vendor' ? 'vendor@tapstack.demo' : undefined,
+      username: portalType === 'vendor' ? '@luckystrike' : undefined,
+      phone: portalType === 'vendor' ? '+15558124200' : undefined,
+    })
     onSubmit()
   }
 
