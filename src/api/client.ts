@@ -211,11 +211,14 @@ export const tapstackApi = {
   },
 
   customerDashboard: () => apiRequest<CustomerDashboard>('/customer/dashboard'),
-  customerVendors: () => apiRequest<{ vendors: ApiVendor[] }>('/customer/vendors'),
+  customerVendors: () =>
+    apiRequest<{ vendors: ApiVendor[]; linkedOnly?: boolean; linkedCount?: number }>(
+      '/customer/vendors',
+    ),
   linkVendor: (vendorName: string) =>
     apiRequest<{ ok: boolean; vendor: ApiVendor }>('/customer/vendors/link', {
       method: 'POST',
-      body: { vendorName: vendorName.trim(), name: vendorName.trim() },
+      body: { vendorName: vendorName.trim(), name: vendorName.trim(), vendorCode: vendorName.trim() },
     }),
   customerActivity: () => apiRequest<{ activity: unknown[] }>('/customer/activity'),
   customerPromos: () => apiRequest<{ promos: unknown[] }>('/customer/promos'),

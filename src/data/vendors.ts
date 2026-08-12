@@ -165,9 +165,14 @@ export function vendorFromApi(vendor: ApiVendor): Vendor {
 
 const STORAGE_KEY = 'tapstack.player.vendors'
 
-export function loadLocalVendors(): Vendor[] {
+function storageKeyForUser(userId?: number | string | null): string {
+  if (userId === undefined || userId === null || userId === '') return STORAGE_KEY
+  return `${STORAGE_KEY}.${userId}`
+}
+
+function readVendorList(key: string): Vendor[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return []
     const parsed = JSON.parse(raw) as Vendor[]
     if (!Array.isArray(parsed)) return []
@@ -184,10 +189,43 @@ export function loadLocalVendors(): Vendor[] {
   }
 }
 
-export function saveLocalVendors(vendors: Vendor[]): void {
+export function loadLocalVendors(userId?: number | string | null): Vendor[] {
+  const keyed = readVendorList(storageKeyForUser(userId))
+  if (keyed.length > 0) return keyed
+
+  // Migrate legacy unscoped list once we know the player id.
+  const legacy = readVendorList(STORAGE_KEY)
+  if (legacy.length > 0 && userId !== undefined && userId !== null && userId !== '') {
+    saveLocalVendors(legacy, userId)
+  }
+  return legacy
+}
+
+export function saveLocalVendors(vendors: Vendor[], userId?: number | string | null): void {
   try {
+    localStorage.setItem(storageKeyForUser(userId), JSON.stringify(vendors))
+    // Keep legacy key in sync for older builds.
     localStorage.setItem(STORAGE_KEY, JSON.stringify(vendors))
   } catch {
     // ignore quota / private mode
   }
+}
+
+/** Old plugin builds dump the full catalog when the player has no links. */
+export function looksLikeVendorCatalogDump(vendors: Vendor[]): boolean {
+  if (vendors.length < 4) return false
+  const knownCodes = new Set(['lucky', 'ocean', 'pinball', 'neon', 'cash'])
+  const knownNames = new Set([
+    'lucky strike arcade',
+    'ocean sluggerz',
+    'pinball palace',
+    'neon galaxy arcade',
+    'cash carnival',
+  ])
+  const matched = vendors.filter(
+    (vendor) =>
+      knownCodes.has((vendor.code || '').toLowerCase()) ||
+      knownNames.has(vendor.name.toLowerCase()),
+  )
+  return matched.length >= 4
 }

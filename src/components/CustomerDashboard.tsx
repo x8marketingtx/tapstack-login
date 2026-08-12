@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   createVendorFromName,
   loadLocalVendors,
+  looksLikeVendorCatalogDump,
   saveLocalVendors,
   vendorFromApi,
   type Vendor,
@@ -222,7 +223,7 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
   const shouldLoadFromApi = isApiConfigured() && Boolean(getToken())
   const cachedUser = getSessionUser()
   const [vendorName, setVendorName] = useState('')
-  const [vendors, setVendors] = useState<Vendor[]>(() => loadLocalVendors())
+  const [vendors, setVendors] = useState<Vendor[]>(() => loadLocalVendors(cachedUser?.id))
   const [addingVendor, setAddingVendor] = useState(false)
   const [addError, setAddError] = useState('')
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
@@ -254,30 +255,41 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
         const level = me?.level ?? dash.level
         const levelProgressPct = me?.levelProgressPct ?? dash.levelProgressPct
         const nextProfile = profileFromUser(user, level, levelProgressPct)
+        const userId = user?.id
 
         setCashBalance(dash.wallet.cashBalance)
         setPointsBalance(dash.wallet.points)
         setProfile(nextProfile)
 
-        // Only show vendors the player has added locally. Never hydrate the
-        // full seeded catalog if the API still returns every vendor.
-        const saved = loadLocalVendors()
+        const saved = loadLocalVendors(userId)
         const apiVendors = (vendorRes.vendors ?? []).map(vendorFromApi)
-        if (saved.length === 0) {
-          setVendors([])
-        } else {
-          const byKey = new Map<string, Vendor>()
-          for (const vendor of apiVendors) {
-            byKey.set(String(vendor.id ?? vendor.name.toLowerCase()), vendor)
-            byKey.set(vendor.name.toLowerCase(), vendor)
+        const linkedOnly = Boolean(
+          (vendorRes as { linkedOnly?: boolean }).linkedOnly ||
+            typeof (vendorRes as { linkedCount?: number }).linkedCount === 'number',
+        )
+        const catalogDump = !linkedOnly && looksLikeVendorCatalogDump(apiVendors)
+
+        let nextVendors: Vendor[]
+        if (linkedOnly) {
+          // New plugin: API is the source of truth for linked vendors.
+          nextVendors = apiVendors
+        } else if (catalogDump) {
+          // Old plugin dump — keep only vendors this player added.
+          nextVendors = saved
+        } else if (apiVendors.length > 0) {
+          // Likely a real linked list from an older linked-only response shape.
+          const byName = new Map(apiVendors.map((vendor) => [vendor.name.toLowerCase(), vendor]))
+          const merged = [...apiVendors]
+          for (const local of saved) {
+            if (!byName.has(local.name.toLowerCase())) merged.push(local)
           }
-          const refreshed = saved.map((vendor) => {
-            const key = String(vendor.id ?? vendor.name.toLowerCase())
-            return byKey.get(key) ?? byKey.get(vendor.name.toLowerCase()) ?? vendor
-          })
-          setVendors(refreshed)
-          saveLocalVendors(refreshed)
+          nextVendors = merged
+        } else {
+          nextVendors = saved
         }
+
+        setVendors(nextVendors)
+        saveLocalVendors(nextVendors, userId)
 
         const token = getToken()
         if (token) {
@@ -301,7 +313,7 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
           }
           setCashBalance((value) => value || '$0.00')
           setPointsBalance((value) => value || 0)
-          setVendors(loadLocalVendors())
+          setVendors(loadLocalVendors(fallback?.id))
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -339,12 +351,13 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
         next = createVendorFromName(name)
       }
 
+      const userId = getSessionUser()?.id
       setVendors((current) => {
         if (current.some((vendor) => vendor.name.toLowerCase() === next.name.toLowerCase())) {
           return current
         }
         const updated = [next, ...current]
-        saveLocalVendors(updated)
+        saveLocalVendors(updated, userId)
         return updated
       })
       setVendorName('')
