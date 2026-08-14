@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { ApiError, tapstackApi } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -165,6 +166,8 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
   const [llcFileName, setLlcFileName] = useState('')
   const [screenshotFileName, setScreenshotFileName] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
   const hasOnlinePresence =
     facebookPage.trim().length > 0 ||
@@ -178,12 +181,38 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
     phone.trim().length > 0 &&
     email.trim().length > 0 &&
     hasOnlinePresence &&
-    monthlyVolume.length > 0
+    monthlyVolume.length > 0 &&
+    !submitting
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     if (!canSubmit) return
-    setSubmitted(true)
+
+    setError('')
+    setSubmitting(true)
+    try {
+      await tapstackApi.apply({
+        fullName: fullName.trim(),
+        gameroomName: gameroomName.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        facebookPage: facebookPage.trim(),
+        facebookGroup: facebookGroup.trim(),
+        automatedSite: automatedSite.trim(),
+        mainWebsite: mainWebsite.trim(),
+        monthlyVolume,
+        referralCode: 'PAC-001',
+        documents: {
+          llcOrLoi: llcFileName || null,
+          backendScreenshots: screenshotFileName || null,
+        },
+      })
+      setSubmitted(true)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not submit application. Try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -395,8 +424,10 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
 
             <p className="apply-referral-code">Referral code: PAC-001</p>
 
+            {error ? <p className="apply-error">{error}</p> : null}
+
             <button type="submit" className="apply-submit-btn" disabled={!canSubmit}>
-              Submit Application
+              {submitting ? 'Submitting…' : 'Submit Application'}
             </button>
           </form>
         )}

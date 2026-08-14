@@ -211,14 +211,37 @@ export const tapstackApi = {
   },
 
   customerDashboard: () => apiRequest<CustomerDashboard>('/customer/dashboard'),
-  customerVendors: () =>
-    apiRequest<{ vendors: ApiVendor[]; linkedOnly?: boolean; linkedCount?: number }>(
-      '/customer/vendors',
-    ),
+  customerVendors: () => {
+    const bust = `?_ts=${Date.now()}`
+    return apiRequest<{ vendors: ApiVendor[]; linkedOnly?: boolean; linkedCount?: number }>(
+      `/customer/my-vendors${bust}`,
+    ).catch(() =>
+      // Fallback for older plugin builds that only expose /customer/vendors.
+      apiRequest<{ vendors: ApiVendor[]; linkedOnly?: boolean; linkedCount?: number }>(
+        `/customer/vendors${bust}`,
+      ),
+    )
+  },
   linkVendor: (vendorName: string) =>
-    apiRequest<{ ok: boolean; vendor: ApiVendor }>('/customer/vendors/link', {
+    apiRequest<{
+      ok: boolean
+      vendor: ApiVendor
+      vendors?: ApiVendor[]
+      linkedOnly?: boolean
+      linkedCount?: number
+    }>('/customer/vendors/link', {
       method: 'POST',
       body: { vendorName: vendorName.trim(), name: vendorName.trim(), vendorCode: vendorName.trim() },
+    }),
+  unlinkVendor: (vendorId: number | string) =>
+    apiRequest<{
+      ok: boolean
+      vendors: ApiVendor[]
+      linkedOnly?: boolean
+      linkedCount?: number
+    }>('/customer/vendors/unlink', {
+      method: 'POST',
+      body: { vendorId: Number(vendorId), id: Number(vendorId) },
     }),
   customerActivity: () => apiRequest<{ activity: unknown[] }>('/customer/activity'),
   customerPromos: () => apiRequest<{ promos: unknown[] }>('/customer/promos'),

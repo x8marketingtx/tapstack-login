@@ -7,6 +7,7 @@ import VendorDashboard from './components/VendorDashboard'
 import AdminDashboard from './components/AdminDashboard'
 import DistributorDashboard from './components/DistributorDashboard'
 import ApplyPage from './components/ApplyPage'
+import LegalPage, { type LegalDoc } from './components/LegalPage'
 import {
   canAccessView,
   clearSession,
@@ -29,6 +30,9 @@ type AppView =
   | 'admin'
   | 'distributor'
   | 'apply'
+  | 'terms'
+  | 'privacy'
+  | 'returns'
 
 type DashboardView = 'customer' | 'vendor' | 'admin' | 'distributor'
 
@@ -36,14 +40,33 @@ function isDashboardView(view: AppView): view is DashboardView {
   return view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
 }
 
-function getViewFromHash(): AppView {
-  const hash = window.location.hash.replace('#', '')
+function isLegalView(view: AppView): view is LegalDoc {
+  return view === 'terms' || view === 'privacy' || view === 'returns'
+}
+
+function legalPathForDoc(doc: LegalDoc): string {
+  return doc === 'returns' ? '/returns' : `/${doc}`
+}
+
+function getViewFromLocation(): AppView {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/'
+
+  // Path-based legal pages: /privacy, /terms, /returns
+  if (path === '/terms') return 'terms'
+  if (path === '/privacy') return 'privacy'
+  if (path === '/returns' || path === '/return-policy') return 'returns'
+
+  const hash = window.location.hash.replace(/^#/, '')
   if (hash === 'vendor') return 'vendor'
   if (hash === 'customer') return 'customer'
   if (hash === 'admin') return 'admin'
   if (hash === 'distributor') return 'distributor'
   if (hash === 'signup' || hash === 'player-signup') return 'player-signup'
   if (hash === 'apply') return 'apply'
+  // Legacy hash legal links → treat as legal views (synced to path below)
+  if (hash === 'terms') return 'terms'
+  if (hash === 'privacy') return 'privacy'
+  if (hash === 'returns' || hash === 'return-policy') return 'returns'
   return 'login'
 }
 
@@ -62,19 +85,20 @@ function resolveView(requested: AppView, role: SessionRole | null): AppView {
   return requested
 }
 
-function hashForView(view: AppView): string {
-  if (view === 'vendor') return '#vendor'
-  if (view === 'customer') return '#customer'
-  if (view === 'admin') return '#admin'
-  if (view === 'distributor') return '#distributor'
-  if (view === 'player-signup') return '#signup'
-  if (view === 'apply') return '#apply'
-  return ''
+function urlForView(view: AppView): string {
+  if (isLegalView(view)) return legalPathForDoc(view)
+  if (view === 'vendor') return '/#vendor'
+  if (view === 'customer') return '/#customer'
+  if (view === 'admin') return '/#admin'
+  if (view === 'distributor') return '/#distributor'
+  if (view === 'player-signup') return '/#signup'
+  if (view === 'apply') return '/#apply'
+  return '/'
 }
 
 function App() {
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(() => getSessionRole())
-  const [view, setView] = useState<AppView>(() => resolveView(getViewFromHash(), getSessionRole()))
+  const [view, setView] = useState<AppView>(() => resolveView(getViewFromLocation(), getSessionRole()))
   const [userType, setUserType] = useState<UserType>('players')
   const [phone, setPhone] = useState('')
 
@@ -84,8 +108,18 @@ function App() {
   }
 
   function goToApply() {
-    window.location.hash = 'apply'
+    window.history.pushState(null, '', '/#apply')
     setView('apply')
+  }
+
+  function goToLegal(doc: LegalDoc) {
+    window.history.pushState(null, '', legalPathForDoc(doc))
+    setView(doc)
+  }
+
+  function backFromLegal() {
+    window.history.pushState(null, '', '/')
+    setView('login')
   }
 
   function goToPlayerSignup() {
@@ -93,26 +127,30 @@ function App() {
       setView(homeViewForRole(sessionRole))
       return
     }
-    window.location.hash = 'signup'
+    window.history.pushState(null, '', '/#signup')
     setView('player-signup')
   }
 
   function goToLogin() {
     clearSession()
     setSessionRole(null)
-    window.location.hash = ''
+    window.history.pushState(null, '', '/')
     setView('login')
   }
 
   useEffect(() => {
-    function handleHashChange() {
+    function syncFromLocation() {
       const role = getSessionRole()
       setSessionRole(role)
-      setView(resolveView(getViewFromHash(), role))
+      setView(resolveView(getViewFromLocation(), role))
     }
 
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
+    window.addEventListener('hashchange', syncFromLocation)
+    window.addEventListener('popstate', syncFromLocation)
+    return () => {
+      window.removeEventListener('hashchange', syncFromLocation)
+      window.removeEventListener('popstate', syncFromLocation)
+    }
   }, [])
 
   // Restore role for older tokens that only stored tapstack_token.
@@ -129,7 +167,7 @@ function App() {
         const nextRole = me.user.role as SessionRole
         setSession({ token, role: nextRole, user: me.user })
         setSessionRole(nextRole)
-        setView(resolveView(getViewFromHash(), nextRole))
+        setView(resolveView(getViewFromLocation(), nextRole))
       } catch {
         if (cancelled) return
         clearSession()
@@ -144,10 +182,9 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const hash = hashForView(view)
-    const nextUrl = hash || `${window.location.pathname}${window.location.search}`
-
-    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== nextUrl) {
+    const nextUrl = urlForView(view)
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (current !== nextUrl) {
       window.history.replaceState(null, '', nextUrl)
     }
   }, [view])
@@ -159,9 +196,9 @@ function App() {
       ? 'screen--dashboard'
       : view === 'apply'
         ? 'screen--apply'
-        : view === 'otp' || view === 'player-signup'
+        : view === 'otp' || view === 'player-signup' || isLegalView(view)
           ? 'screen--otp'
-          : isPortalLogin
+          : view === 'login' && isPortalLogin
             ? 'screen--admin'
             : ''
 
@@ -181,6 +218,7 @@ function App() {
               onAdminLogin={() => enterSession('admin')}
               onSignUp={goToPlayerSignup}
               onApply={goToApply}
+              onOpenLegal={goToLegal}
             />
           )}
 
@@ -213,6 +251,10 @@ function App() {
           )}
 
           {view === 'apply' && <ApplyPage onBack={goToLogin} />}
+
+          {isLegalView(view) && (
+            <LegalPage doc={view} onBack={backFromLegal} onOpenDoc={goToLegal} />
+          )}
         </div>
       </div>
     </div>

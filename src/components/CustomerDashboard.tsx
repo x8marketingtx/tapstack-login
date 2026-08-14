@@ -269,23 +269,15 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
         )
         const catalogDump = !linkedOnly && looksLikeVendorCatalogDump(apiVendors)
 
+        // Server-linked list is the source of truth (works in private windows).
+        // Local storage is only a cache / offline fallback.
         let nextVendors: Vendor[]
         if (linkedOnly) {
-          // New plugin: API is the source of truth for linked vendors.
           nextVendors = apiVendors
         } else if (catalogDump) {
-          // Old plugin dump — keep only vendors this player added.
           nextVendors = saved
-        } else if (apiVendors.length > 0) {
-          // Likely a real linked list from an older linked-only response shape.
-          const byName = new Map(apiVendors.map((vendor) => [vendor.name.toLowerCase(), vendor]))
-          const merged = [...apiVendors]
-          for (const local of saved) {
-            if (!byName.has(local.name.toLowerCase())) merged.push(local)
-          }
-          nextVendors = merged
         } else {
-          nextVendors = saved
+          nextVendors = apiVendors.length > 0 ? apiVendors : saved
         }
 
         setVendors(nextVendors)
@@ -338,14 +330,13 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
 
     setAddingVendor(true)
     try {
+      let nextList: Vendor[] | null = null
       let next: Vendor
       if (shouldLoadFromApi) {
-        try {
-          const res = await tapstackApi.linkVendor(name)
-          next = vendorFromApi(res.vendor)
-        } catch {
-          // Older plugin builds may not support name linking yet.
-          next = createVendorFromName(name)
+        const res = await tapstackApi.linkVendor(name)
+        next = vendorFromApi(res.vendor)
+        if (Array.isArray(res.vendors)) {
+          nextList = res.vendors.map(vendorFromApi)
         }
       } else {
         next = createVendorFromName(name)
@@ -353,10 +344,11 @@ export default function CustomerDashboard({ onLogout }: { onLogout: () => void }
 
       const userId = getSessionUser()?.id
       setVendors((current) => {
-        if (current.some((vendor) => vendor.name.toLowerCase() === next.name.toLowerCase())) {
-          return current
-        }
-        const updated = [next, ...current]
+        const updated = nextList
+          ? nextList
+          : current.some((vendor) => vendor.name.toLowerCase() === next.name.toLowerCase())
+            ? current
+            : [next, ...current]
         saveLocalVendors(updated, userId)
         return updated
       })

@@ -256,6 +256,16 @@
   cursor: not-allowed;
 }
 
+.apply-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .apply-success {
   display: flex;
   flex-direction: column;

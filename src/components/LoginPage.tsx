@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
 import { ApiError, isApiConfigured, setDemoSession, setSession, tapstackApi } from '../api/client'
+import { LegalLinks, type LegalDoc } from './LegalPage'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
 
@@ -147,11 +148,13 @@ function PlayersLogin({
   onUserTypeChange,
   onSubmitPhone,
   onSignUp,
+  onOpenLegal,
 }: {
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onSubmitPhone: (phone: string) => void
   onSignUp: () => void
+  onOpenLegal: (doc: LegalDoc) => void
 }) {
   const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
@@ -243,6 +246,8 @@ function PlayersLogin({
             Sign up
           </button>
         </p>
+
+        <LegalLinks onOpen={onOpenLegal} />
       </div>
     </div>
   )
@@ -274,12 +279,14 @@ function PortalLogin({
   onUserTypeChange,
   onSubmit,
   onApply,
+  onOpenLegal,
 }: {
   portalType: 'vendor' | 'admin'
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onSubmit: () => void
   onApply: () => void
+  onOpenLegal: (doc: LegalDoc) => void
 }) {
   const copy = PORTAL_COPY[portalType]
   const [email, setEmail] = useState(isApiConfigured() ? copy.demoEmail : 'you@arcade.com')
@@ -395,6 +402,8 @@ function PortalLogin({
         <button type="button" className="apply-link" onClick={onApply}>
           Apply for an Account
         </button>
+
+        <LegalLinks onOpen={onOpenLegal} />
       </div>
     </div>
   )
@@ -408,6 +417,7 @@ type LoginPageProps = {
   onAdminLogin: () => void
   onSignUp: () => void
   onApply: () => void
+  onOpenLegal: (doc: LegalDoc) => void
 }
 
 export default function LoginPage({
@@ -418,6 +428,7 @@ export default function LoginPage({
   onAdminLogin,
   onSignUp,
   onApply,
+  onOpenLegal,
 }: LoginPageProps) {
   if (userType === 'vendor') {
     return (
@@ -427,6 +438,7 @@ export default function LoginPage({
         onUserTypeChange={onUserTypeChange}
         onSubmit={onVendorLogin}
         onApply={onApply}
+        onOpenLegal={onOpenLegal}
       />
     )
   }
@@ -439,6 +451,7 @@ export default function LoginPage({
         onUserTypeChange={onUserTypeChange}
         onSubmit={onAdminLogin}
         onApply={onApply}
+        onOpenLegal={onOpenLegal}
       />
     )
   }
@@ -449,6 +462,7 @@ export default function LoginPage({
       onUserTypeChange={onUserTypeChange}
       onSubmitPhone={onPlayersPhoneSubmit}
       onSignUp={onSignUp}
+      onOpenLegal={onOpenLegal}
     />
   )
 }
