@@ -1,3 +1,7 @@
+import type { ReactNode } from 'react'
+import { PRIVACY_POLICY_SECTIONS } from '../data/privacyPolicy'
+import { RETURNS_POLICY_SECTIONS } from '../data/returnsPolicy'
+import { TERMS_POLICY_SECTIONS } from '../data/termsPolicy'
 import './LegalPage.css'
 
 export type LegalDoc = 'terms' | 'privacy' | 'returns'
@@ -10,112 +14,16 @@ const DOCS: Record<
   }
 > = {
   terms: {
-    title: 'Terms of Service',
-    sections: [
-      {
-        heading: '1. Agreement',
-        body: [
-          'By creating an account or using TapStack (the “Service”), you agree to these Terms of Service. If you do not agree, do not use the Service.',
-        ],
-      },
-      {
-        heading: '2. Accounts',
-        body: [
-          'You are responsible for keeping your login credentials secure and for all activity under your account. Provide accurate information and notify us promptly of any unauthorized use.',
-          'Vendor and admin accounts may require approval. We may suspend or terminate accounts that violate these terms or applicable law.',
-        ],
-      },
-      {
-        heading: '3. Wallets & transactions',
-        body: [
-          'Balances, points, deposits, and withdrawals are processed according to platform rules and any fees disclosed in the app. You are responsible for verifying transaction details before confirming.',
-          'TapStack is not a bank. Availability of features may vary by role, region, and configuration.',
-        ],
-      },
-      {
-        heading: '4. Acceptable use',
-        body: [
-          'You may not misuse the Service, attempt unauthorized access, interfere with other users, or use TapStack for unlawful activity. We may investigate and take action on suspected abuse.',
-        ],
-      },
-      {
-        heading: '5. Changes',
-        body: [
-          'We may update these terms from time to time. Continued use after changes become effective constitutes acceptance of the updated terms.',
-        ],
-      },
-    ],
+    title: 'Terms and Conditions',
+    sections: TERMS_POLICY_SECTIONS,
   },
   privacy: {
     title: 'Privacy Policy',
-    sections: [
-      {
-        heading: '1. Information we collect',
-        body: [
-          'We collect account details you provide (such as name, email, phone), usage data needed to operate wallets and dashboards, and technical information like device/browser type for security and performance.',
-        ],
-      },
-      {
-        heading: '2. How we use information',
-        body: [
-          'We use your information to provide the Service, process payments and account actions, communicate about your account, improve reliability and security, and comply with legal obligations.',
-        ],
-      },
-      {
-        heading: '3. Sharing',
-        body: [
-          'We do not sell your personal information. We may share data with service providers who help us operate TapStack (for example hosting or payment partners), or when required by law.',
-        ],
-      },
-      {
-        heading: '4. Retention & security',
-        body: [
-          'We retain information as long as needed for the purposes above or as required by law. We use reasonable administrative and technical safeguards, but no method of transmission is 100% secure.',
-        ],
-      },
-      {
-        heading: '5. Your choices',
-        body: [
-          'You may update profile information in the app where available, or contact support to request access, correction, or deletion subject to legal and operational limits.',
-        ],
-      },
-    ],
+    sections: PRIVACY_POLICY_SECTIONS,
   },
   returns: {
-    title: 'Return Policy',
-    sections: [
-      {
-        heading: '1. Digital services',
-        body: [
-          'TapStack provides digital wallet and account services. Completed deposits, transfers, and in-app purchases are generally final once processed.',
-        ],
-      },
-      {
-        heading: '2. Refunds',
-        body: [
-          'Refunds may be considered for duplicate charges, confirmed processing errors, or when required by applicable payment-network or consumer rules.',
-          'Approved refunds are returned to the original payment method when possible, or credited to your TapStack balance at our discretion.',
-        ],
-      },
-      {
-        heading: '3. Withdrawals',
-        body: [
-          'Withdrawal requests are subject to identity checks, available balance, and platform fees. Processing times vary by method and review status.',
-        ],
-      },
-      {
-        heading: '4. How to request help',
-        body: [
-          'Contact support from your account profile or email the address listed in the app with your account email, transaction ID, and a short description of the issue.',
-        ],
-      },
-      {
-        heading: '5. Chargebacks',
-        body: [
-          'If you open a chargeback, we may pause related account features while the dispute is reviewed. Fraudulent disputes may result in account suspension.',
-        ],
-      },
-    ],
+    title: 'Refund & Returns Policy',
+    sections: RETURNS_POLICY_SECTIONS,
   },
 }
 
@@ -123,6 +31,41 @@ type LegalPageProps = {
   doc: LegalDoc
   onBack: () => void
   onOpenDoc: (doc: LegalDoc) => void
+}
+
+function SectionBody({ body }: { body: string[] }) {
+  const nodes: ReactNode[] = []
+  let bullets: string[] = []
+
+  function flushBullets(key: string) {
+    if (!bullets.length) return
+    nodes.push(
+      <ul key={key} className="legal-section-list">
+        {bullets.map((item, index) => (
+          <li key={index} className="legal-section-bullet">
+            {item}
+          </li>
+        ))}
+      </ul>,
+    )
+    bullets = []
+  }
+
+  body.forEach((line, index) => {
+    if (line.startsWith('• ')) {
+      bullets.push(line.slice(2))
+      return
+    }
+    flushBullets(`list-${index}`)
+    nodes.push(
+      <p key={index} className="legal-section-body">
+        {line}
+      </p>,
+    )
+  })
+  flushBullets('list-end')
+
+  return <>{nodes}</>
 }
 
 export default function LegalPage({ doc, onBack, onOpenDoc }: LegalPageProps) {
@@ -142,20 +85,16 @@ export default function LegalPage({ doc, onBack, onOpenDoc }: LegalPageProps) {
         {content.sections.map((section) => (
           <section key={section.heading} className="legal-section">
             <h2 className="legal-section-title">{section.heading}</h2>
-            {section.body.map((paragraph) => (
-              <p key={paragraph.slice(0, 48)} className="legal-section-body">
-                {paragraph}
-              </p>
-            ))}
+            <SectionBody body={section.body} />
           </section>
         ))}
 
         <nav className="legal-related" aria-label="Related policies">
           {(
             [
-              ['terms', 'Terms of Service'],
+              ['terms', 'Terms and Conditions'],
               ['privacy', 'Privacy Policy'],
-              ['returns', 'Return Policy'],
+              ['returns', 'Refund & Returns Policy'],
             ] as const
           )
             .filter(([id]) => id !== doc)
@@ -174,7 +113,7 @@ export function LegalLinks({ onOpen }: { onOpen: (doc: LegalDoc) => void }) {
   return (
     <nav className="legal-links" aria-label="Legal">
       <button type="button" className="legal-links-item" onClick={() => onOpen('terms')}>
-        Terms of Service
+        Terms and Conditions
       </button>
       <span className="legal-links-sep" aria-hidden="true">
         ·
@@ -186,7 +125,7 @@ export function LegalLinks({ onOpen }: { onOpen: (doc: LegalDoc) => void }) {
         ·
       </span>
       <button type="button" className="legal-links-item" onClick={() => onOpen('returns')}>
-        Return Policy
+        Refund & Returns Policy
       </button>
     </nav>
   )
