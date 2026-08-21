@@ -895,3 +895,192 @@
 
 
 .vendor-promos-hint{margin:6px 0 10px;font-size:12px;color:#6b7280;font-weight:600;line-height:1.4}.vendor-promos-error{margin:0 0 10px;font-size:12px;font-weight:700;color:#b91c1c}
+
+.vendor-promo-list-limits {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.vendor-promo-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.vendor-promo-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.vendor-promos-limits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.vendor-promos-limit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vendor-promos-limit-field > span {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.vendor-promos-limit-field .vendor-promos-select,
+.vendor-promos-limit-field .vendor-promos-input {
+  width: 100%;
+}
+
+.vendor-promos-tag-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vendor-promos-tag-pick {
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.vendor-promos-tag-pick--active {
+  border-color: #a78bfa;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+@media (max-width: 520px) {
+  .vendor-promos-limits-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vendor-codes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vendor-codes-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vendor-codes-card-limits {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.vendor-codes-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.vendor-codes-card-status--paused,
+.vendor-codes-card-status--expired {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.vendor-promos-save-ok {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.vendor-email-plan-card--blocked {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.vendor-email-plan-status--blocked {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.vendor-email-plan-warning {
+  margin: 6px 0 0;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vendor-email-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.vendor-email-preview-modal {
+  width: min(100%, 420px);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.vendor-email-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.vendor-email-preview-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.vendor-email-preview-subject {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.vendor-email-preview-body {
+  margin: 0 0 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f9fafb;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #111827;
+}

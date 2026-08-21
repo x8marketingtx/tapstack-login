@@ -8,6 +8,7 @@ import {
   normalizeSessionRole,
   tapstackApi,
   type SessionRole,
+  type VendorOrderItem,
 } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import VendorBottomNav, { type VendorTab } from './VendorBottomNav'
@@ -28,15 +29,21 @@ const DEMO_VENDOR_PROFILE: PlayerProfile = {
   initials: 'LS',
   level: 1,
   levelProgressPct: 0,
+  tier: 'bronze',
 }
 
 function VendorHeader({
   initials,
+  notificationCount = 0,
   onProfileClick,
+  onNotificationsClick,
 }: {
   initials: string
+  notificationCount?: number
   onProfileClick: () => void
+  onNotificationsClick: () => void
 }) {
+  const badge = notificationCount > 99 ? '99+' : String(notificationCount)
   return (
     <header className="vendor-dash-header">
       <div className="vendor-dash-header-row">
@@ -45,16 +52,31 @@ function VendorHeader({
         </div>
 
         <div className="vendor-dash-header-actions">
-          <button type="button" className="vendor-icon-button vendor-icon-button--chat" aria-label="Messages">
+          <button
+            type="button"
+            className="vendor-icon-button"
+            aria-label={
+              notificationCount > 0
+                ? `${notificationCount} pending orders`
+                : 'Notifications'
+            }
+            onClick={onNotificationsClick}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
-                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
+                d="M6 9a6 6 0 1 1 12 0c0 3.2 1.2 4.8 1.8 5.5.3.3.2.9-.3.9H4.5c-.5 0-.6-.6-.3-.9C4.8 13.8 6 12.2 6 9Z"
                 stroke="currentColor"
                 strokeWidth="1.8"
                 strokeLinejoin="round"
               />
+              <path
+                d="M10 18.5a2 2 0 0 0 4 0"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
             </svg>
-            <span className="vendor-badge">2</span>
+            {notificationCount > 0 ? <span className="vendor-badge">{badge}</span> : null}
           </button>
 
           <button
@@ -68,6 +90,81 @@ function VendorHeader({
         </div>
       </div>
     </header>
+  )
+}
+
+type VendorNotification = VendorOrderItem & { kind: 'load' | 'redeem' }
+
+function VendorNotificationsModal({
+  open,
+  items,
+  loading,
+  onClose,
+  onViewOrders,
+}: {
+  open: boolean
+  items: VendorNotification[]
+  loading: boolean
+  onClose: () => void
+  onViewOrders: () => void
+}) {
+  if (!open) return null
+
+  return (
+    <div className="vendor-notif-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="vendor-notif-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vendor-notif-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="vendor-notif-head">
+          <h2 id="vendor-notif-title" className="vendor-notif-title">
+            Notifications
+          </h2>
+          <button type="button" className="vendor-notif-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        <div className="vendor-notif-body">
+          {loading ? <p className="vendor-notif-empty">Loading…</p> : null}
+          {!loading && items.length === 0 ? (
+            <p className="vendor-notif-empty">No pending loads or redeems.</p>
+          ) : null}
+          {!loading && items.length > 0 ? (
+            <ul className="vendor-notif-list">
+              {items.map((item) => (
+                <li key={`${item.kind}-${item.id}`} className="vendor-notif-item">
+                  <span className={`vendor-notif-pill vendor-notif-pill--${item.kind}`}>
+                    {item.kind === 'redeem' ? 'Redeem' : 'Load'}
+                  </span>
+                  <div className="vendor-notif-copy">
+                    <p className="vendor-notif-name">{item.name || 'Player'}</p>
+                    <p className="vendor-notif-meta">
+                      {item.game || 'Game'}
+                      {item.time ? ` · ${item.time}` : ''}
+                    </p>
+                  </div>
+                  <span className="vendor-notif-amount">{item.amount || '—'}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
+        <div className="vendor-notif-foot">
+          <button
+            type="button"
+            className="vendor-notif-orders-btn"
+            onClick={onViewOrders}
+          >
+            Open Orders
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -155,18 +252,6 @@ function VendorHome({
               <span className="vendor-store-invite-hint">Players join with your invite code</span>
             ) : null}
           </div>
-        </button>
-        <button type="button" className="vendor-icon-button" aria-label="Notifications">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.8" />
-          </svg>
         </button>
       </section>
 
@@ -387,6 +472,10 @@ export default function VendorDashboard({
     if (cachedUser?.role === 'vendor') return profileFromUser(cachedUser)
     return DEMO_VENDOR_PROFILE
   })
+  const [pendingOrderCount, setPendingOrderCount] = useState(0)
+  const [pendingNotifications, setPendingNotifications] = useState<VendorNotification[]>([])
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [notificationsLoading, setNotificationsLoading] = useState(false)
 
   function syncFromRoute() {
     const route = parseLocation()
@@ -528,6 +617,73 @@ export default function VendorDashboard({
     }
   }, [shouldLoadFromApi, onRoleMismatch])
 
+  useEffect(() => {
+    if (!shouldLoadFromApi) return
+
+    let cancelled = false
+    async function refreshPendingCount() {
+      try {
+        const res = await tapstackApi.vendorOrders()
+        if (cancelled) return
+        const manual = Array.isArray(res.manualLoads) ? res.manualLoads : []
+        const auto = Array.isArray(res.autoLoads)
+          ? res.autoLoads.filter((item) => {
+              const status = String(item.status || '').toLowerCase()
+              return status !== 'approved' && status !== 'rejected'
+            })
+          : []
+        const redeems = Array.isArray(res.redeems) ? res.redeems : []
+        const items: VendorNotification[] = [
+          ...manual.map((item) => ({ ...item, kind: 'load' as const })),
+          ...auto.map((item) => ({ ...item, kind: 'load' as const })),
+          ...redeems.map((item) => ({ ...item, kind: 'redeem' as const })),
+        ]
+        setPendingNotifications(items)
+        setPendingOrderCount(items.length)
+      } catch {
+        if (!cancelled) {
+          setPendingOrderCount(0)
+          setPendingNotifications([])
+        }
+      }
+    }
+
+    void refreshPendingCount()
+    const timer = window.setInterval(() => void refreshPendingCount(), 30000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [shouldLoadFromApi, activeTab, notificationsOpen])
+
+  async function openNotifications() {
+    setNotificationsOpen(true)
+    if (!shouldLoadFromApi) return
+    setNotificationsLoading(true)
+    try {
+      const res = await tapstackApi.vendorOrders()
+      const manual = Array.isArray(res.manualLoads) ? res.manualLoads : []
+      const auto = Array.isArray(res.autoLoads)
+        ? res.autoLoads.filter((item) => {
+            const status = String(item.status || '').toLowerCase()
+            return status !== 'approved' && status !== 'rejected'
+          })
+        : []
+      const redeems = Array.isArray(res.redeems) ? res.redeems : []
+      const items: VendorNotification[] = [
+        ...manual.map((item) => ({ ...item, kind: 'load' as const })),
+        ...auto.map((item) => ({ ...item, kind: 'load' as const })),
+        ...redeems.map((item) => ({ ...item, kind: 'redeem' as const })),
+      ]
+      setPendingNotifications(items)
+      setPendingOrderCount(items.length)
+    } catch {
+      // keep last known list
+    } finally {
+      setNotificationsLoading(false)
+    }
+  }
+
   function handleLogout() {
     onLogout?.()
   }
@@ -537,7 +693,12 @@ export default function VendorDashboard({
   return (
     <div className="vendor-dashboard">
       {!showProfile ? (
-        <VendorHeader initials={initials} onProfileClick={openProfile} />
+        <VendorHeader
+          initials={initials}
+          notificationCount={pendingOrderCount}
+          onProfileClick={openProfile}
+          onNotificationsClick={() => void openNotifications()}
+        />
       ) : null}
 
       <main className={`vendor-main ${showProfile ? 'vendor-main--profile' : ''}`}>
@@ -546,6 +707,7 @@ export default function VendorDashboard({
             profile={profile}
             showLevel={false}
             expectedRole="vendor"
+            avatarTone="vendor"
             onBack={closeProfile}
             onLogout={handleLogout}
             onRoleMismatch={onRoleMismatch}
@@ -579,6 +741,17 @@ export default function VendorDashboard({
       {!showProfile ? (
         <VendorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       ) : null}
+
+      <VendorNotificationsModal
+        open={notificationsOpen}
+        items={pendingNotifications}
+        loading={notificationsLoading}
+        onClose={() => setNotificationsOpen(false)}
+        onViewOrders={() => {
+          setNotificationsOpen(false)
+          handleTabChange('orders')
+        }}
+      />
 
       <TopUpModal
         open={topUpOpen}

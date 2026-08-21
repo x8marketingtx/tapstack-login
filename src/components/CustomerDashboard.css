@@ -46,11 +46,96 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  min-width: 52px;
+  min-width: 64px;
   padding: 6px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.level-badge.tier-badge--bronze {
+  background: linear-gradient(160deg, #f3e0c8 0%, #cd7f32 100%);
+  border-color: #b87333;
+}
+
+.level-badge.tier-badge--bronze .level-label {
+  color: #4a2c0a;
+}
+
+.level-badge.tier-badge--bronze .level-bar {
+  background: rgba(74, 44, 10, 0.2);
+}
+
+.level-badge.tier-badge--bronze .level-fill {
+  background: linear-gradient(90deg, #8b5a2b, #5c3317);
+}
+
+.level-badge.tier-badge--silver {
+  background: linear-gradient(160deg, #f8fafc 0%, #c0c7d1 100%);
+  border-color: #94a3b8;
+}
+
+.level-badge.tier-badge--silver .level-label {
+  color: #334155;
+}
+
+.level-badge.tier-badge--silver .level-bar {
+  background: rgba(51, 65, 85, 0.18);
+}
+
+.level-badge.tier-badge--silver .level-fill {
+  background: linear-gradient(90deg, #94a3b8, #64748b);
+}
+
+.level-badge.tier-badge--gold {
+  background: linear-gradient(160deg, #fef3c7 0%, #d4af37 100%);
+  border-color: #ca8a04;
+}
+
+.level-badge.tier-badge--gold .level-label {
+  color: #713f12;
+}
+
+.level-badge.tier-badge--gold .level-bar {
+  background: rgba(113, 63, 18, 0.2);
+}
+
+.level-badge.tier-badge--gold .level-fill {
+  background: linear-gradient(90deg, #eab308, #a16207);
+}
+
+.level-badge.tier-badge--diamond {
+  background: linear-gradient(160deg, #e0f2fe 0%, #7dd3fc 100%);
+  border-color: #38bdf8;
+}
+
+.level-badge.tier-badge--diamond .level-label {
+  color: #0c4a6e;
+}
+
+.level-badge.tier-badge--diamond .level-bar {
+  background: rgba(12, 74, 110, 0.18);
+}
+
+.level-badge.tier-badge--diamond .level-fill {
+  background: linear-gradient(90deg, #38bdf8, #0284c7);
+}
+
+.level-badge.tier-badge--platinum {
+  background: linear-gradient(160deg, #f8fafc 0%, #e2e8f0 55%, #cbd5e1 100%);
+  border-color: #94a3b8;
+}
+
+.level-badge.tier-badge--platinum .level-label {
+  color: #1e293b;
+}
+
+.level-badge.tier-badge--platinum .level-bar {
+  background: rgba(30, 41, 59, 0.16);
+}
+
+.level-badge.tier-badge--platinum .level-fill {
+  background: linear-gradient(90deg, #cbd5e1, #64748b);
 }
 
 .level-label {
@@ -169,10 +254,23 @@
 
 .balance-card {
   margin-bottom: 12px;
-  padding: 16px;
-  border-radius: 18px;
-  background: linear-gradient(145deg, #1a3352 0%, #12243d 100%);
+  padding: 14px 14px 14px 16px;
+  border-radius: 16px;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+
+.balance-card-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.balance-copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .balance-top {
@@ -183,18 +281,23 @@
 }
 
 .balance-label {
-  margin: 0 0 6px;
-  color: #93c5fd;
-  font-size: 10px;
+  margin: 0 0 4px;
+  color: #94a3b8;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .balance-amount {
   margin: 0;
-  font-size: 34px;
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  animation: none;
 }
 
 .points-badge {
@@ -222,16 +325,21 @@
 }
 
 .balance-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  align-items: center;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .balance-btn {
-  height: 42px;
-  border-radius: 12px;
-  font-size: 14px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .balance-btn--send {
@@ -241,9 +349,14 @@
 }
 
 .balance-btn--withdraw {
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: #f8fafc;
+}
+
+.balance-btn--withdraw:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .add-vendor {
@@ -431,6 +544,19 @@
 .vendor-card-action:hover {
   background: #f3f4f6;
   color: #4b5563;
+}
+
+.vendor-card-action--topup {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.vendor-card-action--topup:hover {
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
 .vendor-card-action--star.is-on {
@@ -648,7 +774,7 @@
   }
 
   .balance-amount {
-    font-size: 30px;
+    font-size: 24px;
   }
 }
 
@@ -688,7 +814,7 @@
 }
 
 .nav-item--active.nav-item--giveaway {
-  color: #d97706;
+  color: #ca8a04;
 }
 
 .nav-item--active.nav-item--promos {
@@ -702,4 +828,16 @@
 .nav-icon {
   font-size: 18px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-ticket-icon {
+  color: #d4af37;
+}
+
+.nav-ticket-icon--gold {
+  color: #d4af37;
+  filter: drop-shadow(0 1px 1px rgba(180, 120, 20, 0.35));
 }

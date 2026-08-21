@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ApiError, isApiConfigured, tapstackApi, type VendorCustomer } from '../api/client'
+import {
+  ApiError,
+  isApiConfigured,
+  PLAYER_TAG_OPTIONS,
+  tapstackApi,
+  type VendorCustomer,
+  type VendorGameAccount,
+  type VendorOrderItem,
+} from '../api/client'
 import './VendorAnalyticsPage.css'
 
 type AnalyticsTab = 'customers' | 'financial' | 'games'
@@ -48,6 +56,16 @@ function CustomersTab() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
+  const [tagBusyId, setTagBusyId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [detailCustomer, setDetailCustomer] = useState<
+    (CustomerRow & { phone?: string; email?: string; netAmount?: string }) | null
+  >(null)
+  const [accounts, setAccounts] = useState<VendorGameAccount[]>([])
+  const [orders, setOrders] = useState<VendorOrderItem[]>([])
+  const [revealPasswords, setRevealPasswords] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -81,6 +99,40 @@ function CustomersTab() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!selectedId || !isApiConfigured()) {
+      setDetailCustomer(null)
+      setAccounts([])
+      setOrders([])
+      setDetailError('')
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      setDetailLoading(true)
+      setDetailError('')
+      setRevealPasswords({})
+      try {
+        const res = await tapstackApi.vendorCustomerDetail(selectedId)
+        if (cancelled) return
+        setDetailCustomer(res.customer as CustomerRow & { phone?: string; email?: string; netAmount?: string })
+        setAccounts(res.accounts || [])
+        setOrders(res.orders || [])
+      } catch (err) {
+        if (cancelled) return
+        setDetailError(err instanceof ApiError ? err.message : 'Could not load player details.')
+        setDetailCustomer(null)
+        setAccounts([])
+        setOrders([])
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId])
+
   const filteredCustomers = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return customers
@@ -89,6 +141,229 @@ function CustomersTab() {
       return haystack.includes(q)
     })
   }, [customers, query])
+
+  async function toggleCustomerTag(customer: CustomerRow, tagId: string) {
+    if (!isApiConfigured() || tagBusyId) return
+    const current = customer.tags || []
+    const next = current.includes(tagId)
+      ? current.filter((id) => id !== tagId)
+      : [...current, tagId]
+    setTagBusyId(customer.id)
+    try {
+      const res = await tapstackApi.vendorCustomerSetTags(customer.id, next)
+      setCustomers((prev) =>
+        prev.map((row) =>
+          row.id === customer.id
+            ? { ...row, tags: res.tags, tagLabels: res.tagLabels }
+            : row,
+        ),
+      )
+      setDetailCustomer((prev) =>
+        prev && prev.id === customer.id
+          ? { ...prev, tags: res.tags, tagLabels: res.tagLabels }
+          : prev,
+      )
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update player tags.')
+    } finally {
+      setTagBusyId(null)
+    }
+  }
+
+  if (selectedId) {
+    const shown = detailCustomer
+    return (
+      <div className="vendor-analytics-content vendor-customer-detail">
+        <div className="vendor-analytics-toolbar">
+          <button
+            type="button"
+            className="vendor-customer-back-btn"
+            onClick={() => setSelectedId(null)}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M15 18l-6-6 6-6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Customers
+          </button>
+        </div>
+
+        {detailLoading ? <p className="vendor-analytics-empty">Loading player…</p> : null}
+        {detailError ? <p className="vendor-analytics-error">{detailError}</p> : null}
+
+        {!detailLoading && shown ? (
+          <>
+            <section className="vendor-customer-hero">
+              <div className="vendor-customer-hero-top">
+                <div className="vendor-analytics-avatar vendor-analytics-avatar--lg">{shown.initial}</div>
+                <div>
+                  <h2 className="vendor-customer-name">{shown.name}</h2>
+                  <p className="vendor-customer-meta">
+                    {[shown.username, shown.meta].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="vendor-customer-stats">
+                <div className="vendor-customer-stat">
+                  <span className="vendor-customer-stat-label">In</span>
+                  <strong className="vendor-customer-stat-value vendor-customer-stat-value--in">
+                    {shown.inAmount}
+                  </strong>
+                </div>
+                <div className="vendor-customer-stat">
+                  <span className="vendor-customer-stat-label">Out</span>
+                  <strong className="vendor-customer-stat-value vendor-customer-stat-value--out">
+                    {shown.outAmount}
+                  </strong>
+                </div>
+                <div className="vendor-customer-stat">
+                  <span className="vendor-customer-stat-label">Net</span>
+                  <strong className="vendor-customer-stat-value">
+                    {shown.netAmount || '—'}
+                  </strong>
+                </div>
+                <div className="vendor-customer-stat">
+                  <span className="vendor-customer-stat-label">Visits</span>
+                  <strong className="vendor-customer-stat-value">{shown.visits}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section className="vendor-customer-info-card">
+              <h3 className="vendor-customer-section-title">Contact</h3>
+              <ul className="vendor-customer-info-list">
+                <li>
+                  <span>Email</span>
+                  <strong>{shown.email || '—'}</strong>
+                </li>
+                <li>
+                  <span>Phone</span>
+                  <strong>{shown.phone || '—'}</strong>
+                </li>
+                <li>
+                  <span>Username</span>
+                  <strong>{shown.username || '—'}</strong>
+                </li>
+              </ul>
+            </section>
+
+            <section className="vendor-customer-info-card">
+              <h3 className="vendor-customer-section-title">Player tags</h3>
+              <div className="vendor-analytics-tag-picks" role="group" aria-label={`Tags for ${shown.name}`}>
+                {PLAYER_TAG_OPTIONS.map((tag) => {
+                  const active = (shown.tags || []).includes(tag.id)
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      className={`vendor-analytics-tag-pick ${active ? 'vendor-analytics-tag-pick--active' : ''}`}
+                      aria-pressed={active}
+                      disabled={tagBusyId === shown.id}
+                      onClick={() => void toggleCustomerTag(shown, tag.id)}
+                    >
+                      {tag.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="vendor-customer-info-card">
+              <h3 className="vendor-customer-section-title">Connected games</h3>
+              {accounts.length === 0 ? (
+                <p className="vendor-analytics-empty">No connected game accounts.</p>
+              ) : (
+                <ul className="vendor-customer-accounts">
+                  {accounts.map((account) => {
+                    const key = account.gameKey
+                    const show = Boolean(revealPasswords[key])
+                    return (
+                      <li key={key} className="vendor-customer-account">
+                        <div className="vendor-customer-account-top">
+                          <span className="vendor-customer-account-icon" aria-hidden="true">
+                            {account.icon || '🎮'}
+                          </span>
+                          <div>
+                            <p className="vendor-customer-account-title">{account.title || key}</p>
+                            <p className="vendor-customer-account-meta">
+                              {account.platform || 'Game'} · {account.mode || 'auto'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="vendor-customer-account-creds">
+                          <p>
+                            <span>ID</span> {account.mobileId || '—'}
+                          </p>
+                          <p>
+                            <span>Password</span>{' '}
+                            {account.hasPassword
+                              ? show
+                                ? account.password || '—'
+                                : '••••••••'
+                              : '—'}
+                          </p>
+                          {account.hasPassword ? (
+                            <button
+                              type="button"
+                              className="vendor-customer-reveal-btn"
+                              onClick={() =>
+                                setRevealPasswords((prev) => ({ ...prev, [key]: !prev[key] }))
+                              }
+                            >
+                              {show ? 'Hide' : 'Reveal'}
+                            </button>
+                          ) : null}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="vendor-customer-info-card">
+              <h3 className="vendor-customer-section-title">Recent activity</h3>
+              {orders.length === 0 ? (
+                <p className="vendor-analytics-empty">No orders yet.</p>
+              ) : (
+                <ul className="vendor-customer-orders">
+                  {orders.map((order) => {
+                    const isOut = String(order.type || '').includes('redeem')
+                    return (
+                      <li key={order.id} className="vendor-customer-order">
+                        <div>
+                          <p className="vendor-customer-order-title">
+                            {order.label || order.game || order.type}
+                          </p>
+                          <p className="vendor-customer-order-meta">
+                            {[order.date, order.time, order.status].filter(Boolean).join(' · ')}
+                          </p>
+                        </div>
+                        <span
+                          className={`vendor-customer-order-amount ${
+                            isOut ? 'vendor-customer-order-amount--out' : 'vendor-customer-order-amount--in'
+                          }`}
+                        >
+                          {isOut ? '−' : '+'}
+                          {order.amount}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+          </>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="vendor-analytics-content">
@@ -146,19 +421,51 @@ function CustomersTab() {
       ) : (
         <ul className="vendor-analytics-list">
           {filteredCustomers.map((customer) => (
-            <li key={customer.id} className="vendor-analytics-row">
-              <div className="vendor-analytics-player">
-                <div className="vendor-analytics-avatar">{customer.initial}</div>
-                <div className="vendor-analytics-player-info">
-                  <p className="vendor-analytics-player-name">{customer.name}</p>
-                  <p className="vendor-analytics-player-meta">
-                    {[customer.username, customer.meta].filter(Boolean).join(' · ')}
-                  </p>
+            <li key={customer.id}>
+              <button
+                type="button"
+                className="vendor-analytics-row vendor-analytics-row--clickable"
+                onClick={() => setSelectedId(customer.id)}
+              >
+                <div className="vendor-analytics-player">
+                  <div className="vendor-analytics-avatar">{customer.initial}</div>
+                  <div className="vendor-analytics-player-info">
+                    <p className="vendor-analytics-player-name">{customer.name}</p>
+                    <p className="vendor-analytics-player-meta">
+                      {[customer.username, customer.meta].filter(Boolean).join(' · ')}
+                    </p>
+                    <div
+                      className="vendor-analytics-tag-picks"
+                      role="group"
+                      aria-label={`Tags for ${customer.name}`}
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      {PLAYER_TAG_OPTIONS.map((tag) => {
+                        const active = (customer.tags || []).includes(tag.id)
+                        return (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            className={`vendor-analytics-tag-pick ${active ? 'vendor-analytics-tag-pick--active' : ''}`}
+                            aria-pressed={active}
+                            disabled={tagBusyId === customer.id}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void toggleCustomerTag(customer, tag.id)
+                            }}
+                          >
+                            {tag.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <span className="vendor-analytics-in">{customer.inAmount}</span>
-              <span className="vendor-analytics-out">{customer.outAmount}</span>
-              <span className="vendor-analytics-visits">{customer.visits}</span>
+                <span className="vendor-analytics-in">{customer.inAmount}</span>
+                <span className="vendor-analytics-out">{customer.outAmount}</span>
+                <span className="vendor-analytics-visits">{customer.visits}</span>
+              </button>
             </li>
           ))}
         </ul>
@@ -185,6 +492,19 @@ type GamePerformanceItem = {
   netAmount: string
 }
 
+type GameTxn = {
+  id: string
+  name: string
+  amount: string
+  time: string
+  date: string
+  status: string
+  type: string
+  direction?: 'in' | 'out'
+  directionLabel?: string
+  label?: string
+}
+
 function downloadGamesCsv(games: GamePerformanceItem[]) {
   const header = ['Game', 'Players', 'In', 'Out', 'Net']
   const rows = games.map((g) => [g.title, String(g.players), g.inAmount, g.outAmount, g.netAmount])
@@ -198,6 +518,7 @@ function downloadGamesCsv(games: GamePerformanceItem[]) {
         .join(','),
     )
     .join('\n')
+
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -212,6 +533,12 @@ function GamesTab() {
   const [games, setGames] = useState<GamePerformanceItem[]>([])
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
+  const [selectedGame, setSelectedGame] = useState<GamePerformanceItem | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [periodLabel, setPeriodLabel] = useState('')
+  const [transactions, setTransactions] = useState<GameTxn[]>([])
+  const [detailFilter, setDetailFilter] = useState<'all' | 'in' | 'out'>('all')
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -240,6 +567,217 @@ function GamesTab() {
       cancelled = true
     }
   }, [range])
+
+  useEffect(() => {
+    if (!selectedGame || !isApiConfigured()) {
+      setTransactions([])
+      setDetailError('')
+      setPeriodLabel('')
+      return
+    }
+    const queryRange = range === 'custom' ? '7d' : range
+    const gameId = selectedGame.id
+    let cancelled = false
+    ;(async () => {
+      setDetailLoading(true)
+      setDetailError('')
+      try {
+        const res = await tapstackApi.vendorGameAnalytics(gameId, queryRange)
+        if (cancelled) return
+        if (res.game) {
+          setSelectedGame((prev) =>
+            prev && prev.id === res.game.id
+              ? {
+                  ...prev,
+                  ...res.game,
+                }
+              : prev,
+          )
+        }
+        setPeriodLabel(res.periodLabel || '')
+        setTransactions(
+          (res.transactions || []).map((txn) => ({
+            id: String(txn.id),
+            name: txn.name || 'Player',
+            amount: txn.amount || '—',
+            time: txn.time || '',
+            date: txn.date || '',
+            status: txn.status || '',
+            type: txn.type || '',
+            direction: txn.direction === 'out' ? 'out' : 'in',
+            directionLabel: txn.directionLabel || (txn.direction === 'out' ? 'OUT' : 'IN'),
+            label: txn.label || '',
+          })),
+        )
+      } catch (err) {
+        if (cancelled) return
+        setDetailError(err instanceof ApiError ? err.message : 'Could not load game breakdown.')
+        setTransactions([])
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedGame?.id, range])
+
+  const filteredTxns = useMemo(() => {
+    if (detailFilter === 'all') return transactions
+    return transactions.filter((txn) => txn.direction === detailFilter)
+  }, [transactions, detailFilter])
+
+  const inCount = transactions.filter((t) => t.direction === 'in').length
+  const outCount = transactions.filter((t) => t.direction === 'out').length
+
+  if (selectedGame) {
+    const playerLabel =
+      selectedGame.players === 1 ? '1 player' : `${selectedGame.players} players`
+
+    return (
+      <div className="vendor-analytics-content vendor-games-detail">
+        <header className="vendor-games-detail-top">
+          <button
+            type="button"
+            className="vendor-games-back-btn"
+            onClick={() => {
+              setSelectedGame(null)
+              setDetailFilter('all')
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M15 18l-6-6 6-6"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Back
+          </button>
+          <div className="vendor-games-filter-pills vendor-games-filter-pills--compact" role="tablist" aria-label="Time range">
+            {GAMES_RANGES.filter((item) => item.id !== 'custom').map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={range === item.id}
+                className={`vendor-games-filter-btn ${range === item.id ? 'vendor-games-filter-btn--active' : ''}`}
+                onClick={() => setRange(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <section className="vendor-games-detail-summary">
+          <div className="vendor-games-detail-identity">
+            <span className="vendor-games-detail-icon" aria-hidden="true">
+              🎮
+            </span>
+            <div className="vendor-games-detail-identity-copy">
+              <h2 className="vendor-games-detail-title">{selectedGame.title}</h2>
+              <p className="vendor-games-detail-subtitle">
+                {playerLabel}
+                {periodLabel ? ` · ${periodLabel}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="vendor-games-detail-stats">
+            <div className="vendor-games-detail-stat vendor-games-detail-stat--in">
+              <span className="vendor-games-detail-stat-label">In</span>
+              <strong className="vendor-games-detail-stat-value">{selectedGame.inAmount}</strong>
+            </div>
+            <div className="vendor-games-detail-stat vendor-games-detail-stat--out">
+              <span className="vendor-games-detail-stat-label">Out</span>
+              <strong className="vendor-games-detail-stat-value">{selectedGame.outAmount}</strong>
+            </div>
+            <div className="vendor-games-detail-stat vendor-games-detail-stat--net">
+              <span className="vendor-games-detail-stat-label">Net</span>
+              <strong className="vendor-games-detail-stat-value">{selectedGame.netAmount}</strong>
+            </div>
+          </div>
+        </section>
+
+        <div className="vendor-games-segment" role="tablist" aria-label="Transaction filter">
+          {(
+            [
+              { id: 'all', label: 'All', count: transactions.length },
+              { id: 'in', label: 'Ins', count: inCount },
+              { id: 'out', label: 'Outs', count: outCount },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={detailFilter === item.id}
+              className={`vendor-games-segment-btn ${detailFilter === item.id ? 'vendor-games-segment-btn--active' : ''}`}
+              onClick={() => setDetailFilter(item.id)}
+            >
+              <span>{item.label}</span>
+              <em>{item.count}</em>
+            </button>
+          ))}
+        </div>
+
+        {detailError ? (
+          <div className="vendor-analytics-error" role="alert">
+            {detailError}
+          </div>
+        ) : null}
+
+        {detailLoading ? (
+          <div className="vendor-games-detail-loading">
+            <span className="vendor-games-detail-spinner" aria-hidden="true" />
+            Loading activity…
+          </div>
+        ) : null}
+
+        {!detailLoading && !detailError && filteredTxns.length === 0 ? (
+          <div className="vendor-games-detail-empty">
+            <p>No {detailFilter === 'all' ? 'activity' : detailFilter === 'in' ? 'loads' : 'redeems'} in this period.</p>
+          </div>
+        ) : null}
+
+        {!detailLoading && filteredTxns.length > 0 ? (
+          <ul className="vendor-games-activity">
+            {filteredTxns.map((txn) => {
+              const initial = (txn.name || 'P').trim().charAt(0).toUpperCase() || 'P'
+              const when = [txn.date, txn.time].filter(Boolean).join(' · ')
+              return (
+                <li key={txn.id} className={`vendor-games-activity-row vendor-games-activity-row--${txn.direction || 'in'}`}>
+                  <div className="vendor-games-activity-avatar" aria-hidden="true">
+                    {initial}
+                  </div>
+                  <div className="vendor-games-activity-copy">
+                    <div className="vendor-games-activity-line">
+                      <p className="vendor-games-activity-name">{txn.name}</p>
+                      <span className={`vendor-games-activity-tag vendor-games-activity-tag--${txn.direction || 'in'}`}>
+                        {txn.directionLabel || (txn.direction === 'out' ? 'OUT' : 'IN')}
+                      </span>
+                    </div>
+                    <p className="vendor-games-activity-meta">
+                      {[txn.label || (txn.direction === 'out' ? 'Redeem' : 'Load'), when, txn.status]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                  <span className={`vendor-games-activity-amount vendor-games-activity-amount--${txn.direction || 'in'}`}>
+                    {txn.direction === 'out' ? '−' : '+'}
+                    {txn.amount}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="vendor-analytics-content vendor-games-content">
@@ -288,7 +826,11 @@ function GamesTab() {
       <ul className="vendor-games-list">
         {games.map((game) => (
           <li key={game.id}>
-            <button type="button" className="vendor-games-card">
+            <button
+              type="button"
+              className="vendor-games-card"
+              onClick={() => setSelectedGame(game)}
+            >
               <div className="vendor-games-card-top">
                 <div className="vendor-games-card-info">
                   <span className="vendor-games-card-icon" aria-hidden="true">

@@ -1,8 +1,11 @@
 import { TapStackLogo } from './TapStackLogo'
+import type { TicketTier } from '../api/client'
+import { tierBadgeClass, tierLabel } from '../data/tiers'
 
 type DashboardHeaderProps = {
   level?: number
   levelProgressPct?: number
+  tier?: TicketTier | string | null
   initials?: string
   loading?: boolean
   onProfileClick?: () => void
@@ -11,6 +14,7 @@ type DashboardHeaderProps = {
 export default function DashboardHeader({
   level = 1,
   levelProgressPct = 0,
+  tier = 'bronze',
   initials = 'P',
   loading = false,
   onProfileClick,
@@ -29,8 +33,8 @@ export default function DashboardHeader({
           </>
         ) : (
           <>
-            <div className="level-badge">
-              <span className="level-label">Lv {level}</span>
+            <div className={`level-badge ${tierBadgeClass(tier)}`}>
+              <span className="level-label">{tierLabel(tier)}</span>
               <div className="level-bar">
                 <div
                   className="level-fill"

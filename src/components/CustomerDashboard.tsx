@@ -156,7 +156,6 @@ function GamesHome({
   onVendorSelect,
   cashBalance,
   loading,
-  onTopUp,
   activities,
   onSeeAllActivity,
 }: {
@@ -172,7 +171,6 @@ function GamesHome({
   onVendorSelect: (vendor: Vendor) => void
   cashBalance: string
   loading?: boolean
-  onTopUp: () => void
   activities: ActivityRow[]
   onSeeAllActivity: () => void
 }) {
@@ -182,8 +180,8 @@ function GamesHome({
     <div className="games-home-desktop">
       <div className="games-home-sidebar">
         <section className="balance-card" aria-busy={loading || undefined}>
-          <div className="balance-top">
-            <div>
+          <div className="balance-card-main">
+            <div className="balance-copy">
               <p className="balance-label">Tapstack Balance</p>
               {loading ? (
                 <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
@@ -191,17 +189,6 @@ function GamesHome({
                 <p className="balance-amount">{cashBalance}</p>
               )}
             </div>
-          </div>
-
-          <div className="balance-actions">
-            <button
-              type="button"
-              className="balance-btn balance-btn--send"
-              onClick={onTopUp}
-              disabled={loading}
-            >
-              + Top Up
-            </button>
             <button type="button" className="balance-btn balance-btn--withdraw" disabled={loading}>
               Withdraw
             </button>
@@ -701,27 +688,59 @@ export default function CustomerDashboard({
 
   if (selectedVendor) {
     return (
-      <VendorPage
-        vendor={selectedVendor}
-        activeTab={activeTab}
-        cashBalance={cashBalance || '$0.00'}
-        onBack={closeVendor}
-        onTabChange={handleTabChange}
-        onRemoveVendor={() => void removeVendor(selectedVendor)}
-        onCashBalanceChange={(next) => {
-          setCashBalance(next)
-          if (shouldLoadFromApi) {
-            void tapstackApi
-              .customerWallet()
-              .then((res) => {
-                if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
-              })
-              .catch(() => {
-                /* keep current */
-              })
-          }
-        }}
-      />
+      <>
+        <VendorPage
+          vendor={selectedVendor}
+          activeTab={activeTab}
+          cashBalance={cashBalance || '$0.00'}
+          profile={profile}
+          onBack={closeVendor}
+          onTabChange={handleTabChange}
+          onRemoveVendor={() => void removeVendor(selectedVendor)}
+          onProfileClick={openProfile}
+          onTopUp={() => setTopUpOpen(true)}
+          onCashBalanceChange={(next) => {
+            setCashBalance(next)
+            if (shouldLoadFromApi) {
+              void tapstackApi
+                .customerWallet()
+                .then((res) => {
+                  if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
+                })
+                .catch(() => {
+                  /* keep current */
+                })
+            }
+          }}
+        />
+        <TopUpModal
+          open={topUpOpen}
+          onClose={() => setTopUpOpen(false)}
+          ownerType="player"
+          title="Top up Tapstack balance"
+          onSuccess={(wallet) => {
+            if (wallet) {
+              setCashBalance(`$${wallet.balance.toFixed(2)}`)
+              setPointsBalance(wallet.points)
+            }
+            if (shouldLoadFromApi) {
+              void tapstackApi
+                .customerWallet()
+                .then((res) => {
+                  if (res.wallet?.formatted) setCashBalance(res.wallet.formatted)
+                  else if (typeof res.wallet?.balance === 'number') {
+                    setCashBalance(`$${res.wallet.balance.toFixed(2)}`)
+                  }
+                  if (typeof res.wallet?.points === 'number') setPointsBalance(res.wallet.points)
+                  if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
+                })
+                .catch(() => {
+                  /* keep current */
+                })
+            }
+          }}
+        />
+      </>
     )
   }
 
@@ -745,6 +764,7 @@ export default function CustomerDashboard({
               loading={loading && !headerProfile}
               level={headerProfile?.level}
               levelProgressPct={headerProfile?.levelProgressPct}
+              tier={headerProfile?.tier}
               initials={headerProfile?.initials}
               onProfileClick={openProfile}
             />
@@ -766,7 +786,6 @@ export default function CustomerDashboard({
                 onVendorSelect={openVendor}
                 cashBalance={cashBalance || '$0.00'}
                 loading={loading}
-                onTopUp={() => setTopUpOpen(true)}
                 activities={
                   shouldLoadFromApi ? mapTxnsToActivities(walletTxns).slice(0, 8) : DEMO_ACTIVITIES
                 }

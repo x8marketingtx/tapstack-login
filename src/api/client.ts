@@ -398,7 +398,63 @@ export type VendorPromotion = {
   minAmount?: number
   rewardValue?: number
   summary?: string
+  limitPerPlayer?: number
+  limitPerDay?: number
+  limitTotal?: number
+  limitsLabel?: string
+  playerTags?: string[]
+  playerTagLabels?: string[]
+  audienceLabel?: string
 }
+
+export type VendorCoupon = {
+  id: string
+  code: string
+  bonusType: string
+  bonusTypeLabel: string
+  bonusValue: number
+  useLimit: number
+  usedCount: number
+  maxRedemptions: number
+  status: 'active' | 'draft' | 'expired'
+  statusLabel: string
+  meta: string
+  limitsLabel?: string
+  startsAt?: string
+  endsAt?: string
+}
+
+export type EmailBlastAvailability = {
+  available: boolean
+  nextAvailable: string
+  lastSentAt?: string | null
+  blastsEnabled: boolean
+  message: string
+}
+
+export type EmailBlastSegment = {
+  id: string
+  label: string
+  count: number
+}
+
+export type EmailBlastItem = {
+  id: string
+  title: string
+  subject?: string
+  meta: string
+  openRate: string
+  sentCount?: number
+  segmentLabel?: string
+}
+
+export const PLAYER_TAG_OPTIONS: { id: string; label: string }[] = [
+  { id: 'vip', label: 'VIP' },
+  { id: 'high-roller', label: 'High Roller' },
+  { id: 'frequent', label: 'Frequent Player' },
+  { id: 'new', label: 'New Player' },
+  { id: 'regular', label: 'Regular' },
+]
 
 export type PlayerPromo = {
   id: string
@@ -464,6 +520,8 @@ export type VendorCustomer = {
   lastActivityAt?: string | null
   phone?: string
   email?: string
+  tags?: string[]
+  tagLabels?: string[]
 }
 
 export type VendorGameAccount = {
@@ -668,11 +726,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 export const tapstackApi = {
   health: () => apiRequest<{ ok: boolean; version: string }>('/health', { auth: false }),
 
-  requestOtp: (phone: string, intent: 'login' | 'signup' = 'login') =>
+  requestOtp: (phone: string, intent: 'login' | 'signup' | 'change_phone' = 'login') =>
     apiRequest<{ ok: boolean; phone: string; demoCode?: string; intent?: string }>('/auth/otp/request', {
       method: 'POST',
       body: { phone, intent },
-      auth: false,
+      // change_phone requires the logged-in player's token
+      auth: intent === 'change_phone',
     }),
 
   playerExists: (phone: string) =>
@@ -691,6 +750,12 @@ export const tapstackApi = {
       method: 'POST',
       body: { phone, code, ...profile },
       auth: false,
+    }),
+
+  changePhone: (phone: string, code: string) =>
+    apiRequest<{ ok: boolean; user: TapstackUser; phone: string }>('/auth/phone/change', {
+      method: 'POST',
+      body: { phone, code },
     }),
 
   portalLogin: (email: string, password: string, type: 'vendor' | 'distributor' | 'admin') =>
@@ -723,6 +788,12 @@ export const tapstackApi = {
     apiRequest<{ ok: boolean; user: TapstackUser }>('/auth/profile', {
       method: 'POST',
       body: profile,
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest<{ ok: boolean; token: string; user: TapstackUser }>('/auth/password', {
+      method: 'POST',
+      body: { currentPassword, newPassword },
     }),
 
   logout: async () => {
@@ -914,6 +985,20 @@ export const tapstackApi = {
       total: number
       customers: VendorCustomer[]
     }>(`/vendor/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  vendorCustomerDetail: (playerId: string | number) =>
+    apiRequest<{
+      ok: boolean
+      customer: VendorCustomer & {
+        phone?: string
+        email?: string
+        netAmount?: string
+        inValue?: number
+        outValue?: number
+        netValue?: number
+      }
+      accounts: VendorGameAccount[]
+      orders: VendorOrderItem[]
+    }>(`/vendor/customers/${playerId}`),
   vendorAnalytics: (range = '7d') =>
     apiRequest<{
       ok?: boolean
@@ -944,6 +1029,29 @@ export const tapstackApi = {
       }>
       customers?: VendorCustomer[]
     }>(`/vendor/analytics?range=${encodeURIComponent(range)}`),
+  vendorGameAnalytics: (gameKey: string, range = '7d') =>
+    apiRequest<{
+      ok?: boolean
+      range?: string
+      periodLabel?: string
+      vendorId?: number
+      game: {
+        id: string
+        title: string
+        players: number
+        inAmount: string
+        outAmount: string
+        netAmount: string
+      }
+      transactions: Array<
+        VendorOrderItem & {
+          direction?: 'in' | 'out'
+          directionLabel?: string
+        }
+      >
+    }>(
+      `/vendor/analytics?range=${encodeURIComponent(range)}&gameKey=${encodeURIComponent(gameKey)}`,
+    ),
   vendorPromos: () =>
     apiRequest<{ promotions: VendorPromotion[] }>('/vendor/promos'),
   vendorPromoCreate: (payload: {
@@ -956,6 +1064,10 @@ export const tapstackApi = {
     startTime?: string
     endDate?: string
     endTime?: string
+    limitPerPlayer?: number
+    limitPerDay?: number
+    limitTotal?: number
+    playerTags?: string[]
   }) =>
     apiRequest<{ ok: boolean; promotion: VendorPromotion }>('/vendor/promos', {
       method: 'POST',
@@ -969,6 +1081,96 @@ export const tapstackApi = {
   vendorPromoDelete: (id: string) =>
     apiRequest<{ ok: boolean }>(`/vendor/promos/${id}`, {
       method: 'DELETE',
+    }),
+  vendorCoupons: () =>
+    apiRequest<{ coupons: VendorCoupon[] }>('/vendor/coupons'),
+  vendorCouponCreate: (payload: {
+    code: string
+    bonusType: string
+    bonusValue: number
+    useLimit?: number | string
+    maxRedemptions?: number
+    startDate?: string
+    startTime?: string
+    endDate?: string
+    endTime?: string
+  }) =>
+    apiRequest<{ ok: boolean; coupon: VendorCoupon }>('/vendor/coupons', {
+      method: 'POST',
+      body: payload,
+    }),
+  vendorCouponSetStatus: (id: string, status: 'active' | 'paused') =>
+    apiRequest<{ ok: boolean; coupon: VendorCoupon }>(`/vendor/coupons/${id}/status`, {
+      method: 'POST',
+      body: { status },
+    }),
+  vendorCouponDelete: (id: string) =>
+    apiRequest<{ ok: boolean }>(`/vendor/coupons/${id}`, {
+      method: 'DELETE',
+    }),
+  vendorEmailBlasts: () =>
+    apiRequest<{
+      ok?: boolean
+      availability: EmailBlastAvailability
+      segments: EmailBlastSegment[]
+      recent: EmailBlastItem[]
+    }>('/vendor/email-blasts'),
+  vendorEmailBlastPreview: (payload: {
+    segment: string
+    filters?: {
+      field?: string
+      operator?: string
+      value?: number | string
+      window?: string
+    }
+  }) =>
+    apiRequest<{
+      ok?: boolean
+      count: number
+      segment: string
+      segmentLabel: string
+      sample: Array<{ id: string; name: string; email: string }>
+    }>('/vendor/email-blasts/preview', {
+      method: 'POST',
+      body: payload,
+    }),
+  vendorEmailBlastInterpret: (prompt: string) =>
+    apiRequest<{
+      ok?: boolean
+      segment: string
+      segmentLabel: string
+      count: number
+      sample: Array<{ id: string; name: string; email: string }>
+    }>('/vendor/email-blasts/interpret', {
+      method: 'POST',
+      body: { prompt },
+    }),
+  vendorEmailBlastSend: (payload: {
+    subject: string
+    message: string
+    segment: string
+    filters?: Record<string, unknown>
+  }) =>
+    apiRequest<{
+      ok: boolean
+      sentCount: number
+      failedCount: number
+      recipientCount: number
+      blast: EmailBlastItem
+      availability: EmailBlastAvailability
+    }>('/vendor/email-blasts', {
+      method: 'POST',
+      body: payload,
+    }),
+  vendorCustomerSetTags: (playerId: string | number, tags: string[]) =>
+    apiRequest<{
+      ok: boolean
+      playerId: string
+      tags: string[]
+      tagLabels: string[]
+    }>(`/vendor/customers/${playerId}/tags`, {
+      method: 'PUT',
+      body: { tags },
     }),
   vendorSettings: () =>
     apiRequest<{
@@ -1268,6 +1470,7 @@ export type TapstackUser = {
   phone?: string
   username?: string
   level?: number
+  tier?: TicketTier
   vendorId?: number | null
   distributorId?: number | null
 }

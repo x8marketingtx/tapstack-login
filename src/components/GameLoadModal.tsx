@@ -80,7 +80,19 @@ export default function GameLoadModal({
         else if (typeof walletRes?.wallet?.balance === 'number') {
           setWalletFormatted(`$${walletRes.wallet.balance.toFixed(2)}`)
         }
-        if (balRes?.formatted) setGameBalance(balRes.formatted)
+        if (balRes?.formatted) {
+          setGameBalance(balRes.formatted)
+          const maxGame = parseMoney(balRes.formatted)
+          if (Number.isFinite(maxGame) && maxGame >= 0) {
+            setAmount((current) => {
+              const n = Number(current)
+              if (!Number.isFinite(n) || n <= maxGame) return current
+              // Prefer a preset that fits; otherwise use the full available balance.
+              const fit = [...PRESETS].reverse().find((p) => p <= maxGame)
+              return String(fit ?? Math.max(1, Math.floor(maxGame)))
+            })
+          }
+        }
       } finally {
         if (!cancelled) setLoadingWallet(false)
       }
@@ -97,14 +109,20 @@ export default function GameLoadModal({
   const isManual = target.mode !== 'auto'
   const numericAmount = Number(amount)
   const availableWallet = parseMoney(walletFormatted)
+  const hasKnownGameBalance = Boolean(gameBalance && gameBalance !== '—' && !loadingWallet)
   const availableGame = parseMoney(gameBalance)
   const exceedsWallet = !isRedeem && Number.isFinite(numericAmount) && numericAmount > availableWallet
   const exceedsGame =
-    isRedeem && !isManual && Number.isFinite(numericAmount) && availableGame > 0 && numericAmount > availableGame
+    isRedeem &&
+    hasKnownGameBalance &&
+    Number.isFinite(numericAmount) &&
+    Number.isFinite(availableGame) &&
+    numericAmount > availableGame
   const canSubmit =
     Number.isFinite(numericAmount) &&
     numericAmount >= 1 &&
     !exceedsWallet &&
+    !exceedsGame &&
     (!isManual || mobileId.trim().length > 0) &&
     !submitting &&
     isApiConfigured()
@@ -112,7 +130,11 @@ export default function GameLoadModal({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const activeGame: GameLoadTarget = target
-    if (!canSubmit) return
+    if (!canSubmit || exceedsGame || exceedsWallet) return
+    if (isRedeem && hasKnownGameBalance && numericAmount > availableGame) {
+      setError('Amount exceeds your game balance.')
+      return
+    }
 
     setError('')
     setStatus(

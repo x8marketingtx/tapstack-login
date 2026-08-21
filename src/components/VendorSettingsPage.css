@@ -58,8 +58,8 @@
   height: 72px;
   flex-shrink: 0;
   border-radius: 16px;
-  background: #ede9fe;
-  color: #7c3aed;
+  background: linear-gradient(135deg, #c4b5fd, #8b5cf6);
+  color: #fff;
   font-size: 24px;
   font-weight: 700;
 }
@@ -416,6 +416,20 @@
 .vendor-settings-save-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.vendor-settings-password-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.vendor-settings-password-panel .vendor-settings-save-btn {
+  width: 100%;
 }
 
 .vendor-settings-games-toolbar {

@@ -428,6 +428,7 @@ const DEMO_ADMIN_PROFILE: PlayerProfile = {
   initials: 'AV',
   level: 1,
   levelProgressPct: 0,
+  tier: 'bronze',
 }
 
 export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) {

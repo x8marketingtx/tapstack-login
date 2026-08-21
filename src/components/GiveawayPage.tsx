@@ -416,7 +416,19 @@ export default function GiveawayPage() {
         <div className="giveaway-hero-text">
           <h1 className="giveaway-title">
             <span className="giveaway-title-icon" aria-hidden="true">
-              🎟️
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M3.5 9.5A2.5 2.5 0 0 0 6 7h12a2.5 2.5 0 0 0 2.5 2.5V11a1.5 1.5 0 1 1 0 3v1.5A2.5 2.5 0 0 0 18 18H6a2.5 2.5 0 0 0-2.5-2.5V14a1.5 1.5 0 1 1 0-3V9.5Z"
+                  fill="#d4af37"
+                />
+                <path
+                  d="M9 8v8M15 8v8"
+                  stroke="#fff7cc"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeDasharray="1.8 2.2"
+                />
+              </svg>
             </span>
             Tickets
           </h1>

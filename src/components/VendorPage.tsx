@@ -1,14 +1,39 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
+import { gameArtUrl } from '../data/gameArt'
 import { ApiError, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
+import type { PlayerProfile } from './ProfilePage'
 import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './GameLoadModal'
 import './CustomerDashboard.css'
 import './VendorPage.css'
 
 type GameCredentials = { mobileId: string; password: string }
+
+function favoriteGamesStorageKey(vendorId: number | string | null | undefined): string {
+  return `tapstack_favorite_games:${vendorId ?? 'unknown'}`
+}
+
+function loadFavoriteGames(vendorId: number | string | null | undefined): Set<string> {
+  try {
+    const raw = localStorage.getItem(favoriteGamesStorageKey(vendorId))
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as string[]
+    return new Set(Array.isArray(parsed) ? parsed : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function saveFavoriteGames(vendorId: number | string | null | undefined, keys: string[]) {
+  try {
+    localStorage.setItem(favoriteGamesStorageKey(vendorId), JSON.stringify(keys))
+  } catch {
+    /* ignore */
+  }
+}
 
 function credsStorageKey(vendorId: number | string, gameKey: string) {
   return `tapstack_game_creds:${vendorId}:${gameKey}`
@@ -96,9 +121,12 @@ type VendorPageProps = {
   vendor: Vendor
   activeTab: DashboardTab
   cashBalance?: string
+  profile?: PlayerProfile | null
   onBack: () => void
   onTabChange: (tab: DashboardTab) => void
   onRemoveVendor?: () => void
+  onProfileClick?: () => void
+  onTopUp?: () => void
   onCashBalanceChange?: (balance: string) => void
 }
 
@@ -106,14 +134,16 @@ export default function VendorPage({
   vendor: initialVendor,
   activeTab,
   cashBalance = '$0.00',
+  profile = null,
   onBack,
   onTabChange,
   onRemoveVendor,
+  onProfileClick,
+  onTopUp,
   onCashBalanceChange,
 }: VendorPageProps) {
   const [vendor, setVendor] = useState(initialVendor)
   const [walletBalance, setWalletBalance] = useState(cashBalance)
-  const [walletLoading, setWalletLoading] = useState(false)
   const [loadGame, setLoadGame] = useState<GameLoadTarget | null>(null)
   const [transferIntent, setTransferIntent] = useState<GameTransferIntent>('load')
   const [connectGame, setConnectGame] = useState<string | null>(null)
@@ -152,11 +182,25 @@ export default function VendorPage({
   const [pendingOrders, setPendingOrders] = useState<VendorOrderItem[]>([])
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingLoading, setPendingLoading] = useState(false)
+  const [favoriteGames, setFavoriteGames] = useState<Set<string>>(() =>
+    loadFavoriteGames(initialVendor.id),
+  )
 
   useEffect(() => {
     setVendor(initialVendor)
     setConnectedGames((current) => ({ ...seedConnectedGames(initialVendor), ...current }))
+    setFavoriteGames(loadFavoriteGames(initialVendor.id))
   }, [initialVendor])
+
+  function toggleFavoriteGame(gameKey: string) {
+    setFavoriteGames((current) => {
+      const next = new Set(current)
+      if (next.has(gameKey)) next.delete(gameKey)
+      else next.add(gameKey)
+      saveFavoriteGames(vendor.id ?? initialVendor.id, [...next])
+      return next
+    })
+  }
 
   useEffect(() => {
     setWalletBalance(cashBalance)
@@ -165,7 +209,6 @@ export default function VendorPage({
   useEffect(() => {
     if (!isApiConfigured()) return
     let cancelled = false
-    setWalletLoading(true)
     ;(async () => {
       try {
         const res = await tapstackApi.customerWallet()
@@ -179,8 +222,6 @@ export default function VendorPage({
         }
       } catch {
         /* keep prop / previous */
-      } finally {
-        if (!cancelled) setWalletLoading(false)
       }
     })()
     return () => {
@@ -649,7 +690,13 @@ export default function VendorPage({
   return (
     <div className="dashboard vendor-page" style={pageStyle}>
       <div className="dashboard-scroll vendor-page-scroll">
-        <DashboardHeader />
+        <DashboardHeader
+          level={profile?.level}
+          levelProgressPct={profile?.levelProgressPct}
+          tier={profile?.tier}
+          initials={profile?.initials}
+          onProfileClick={onProfileClick}
+        />
 
         <div className="vendor-page-body">
           <section className="vendor-storefront">
@@ -702,13 +749,13 @@ export default function VendorPage({
           <div className="vendor-balance-card">
             <div className="vendor-balance-copy">
               <span className="vendor-balance-label">Tapstack Balance</span>
-              <span className={`vendor-balance-value${walletLoading ? ' is-loading' : ''}`}>
-                {walletBalance || '$0.00'}
-              </span>
+              <span className="vendor-balance-value">{walletBalance || '$0.00'}</span>
             </div>
-            <div className="vendor-balance-mark" aria-hidden="true">
-              <span>TS</span>
-            </div>
+            {onTopUp ? (
+              <button type="button" className="vendor-topup-btn" onClick={onTopUp}>
+                Top Up
+              </button>
+            ) : null}
           </div>
 
           <button
@@ -745,7 +792,19 @@ export default function VendorPage({
             <h2 className="games-title">Available Games</h2>
 
             <ul className="games-list">
-              {vendor.games.map((game) => {
+              {[...vendor.games]
+                .sort((a, b) => {
+                  const aKey =
+                    a.id ||
+                    a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                  const bKey =
+                    b.id ||
+                    b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                  const aFav = favoriteGames.has(aKey) ? 0 : 1
+                  const bFav = favoriteGames.has(bKey) ? 0 : 1
+                  return aFav - bFav
+                })
+                .map((game) => {
                 const gameKey =
                   game.id ||
                   game.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -759,19 +818,37 @@ export default function VendorPage({
                 const balanceText =
                   balanceState?.formatted ||
                   (connected && game.mode === 'auto' ? '$0.00' : '—')
+                const artUrl = gameArtUrl(game.name, game.platform)
+                const favorited = favoriteGames.has(gameKey)
                 return (
                   <li key={gameKey} className="game-card">
                     <div className="game-card-main">
                       <button
                         type="button"
-                        className="game-favorite"
-                        aria-label={`Favorite ${game.name}`}
+                        className={`game-favorite${favorited ? ' is-on' : ''}`}
+                        aria-label={favorited ? `Unfavorite ${game.name}` : `Favorite ${game.name}`}
+                        aria-pressed={favorited}
+                        onClick={() => toggleFavoriteGame(gameKey)}
                       >
-                        ☆
+                        {favorited ? '★' : '☆'}
                       </button>
 
                       <div className="game-icon" style={{ background: game.iconBg }} aria-hidden="true">
-                        {decodeIcon(game.icon, game.name)}
+                        {artUrl ? (
+                          <img
+                            className="game-icon-img"
+                            src={artUrl}
+                            alt=""
+                            onError={(event) => {
+                              event.currentTarget.style.display = 'none'
+                              const fallback = event.currentTarget.nextElementSibling
+                              if (fallback instanceof HTMLElement) fallback.hidden = false
+                            }}
+                          />
+                        ) : null}
+                        <span className="game-icon-fallback" hidden={Boolean(artUrl)}>
+                          {decodeIcon(game.icon, game.name)}
+                        </span>
                       </div>
 
                       <div className="game-info">

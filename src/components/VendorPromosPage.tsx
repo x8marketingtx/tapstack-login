@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { ApiError, isApiConfigured, tapstackApi, type VendorPromotion } from '../api/client'
+import {
+  ApiError,
+  isApiConfigured,
+  PLAYER_TAG_OPTIONS,
+  tapstackApi,
+  type EmailBlastAvailability,
+  type EmailBlastItem,
+  type EmailBlastSegment,
+  type VendorCoupon,
+  type VendorPromotion,
+} from '../api/client'
 import './VendorPromosPage.css'
 
 type PromosTab = 'promotions' | 'codes' | 'email-blast'
@@ -44,6 +54,20 @@ function PromotionCard({
             <p className="vendor-promo-list-meta">
               {promo.typeLabel} · {promo.endsLabel}
             </p>
+            <p className="vendor-promo-list-limits">
+              {promo.limitsLabel || '1× / player'}
+              {' · '}
+              {promo.audienceLabel || 'All players'}
+            </p>
+            {(promo.playerTagLabels || []).length > 0 ? (
+              <div className="vendor-promo-tag-row">
+                {promo.playerTagLabels!.map((label) => (
+                  <span key={label} className="vendor-promo-tag-chip">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
         <span className={`vendor-promo-list-status vendor-promo-list-status--${status}`}>
@@ -108,6 +132,10 @@ function PromotionsTab() {
   })
   const [endTime, setEndTime] = useState('23:59')
   const [summary, setSummary] = useState('')
+  const [limitPerPlayer, setLimitPerPlayer] = useState('1')
+  const [limitPerDay, setLimitPerDay] = useState('')
+  const [limitTotal, setLimitTotal] = useState('')
+  const [playerTags, setPlayerTags] = useState<string[]>([])
 
   const rewardHint =
     promoType === 'deposit-bonus'
@@ -150,9 +178,17 @@ function PromotionsTab() {
         startTime,
         endDate,
         endTime,
+        limitPerPlayer: limitPerPlayer === '' || limitPerPlayer === 'unlimited' ? 0 : Number(limitPerPlayer),
+        limitPerDay: limitPerDay === '' ? 0 : Number(limitPerDay),
+        limitTotal: limitTotal === '' ? 0 : Number(limitTotal),
+        playerTags,
       })
       setTitle('')
       setSummary('')
+      setLimitPerPlayer('1')
+      setLimitPerDay('')
+      setLimitTotal('')
+      setPlayerTags([])
       await load()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create promotion.')
@@ -296,6 +332,84 @@ function PromotionsTab() {
         </fieldset>
 
         <fieldset className="vendor-promos-fieldset">
+          <legend className="vendor-promos-field-legend">USAGE LIMITS</legend>
+          <div className="vendor-promos-limits-grid">
+            <label className="vendor-promos-limit-field">
+              <span>Per player</span>
+              <select
+                className="vendor-promos-select"
+                value={limitPerPlayer}
+                onChange={(event) => setLimitPerPlayer(event.target.value)}
+                aria-label="Limit times per player"
+              >
+                <option value="1">1 time</option>
+                <option value="2">2 times</option>
+                <option value="3">3 times</option>
+                <option value="5">5 times</option>
+                <option value="10">10 times</option>
+                <option value="unlimited">Unlimited</option>
+              </select>
+            </label>
+            <label className="vendor-promos-limit-field">
+              <span>Per day</span>
+              <input
+                type="number"
+                className="vendor-promos-input"
+                min={1}
+                step={1}
+                placeholder="Unlimited"
+                value={limitPerDay}
+                onChange={(event) => setLimitPerDay(event.target.value)}
+                aria-label="Limit uses per day"
+              />
+            </label>
+            <label className="vendor-promos-limit-field">
+              <span>Total uses</span>
+              <input
+                type="number"
+                className="vendor-promos-input"
+                min={1}
+                step={1}
+                placeholder="Unlimited"
+                value={limitTotal}
+                onChange={(event) => setLimitTotal(event.target.value)}
+                aria-label="Limit total uses"
+              />
+            </label>
+          </div>
+          <p className="vendor-promos-hint">
+            Leave per-day / total blank for no cap. Example: 1× per player, 50 / day, 500 total.
+          </p>
+        </fieldset>
+
+        <fieldset className="vendor-promos-fieldset">
+          <legend className="vendor-promos-field-legend">PLAYER TAGS</legend>
+          <p className="vendor-promos-hint">
+            Leave none selected to show for all players. Otherwise only tagged players can use it.
+          </p>
+          <div className="vendor-promos-tag-picks" role="group" aria-label="Player tags">
+            {PLAYER_TAG_OPTIONS.map((tag) => {
+              const active = playerTags.includes(tag.id)
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={`vendor-promos-tag-pick ${active ? 'vendor-promos-tag-pick--active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() =>
+                    setPlayerTags((prev) =>
+                      active ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
+                    )
+                  }
+                >
+                  {tag.label}
+                </button>
+              )
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">SUMMARY</legend>
           <textarea
             className="vendor-promos-textarea"
@@ -333,35 +447,176 @@ function PromotionsTab() {
   )
 }
 
+function CouponCard({
+  coupon,
+  busy,
+  onToggle,
+  onDelete,
+}: {
+  coupon: VendorCoupon
+  busy: boolean
+  onToggle: (coupon: VendorCoupon) => void
+  onDelete: (coupon: VendorCoupon) => void
+}) {
+  const status = coupon.status || 'active'
+  const isPaused = status === 'draft'
+  const canToggle = status === 'active' || status === 'draft'
+
+  return (
+    <article className="vendor-codes-card">
+      <div className="vendor-codes-card-main">
+        <div>
+          <h3 className="vendor-codes-card-title">{coupon.code}</h3>
+          <p className="vendor-codes-card-meta">{coupon.meta}</p>
+          {coupon.limitsLabel ? (
+            <p className="vendor-codes-card-limits">{coupon.limitsLabel}</p>
+          ) : null}
+        </div>
+        <span
+          className={`vendor-codes-card-status ${
+            isPaused
+              ? 'vendor-codes-card-status--paused'
+              : status === 'expired'
+                ? 'vendor-codes-card-status--expired'
+                : ''
+          }`}
+        >
+          {coupon.statusLabel || (isPaused ? 'Disabled' : 'Active')}
+        </span>
+      </div>
+      <div className="vendor-codes-card-actions">
+        {canToggle ? (
+          <button
+            type="button"
+            className="vendor-promo-list-action-btn"
+            disabled={busy}
+            onClick={() => onToggle(coupon)}
+          >
+            {isPaused ? 'Enable' : 'Disable'}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="vendor-promo-list-action-btn vendor-promo-list-action-btn--danger"
+          disabled={busy}
+          onClick={() => onDelete(coupon)}
+        >
+          Delete
+        </button>
+      </div>
+    </article>
+  )
+}
+
 function CodesTab() {
+  const [list, setList] = useState<VendorCoupon[]>([])
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [saving, setSaving] = useState(false)
+  const [actionId, setActionId] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const [code, setCode] = useState('')
   const [bonusType, setBonusType] = useState('percent-bonus')
-  const [bonusValue, setBonusValue] = useState('')
-  const [useLimit, setUseLimit] = useState('')
-  const [startDate, setStartDate] = useState('2026-01-01')
+  const [bonusValue, setBonusValue] = useState('20')
+  const [useLimit, setUseLimit] = useState('1')
+  const [maxRedemptions, setMaxRedemptions] = useState('100')
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [startTime, setStartTime] = useState('00:00')
-  const [expiresDate, setExpiresDate] = useState('2026-01-31')
+  const [expiresDate, setExpiresDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 30)
+    return d.toISOString().slice(0, 10)
+  })
   const [expiresTime, setExpiresTime] = useState('23:59')
+
+  const load = useCallback(async () => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await tapstackApi.vendorCoupons()
+      setList(res.coupons || [])
+    } catch {
+      setList([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   function handleAutoCode() {
     const generated = `SAVE${Math.floor(1000 + Math.random() * 9000)}`
     setCode(generated)
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!isApiConfigured() || saving) return
+    setError('')
+    setSaving(true)
+    try {
+      await tapstackApi.vendorCouponCreate({
+        code: code.trim(),
+        bonusType,
+        bonusValue: Number(bonusValue),
+        useLimit: useLimit === 'unlimited' ? 0 : Number(useLimit || 1),
+        maxRedemptions: Number(maxRedemptions || 0),
+        startDate,
+        startTime,
+        endDate: expiresDate,
+        endTime: expiresTime,
+      })
+      setCode('')
+      setBonusValue('20')
+      await load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create coupon code.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleToggle(coupon: VendorCoupon) {
+    if (!isApiConfigured() || actionId) return
+    const next = coupon.status === 'draft' ? 'active' : 'paused'
+    setActionId(coupon.id)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorCouponSetStatus(coupon.id, next)
+      setList((prev) => prev.map((item) => (item.id === coupon.id ? res.coupon : item)))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update coupon.')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  async function handleDelete(coupon: VendorCoupon) {
+    if (!isApiConfigured() || actionId) return
+    if (!window.confirm(`Delete code “${coupon.code}”? This cannot be undone.`)) return
+    setActionId(coupon.id)
+    setError('')
+    try {
+      await tapstackApi.vendorCouponDelete(coupon.id)
+      setList((prev) => prev.filter((item) => item.id !== coupon.id))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete coupon.')
+    } finally {
+      setActionId(null)
+    }
   }
 
   return (
     <div className="vendor-promos-content">
       <div className="vendor-promos-toolbar">
         <h2 className="vendor-promos-heading">Coupon Codes</h2>
-        <button type="button" className="vendor-promos-new-btn">
-          + New Code
-        </button>
       </div>
 
-      <form className="vendor-promos-form-card" onSubmit={handleSubmit}>
+      <form className="vendor-promos-form-card" onSubmit={(event) => void handleSubmit(event)}>
         <p className="vendor-promos-form-label">Quick Create</p>
 
         <div className="vendor-codes-code-row">
@@ -371,6 +626,7 @@ function CodesTab() {
             placeholder="Code (e.g. SAVE20)"
             value={code}
             onChange={(event) => setCode(event.target.value.toUpperCase())}
+            required
           />
           <button type="button" className="vendor-codes-auto-btn" onClick={handleAutoCode}>
             Auto
@@ -394,30 +650,44 @@ function CodesTab() {
             </svg>
           </div>
           <input
-            type="text"
+            type="number"
             className="vendor-promos-input"
             placeholder="Value (e.g. 20)"
             value={bonusValue}
             onChange={(event) => setBonusValue(event.target.value)}
+            min={0.01}
+            step="0.01"
+            required
           />
         </div>
 
-        <div className="vendor-promos-select-wrap">
-          <select
-            className="vendor-promos-select"
-            value={useLimit}
-            onChange={(event) => setUseLimit(event.target.value)}
-            aria-label="Use limit per customer"
-          >
-            <option value="">Use limit per customer</option>
-            <option value="1">1 use per customer</option>
-            <option value="3">3 uses per customer</option>
-            <option value="5">5 uses per customer</option>
-            <option value="unlimited">Unlimited per customer</option>
-          </select>
-          <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        <div className="vendor-promos-datetime-row">
+          <div className="vendor-promos-select-wrap">
+            <select
+              className="vendor-promos-select"
+              value={useLimit}
+              onChange={(event) => setUseLimit(event.target.value)}
+              aria-label="Use limit per customer"
+            >
+              <option value="1">1 use per customer</option>
+              <option value="3">3 uses per customer</option>
+              <option value="5">5 uses per customer</option>
+              <option value="unlimited">Unlimited per customer</option>
+            </select>
+            <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <input
+            type="number"
+            className="vendor-promos-input"
+            placeholder="Max total uses"
+            value={maxRedemptions}
+            onChange={(event) => setMaxRedemptions(event.target.value)}
+            min={0}
+            step={1}
+            aria-label="Max total redemptions"
+          />
         </div>
 
         <fieldset className="vendor-promos-fieldset">
@@ -460,77 +730,59 @@ function CodesTab() {
           </div>
         </fieldset>
 
-        <button type="submit" className="vendor-promos-submit-btn">
-          Create Code
+        {error ? <p className="vendor-promos-error">{error}</p> : null}
+
+        <button type="submit" className="vendor-promos-submit-btn" disabled={saving || !code.trim()}>
+          {saving ? 'Creating…' : 'Create Code'}
         </button>
       </form>
 
+      {loading ? <p className="vendor-promos-hint">Loading…</p> : null}
       <ul className="vendor-codes-list">
-        <li>
-          <article className="vendor-codes-card">
-            <div>
-              <h3 className="vendor-codes-card-title">LUCKY20</h3>
-              <p className="vendor-codes-card-meta">20% bonus · 12/50 used · exp Jan 15</p>
-            </div>
-            <span className="vendor-codes-card-status">Active</span>
-          </article>
-        </li>
-        <li>
-          <article className="vendor-codes-card">
-            <div>
-              <h3 className="vendor-codes-card-title">FREESPIN</h3>
-              <p className="vendor-codes-card-meta">$5 credit · 0/100 used · exp Jan 31</p>
-            </div>
-            <span className="vendor-codes-card-status">Active</span>
-          </article>
-        </li>
+        {list.map((coupon) => (
+          <li key={coupon.id}>
+            <CouponCard
+              coupon={coupon}
+              busy={actionId === coupon.id}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+            />
+          </li>
+        ))}
       </ul>
+      {!loading && list.length === 0 ? (
+        <p className="vendor-promos-hint">No coupon codes yet — create one above.</p>
+      ) : null}
     </div>
   )
 }
 
 function EmailBlastTab() {
   const [audienceExpanded, setAudienceExpanded] = useState(true)
-  const [selectedSegment, setSelectedSegment] = useState('one-time-depositors')
+  const [selectedSegment, setSelectedSegment] = useState('all')
   const [audienceDraft, setAudienceDraft] = useState('')
   const [filterField, setFilterField] = useState('deposit-count')
   const [filterOperator, setFilterOperator] = useState('exactly')
   const [filterValue, setFilterValue] = useState('1')
   const [filterWindow, setFilterWindow] = useState('90-days')
-  const [subject, setSubject] = useState("New Year's special offer inside! 🎉")
-  const [message, setMessage] = useState(
-    "Hey! We noticed you tried us out — come back this week and get 20% bonus credits on your next deposit. Use code LUCKY20. See you on the floor!",
-  )
-
-  const recipientCount = 247
-
-  const recentBlasts = [
-    {
-      id: 'weekend-freeplay',
-      title: 'Weekend Freeplay Event!',
-      meta: 'Dec 27 · 231 sent · All players',
-      openRate: '64%',
-    },
-    {
-      id: 'come-back',
-      title: 'Come back — we miss you!',
-      meta: 'Dec 20 · 74 sent · Inactive 30d+',
-      openRate: '58%',
-    },
-    {
-      id: 'christmas-special',
-      title: 'Christmas Special Offer',
-      meta: 'Dec 24 · 219 sent · All players',
-      openRate: '71%',
-    },
-  ]
-
-  const quickSegments = [
-    { id: 'one-time-depositors', label: 'One-time depositors', count: 38 },
-    { id: 'inactive-30', label: 'Inactive 30+ days', count: 74 },
-    { id: 'high-value', label: 'High-value players', count: 21 },
-    { id: 'new-month', label: 'New this month', count: 19 },
-  ]
+  const [useCustomFilter, setUseCustomFilter] = useState(false)
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [sending, setSending] = useState(false)
+  const [finding, setFinding] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [segments, setSegments] = useState<EmailBlastSegment[]>([])
+  const [recentBlasts, setRecentBlasts] = useState<EmailBlastItem[]>([])
+  const [availability, setAvailability] = useState<EmailBlastAvailability>({
+    available: true,
+    nextAvailable: 'Now',
+    blastsEnabled: true,
+    message: 'Ready to send',
+  })
+  const [recipientCount, setRecipientCount] = useState(0)
 
   const aiSuggestions = [
     "Players who haven't visited in 3 weeks",
@@ -539,16 +791,126 @@ function EmailBlastTab() {
     'One-time depositors to win back',
   ]
 
-  function handleAudienceSubmit(event: FormEvent<HTMLFormElement>) {
+  const filters = useCustomFilter
+    ? {
+        field: filterField,
+        operator: filterOperator,
+        value: filterValue,
+        window: filterWindow,
+      }
+    : undefined
+
+  const load = useCallback(async () => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorEmailBlasts()
+      setSegments(res.segments || [])
+      setRecentBlasts(res.recent || [])
+      if (res.availability) setAvailability(res.availability)
+      const all = (res.segments || []).find((s) => s.id === 'all')
+      if (all) setRecipientCount(all.count)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not load email blasts.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    const match = segments.find((s) => s.id === selectedSegment)
+    if (match && !useCustomFilter) setRecipientCount(match.count)
+  }, [selectedSegment, segments, useCustomFilter])
+
+  async function refreshPreview(segment = selectedSegment) {
+    if (!isApiConfigured()) return
+    setFinding(true)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorEmailBlastPreview({
+        segment,
+        filters,
+      })
+      setRecipientCount(res.count || 0)
+      setSelectedSegment(res.segment || segment)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not preview audience.')
+    } finally {
+      setFinding(false)
+    }
+  }
+
+  async function handleAudienceSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setAudienceDraft('')
+    if (!audienceDraft.trim() || !isApiConfigured()) return
+    setFinding(true)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorEmailBlastInterpret(audienceDraft.trim())
+      setSelectedSegment(res.segment)
+      setRecipientCount(res.count || 0)
+      setUseCustomFilter(false)
+      setAudienceDraft('')
+      setSuccess(`Audience set to ${res.segmentLabel} (${res.count} players).`)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not interpret audience.')
+    } finally {
+      setFinding(false)
+    }
+  }
+
+  async function handleSend() {
+    if (!isApiConfigured() || sending) return
+    if (!subject.trim() || !message.trim()) {
+      setError('Subject and message are required.')
+      return
+    }
+    if (!availability.available) {
+      setError(availability.message || 'Daily blast limit reached.')
+      return
+    }
+    if (recipientCount <= 0) {
+      setError('No players in this audience.')
+      return
+    }
+    if (!window.confirm(`Send this email to ${recipientCount} players? You can only send 1 blast per day.`)) {
+      return
+    }
+    setSending(true)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await tapstackApi.vendorEmailBlastSend({
+        subject: subject.trim(),
+        message: message.trim(),
+        segment: selectedSegment,
+        filters,
+      })
+      setAvailability(res.availability)
+      setSuccess(`Sent to ${res.sentCount} players${res.failedCount ? ` (${res.failedCount} failed)` : ''}.`)
+      setSubject('')
+      setMessage('')
+      await load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not send email blast.')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
     <div className="vendor-promos-content vendor-email-blast-content">
       <div className="vendor-email-blast-intro">
         <h2 className="vendor-promos-heading">Email Blast</h2>
-        <p className="vendor-email-blast-subtitle">Target specific player segments</p>
+        <p className="vendor-email-blast-subtitle">Target specific player segments · 1 blast per day</p>
       </div>
 
       <section className="vendor-email-audience-card">
@@ -589,18 +951,25 @@ function EmailBlastTab() {
           </svg>
         </button>
 
-        {audienceExpanded && (
+        {audienceExpanded ? (
           <div className="vendor-email-audience-body">
             <p className="vendor-email-segments-label">QUICK SEGMENTS</p>
             <div className="vendor-email-segments-grid">
-              {quickSegments.map((segment) => {
-                const active = selectedSegment === segment.id
+              {(segments.length
+                ? segments
+                : [{ id: 'all', label: 'All players', count: 0 }]
+              ).map((segment) => {
+                const active = selectedSegment === segment.id && !useCustomFilter
                 return (
                   <button
                     key={segment.id}
                     type="button"
                     className={`vendor-email-segment-btn ${active ? 'vendor-email-segment-btn--active' : ''}`}
-                    onClick={() => setSelectedSegment(segment.id)}
+                    onClick={() => {
+                      setSelectedSegment(segment.id)
+                      setUseCustomFilter(false)
+                      setRecipientCount(segment.count)
+                    }}
                   >
                     <span className="vendor-email-segment-label">{segment.label}</span>
                     <span className="vendor-email-segment-count">({segment.count} players)</span>
@@ -618,8 +987,7 @@ function EmailBlastTab() {
               </div>
 
               <div className="vendor-email-ai-prompt">
-                Tell me who you want to reach and I&apos;ll build the filters. e.g. &apos;players who
-                deposited over $200 but haven&apos;t been back in a month&apos;.
+                Tell me who you want to reach and I&apos;ll pick the best segment.
               </div>
 
               <div className="vendor-email-ai-suggestions">
@@ -635,7 +1003,7 @@ function EmailBlastTab() {
                 ))}
               </div>
 
-              <form className="vendor-email-ai-input-row" onSubmit={handleAudienceSubmit}>
+              <form className="vendor-email-ai-input-row" onSubmit={(event) => void handleAudienceSubmit(event)}>
                 <input
                   type="text"
                   value={audienceDraft}
@@ -643,7 +1011,7 @@ function EmailBlastTab() {
                   placeholder="Describe your audience..."
                   aria-label="Describe your audience"
                 />
-                <button type="submit" className="vendor-email-ai-send-btn" aria-label="Send message">
+                <button type="submit" className="vendor-email-ai-send-btn" aria-label="Build audience" disabled={finding}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
                       d="M22 2 11 13M22 2 15 22 11 13 2 9 22 2"
@@ -657,7 +1025,7 @@ function EmailBlastTab() {
               </form>
             </div>
           </div>
-        )}
+        ) : null}
       </section>
 
       <section className="vendor-email-filters-card">
@@ -673,7 +1041,7 @@ function EmailBlastTab() {
             >
               <option value="deposit-count">Deposit Count</option>
               <option value="total-spent">Total Spent</option>
-              <option value="last-visit">Last Visit</option>
+              <option value="last-visit">Days since visit</option>
             </select>
           </div>
           <div className="vendor-email-filter-select-wrap">
@@ -710,29 +1078,46 @@ function EmailBlastTab() {
           </div>
         </div>
 
-        <button type="button" className="vendor-email-add-filter-btn">
-          + Add Filter
+        <button
+          type="button"
+          className="vendor-email-add-filter-btn"
+          onClick={() => setUseCustomFilter(true)}
+        >
+          {useCustomFilter ? 'Custom filter active' : '+ Apply Filter'}
         </button>
 
-        <button type="button" className="vendor-email-find-players-btn">
+        <button
+          type="button"
+          className="vendor-email-find-players-btn"
+          disabled={finding}
+          onClick={() => {
+            setUseCustomFilter(true)
+            void refreshPreview(selectedSegment)
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.8" />
             <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.8" />
             <circle cx="17" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.8" />
             <path d="M14 20c.4-2.2 2-4 4-4" stroke="currentColor" strokeWidth="1.8" />
           </svg>
-          Find Players
+          {finding ? 'Finding…' : 'Find Players'}
         </button>
       </section>
 
-      <article className="vendor-email-plan-card">
+      <article className={`vendor-email-plan-card ${availability.available ? '' : 'vendor-email-plan-card--blocked'}`}>
         <div>
-          <p className="vendor-email-plan-title">Pro Plan · Daily Blast</p>
+          <p className="vendor-email-plan-title">Daily Blast Limit</p>
           <p className="vendor-email-plan-meta">
-            Next available: Now · {recipientCount} recipients
+            Next available: {availability.nextAvailable} · {recipientCount} recipients
           </p>
+          {!availability.available ? (
+            <p className="vendor-email-plan-warning">{availability.message}</p>
+          ) : null}
         </div>
-        <span className="vendor-email-plan-status">Available</span>
+        <span className={`vendor-email-plan-status ${availability.available ? '' : 'vendor-email-plan-status--blocked'}`}>
+          {availability.available ? 'Available' : 'Used today'}
+        </span>
       </article>
 
       <section className="vendor-email-compose">
@@ -743,6 +1128,7 @@ function EmailBlastTab() {
             className="vendor-promos-input"
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
+            placeholder="Weekend freeplay is live"
           />
         </label>
 
@@ -753,21 +1139,39 @@ function EmailBlastTab() {
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             rows={5}
+            placeholder="Write the email players will receive…"
           />
         </label>
 
+        {error ? <p className="vendor-promos-error">{error}</p> : null}
+        {success ? <p className="vendor-promos-save-ok">{success}</p> : null}
+
         <div className="vendor-email-compose-actions">
-          <button type="button" className="vendor-email-preview-btn">
+          <button
+            type="button"
+            className="vendor-email-preview-btn"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!subject.trim() && !message.trim()}
+          >
             Preview
           </button>
-          <button type="button" className="vendor-email-send-btn">
-            Send to {recipientCount}
+          <button
+            type="button"
+            className="vendor-email-send-btn"
+            disabled={sending || loading || !availability.available || recipientCount <= 0}
+            onClick={() => void handleSend()}
+          >
+            {sending ? 'Sending…' : `Send to ${recipientCount}`}
           </button>
         </div>
       </section>
 
       <section className="vendor-email-recent">
         <h3 className="vendor-email-recent-label">RECENT BLASTS</h3>
+        {loading ? <p className="vendor-promos-hint">Loading…</p> : null}
+        {!loading && recentBlasts.length === 0 ? (
+          <p className="vendor-promos-hint">No blasts sent yet.</p>
+        ) : null}
         <ul className="vendor-email-recent-list">
           {recentBlasts.map((blast) => (
             <li key={blast.id}>
@@ -785,6 +1189,30 @@ function EmailBlastTab() {
           ))}
         </ul>
       </section>
+
+      {previewOpen ? (
+        <div className="vendor-email-preview-overlay" role="presentation" onClick={() => setPreviewOpen(false)}>
+          <div
+            className="vendor-email-preview-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Email preview"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="vendor-email-preview-head">
+              <h3>Preview</h3>
+              <button type="button" className="vendor-notif-close" onClick={() => setPreviewOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <p className="vendor-email-preview-subject">
+              <strong>Subject:</strong> {subject || '(no subject)'}
+            </p>
+            <pre className="vendor-email-preview-body">{message || '(no message)'}</pre>
+            <p className="vendor-promos-hint">Sending to {recipientCount} players in “{selectedSegment}”.</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

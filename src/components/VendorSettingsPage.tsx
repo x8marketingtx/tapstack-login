@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { isApiConfigured, tapstackApi, type VendorGameRecord } from '../api/client'
+import {
+  ApiError,
+  applyAuthSession,
+  isApiConfigured,
+  tapstackApi,
+  type VendorGameRecord,
+} from '../api/client'
 import './VendorSettingsPage.css'
 
 type SettingsTab = 'profile' | 'games' | 'billing'
@@ -63,6 +69,13 @@ function ProfileTab() {
   const [bannerUrl, setBannerUrl] = useState('')
   const [bannerName, setBannerName] = useState('')
   const [uploadingBanner, setUploadingBanner] = useState(false)
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordBusy, setPasswordBusy] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordOk, setPasswordOk] = useState('')
 
   const accentColors = [
     { id: 'purple', value: '#7c3aed' },
@@ -183,6 +196,38 @@ function ProfileTab() {
       setSaveError(err instanceof Error ? err.message : 'Could not save profile.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handlePasswordUpdate() {
+    setPasswordError('')
+    setPasswordOk('')
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match.')
+      return
+    }
+    setPasswordBusy(true)
+    try {
+      if (isApiConfigured()) {
+        const res = await tapstackApi.changePassword(currentPassword, newPassword)
+        applyAuthSession(res.token, res.user)
+        setPasswordOk('Password updated.')
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setShowPasswordForm(false)
+      } else {
+        setPasswordOk('Password updated (demo).')
+        setShowPasswordForm(false)
+      }
+    } catch (err) {
+      setPasswordError(err instanceof ApiError ? err.message : 'Could not update password.')
+    } finally {
+      setPasswordBusy(false)
     }
   }
 
@@ -392,8 +437,16 @@ function ProfileTab() {
       {saveOk ? <p className="vendor-settings-save-ok">Profile saved.</p> : null}
 
       <div className="vendor-settings-actions">
-        <button type="button" className="vendor-settings-password-btn">
-          Change Password
+        <button
+          type="button"
+          className="vendor-settings-password-btn"
+          onClick={() => {
+            setShowPasswordForm((open) => !open)
+            setPasswordError('')
+            setPasswordOk('')
+          }}
+        >
+          {showPasswordForm ? 'Cancel password change' : 'Change Password'}
         </button>
         <button
           type="button"
@@ -404,6 +457,55 @@ function ProfileTab() {
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
+
+      {showPasswordForm ? (
+        <section className="vendor-settings-password-panel">
+          <h3 className="vendor-settings-panel-title">Change password</h3>
+          <label className="vendor-settings-field">
+            <span className="vendor-settings-field-label">Current password</span>
+            <input
+              type="password"
+              className="vendor-settings-input"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
+          <label className="vendor-settings-field">
+            <span className="vendor-settings-field-label">New password</span>
+            <input
+              type="password"
+              className="vendor-settings-input"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="vendor-settings-field">
+            <span className="vendor-settings-field-label">Confirm new password</span>
+            <input
+              type="password"
+              className="vendor-settings-input"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          {passwordError ? <p className="vendor-settings-modal-error">{passwordError}</p> : null}
+          {passwordOk ? <p className="vendor-settings-save-ok">{passwordOk}</p> : null}
+          <button
+            type="button"
+            className="vendor-settings-save-btn"
+            disabled={passwordBusy || !currentPassword || !newPassword || !confirmPassword}
+            onClick={() => void handlePasswordUpdate()}
+          >
+            {passwordBusy ? 'Updating…' : 'Update password'}
+          </button>
+        </section>
+      ) : null}
+      {passwordOk && !showPasswordForm ? (
+        <p className="vendor-settings-save-ok">{passwordOk}</p>
+      ) : null}
     </div>
   )
 }
