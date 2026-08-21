@@ -914,7 +914,36 @@ export const tapstackApi = {
       total: number
       customers: VendorCustomer[]
     }>(`/vendor/customers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
-  vendorAnalytics: () => apiRequest<Record<string, unknown>>('/vendor/analytics'),
+  vendorAnalytics: (range = '7d') =>
+    apiRequest<{
+      ok?: boolean
+      range?: string
+      financial?: {
+        periodLabel?: string
+        breakdownTitle?: string
+        netProfit?: string
+        deposits?: string
+        redeems?: string
+        platformFees?: string
+        distributorCut?: string
+      }
+      daily?: Array<{
+        day: string
+        inAmount: number
+        outAmount: number
+        netProfit: number
+        netLabel: string
+      }>
+      games?: Array<{
+        id: string
+        title: string
+        players: number
+        inAmount: string
+        outAmount: string
+        netAmount: string
+      }>
+      customers?: VendorCustomer[]
+    }>(`/vendor/analytics?range=${encodeURIComponent(range)}`),
   vendorPromos: () =>
     apiRequest<{ promotions: VendorPromotion[] }>('/vendor/promos'),
   vendorPromoCreate: (payload: {
