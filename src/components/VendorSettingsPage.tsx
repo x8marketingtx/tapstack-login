@@ -499,7 +499,9 @@ function credentialsForPlatform(platform: GamePlatform, values: AgentCredentials
     const key = field.key
     if (key === 'hasPassword' || key === 'hasAppSecret') continue
     const value = values[key]
-    if (typeof value === 'string') next[key] = value
+    if (typeof value === 'string') {
+      Object.assign(next, { [key]: value })
+    }
   }
   return next
 }

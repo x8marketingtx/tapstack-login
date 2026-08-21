@@ -19,7 +19,7 @@ type PlayerSignupPageProps = {
 
 type Step = 'details' | 'otp'
 
-export default function PlayerSignupPage({ onComplete: _onComplete, onBack }: PlayerSignupPageProps) {
+export default function PlayerSignupPage({ onBack }: PlayerSignupPageProps) {
   const [step, setStep] = useState<Step>('details')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')

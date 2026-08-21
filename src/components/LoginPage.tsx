@@ -104,14 +104,12 @@ function PortalLogin({
   portalType,
   userType,
   onUserTypeChange,
-  onSubmit: _onSubmit,
   onApply,
   onOpenLegal,
 }: {
   portalType: 'vendor' | 'admin'
   userType: UserType
   onUserTypeChange: (type: UserType) => void
-  onSubmit: () => void
   onApply: () => void
   onOpenLegal: (doc: LegalDoc) => void
 }) {
@@ -150,13 +148,19 @@ function PortalLogin({
       return
     }
 
-    setDemoSession(portalType, {
-      displayName: portalType === 'vendor' ? 'Lucky Strike Arcade' : undefined,
-      email: portalType === 'vendor' ? 'vendor@tapstack.demo' : undefined,
-      username: portalType === 'vendor' ? '@luckystrike' : undefined,
-      phone: portalType === 'vendor' ? '+15558124200' : undefined,
-    })
-    window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
+    if (portalType === 'vendor') {
+      setDemoSession('vendor', {
+        displayName: 'Lucky Strike Arcade',
+        email: 'vendor@tapstack.demo',
+        username: '@luckystrike',
+        phone: '+15558124200',
+      })
+      window.location.replace('/vendor')
+      return
+    }
+
+    setDemoSession('admin')
+    window.location.replace('/admin')
   }
 
   return (
@@ -362,8 +366,6 @@ export default function LoginPage({
   userType,
   onUserTypeChange,
   onPlayersPhoneSubmit,
-  onVendorLogin,
-  onAdminLogin,
   onSignUp,
   onApply,
   onOpenLegal,
@@ -375,7 +377,6 @@ export default function LoginPage({
         portalType={userType}
         userType={userType}
         onUserTypeChange={onUserTypeChange}
-        onSubmit={userType === 'admin' ? onAdminLogin : onVendorLogin}
         onApply={onApply}
         onOpenLegal={onOpenLegal}
       />

@@ -93,7 +93,7 @@ export default function GameLoadModal({
 
   if (!open || !game) return null
 
-  const target = game
+  const target: GameLoadTarget = game
   const isManual = target.mode !== 'auto'
   const numericAmount = Number(amount)
   const availableWallet = parseMoney(walletFormatted)
@@ -111,6 +111,7 @@ export default function GameLoadModal({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    const activeGame: GameLoadTarget = target
     if (!canSubmit) return
 
     setError('')
@@ -127,7 +128,7 @@ export default function GameLoadModal({
 
     try {
       const payload = {
-        gameKey: target.gameKey,
+        gameKey: activeGame.gameKey,
         amount: numericAmount,
         ...(isManual
           ? {
@@ -164,7 +165,7 @@ export default function GameLoadModal({
 
       if (!isManual) {
         try {
-          const balRes = await tapstackApi.vendorGameBalance(vendorId, target.gameKey)
+          const balRes = await tapstackApi.vendorGameBalance(vendorId, activeGame.gameKey)
           if (balRes.formatted) {
             nextGame = balRes.formatted
             setGameBalance(balRes.formatted)

@@ -18,7 +18,7 @@ type OtpPageProps = {
   onBack: () => void
 }
 
-export default function OtpPage({ phone, onVerify: _onVerify, onBack }: OtpPageProps) {
+export default function OtpPage({ phone, onBack }: OtpPageProps) {
   const [digits, setDigits] = useState(['', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
