@@ -398,6 +398,8 @@ export type VendorPromotion = {
   minAmount?: number
   rewardValue?: number
   summary?: string
+  startsAt?: string
+  endsAt?: string
   limitPerPlayer?: number
   limitPerDay?: number
   limitTotal?: number
@@ -1073,6 +1075,28 @@ export const tapstackApi = {
       method: 'POST',
       body: payload,
     }),
+  vendorPromoUpdate: (
+    id: string,
+    payload: {
+      title: string
+      type: string
+      summary?: string
+      minAmount: number
+      rewardValue: number
+      startDate?: string
+      startTime?: string
+      endDate?: string
+      endTime?: string
+      limitPerPlayer?: number
+      limitPerDay?: number
+      limitTotal?: number
+      playerTags?: string[]
+    },
+  ) =>
+    apiRequest<{ ok: boolean; promotion: VendorPromotion }>(`/vendor/promos/${id}`, {
+      method: 'POST',
+      body: payload,
+    }),
   vendorPromoSetStatus: (id: string, status: 'active' | 'paused') =>
     apiRequest<{ ok: boolean; promotion: VendorPromotion }>(`/vendor/promos/${id}/status`, {
       method: 'POST',
@@ -1169,7 +1193,7 @@ export const tapstackApi = {
       tags: string[]
       tagLabels: string[]
     }>(`/vendor/customers/${playerId}/tags`, {
-      method: 'PUT',
+      method: 'POST',
       body: { tags },
     }),
   vendorSettings: () =>

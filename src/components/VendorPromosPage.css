@@ -195,9 +195,32 @@
   resize: vertical;
 }
 
-.vendor-promos-submit-btn {
-  width: 100%;
+.vendor-promos-form-actions {
+  display: flex;
+  gap: 10px;
   margin-top: 4px;
+}
+
+.vendor-promos-cancel-btn {
+  flex: 0 0 auto;
+  padding: 14px 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.vendor-promos-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.vendor-promos-submit-btn {
+  flex: 1;
+  width: 100%;
   padding: 14px 16px;
   border: none;
   border-radius: 999px;
@@ -205,6 +228,12 @@
   color: #fff;
   font-size: 15px;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.vendor-promos-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
 .vendor-promos-placeholder {

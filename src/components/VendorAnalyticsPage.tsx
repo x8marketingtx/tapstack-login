@@ -148,6 +148,18 @@ function CustomersTab() {
     const next = current.includes(tagId)
       ? current.filter((id) => id !== tagId)
       : [...current, tagId]
+    const nextLabels = PLAYER_TAG_OPTIONS.filter((t) => next.includes(t.id)).map((t) => t.label)
+
+    // Optimistic UI so toggles feel instant on both list + detail.
+    setCustomers((prev) =>
+      prev.map((row) =>
+        row.id === customer.id ? { ...row, tags: next, tagLabels: nextLabels } : row,
+      ),
+    )
+    setDetailCustomer((prev) =>
+      prev && prev.id === customer.id ? { ...prev, tags: next, tagLabels: nextLabels } : prev,
+    )
+
     setTagBusyId(customer.id)
     try {
       const res = await tapstackApi.vendorCustomerSetTags(customer.id, next)
@@ -163,8 +175,25 @@ function CustomersTab() {
           ? { ...prev, tags: res.tags, tagLabels: res.tagLabels }
           : prev,
       )
+      setError('')
+      setDetailError('')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update player tags.')
+      // Revert optimistic change.
+      setCustomers((prev) =>
+        prev.map((row) =>
+          row.id === customer.id
+            ? { ...row, tags: current, tagLabels: customer.tagLabels }
+            : row,
+        ),
+      )
+      setDetailCustomer((prev) =>
+        prev && prev.id === customer.id
+          ? { ...prev, tags: current, tagLabels: customer.tagLabels }
+          : prev,
+      )
+      const message = err instanceof ApiError ? err.message : 'Could not update player tags.'
+      if (selectedId) setDetailError(message)
+      else setError(message)
     } finally {
       setTagBusyId(null)
     }
@@ -254,8 +283,11 @@ function CustomersTab() {
             </section>
 
             <section className="vendor-customer-info-card">
-              <h3 className="vendor-customer-section-title">Player tags</h3>
-              <div className="vendor-analytics-tag-picks" role="group" aria-label={`Tags for ${shown.name}`}>
+              <div className="vendor-customer-section-head">
+                <h3 className="vendor-customer-section-title">Player tags</h3>
+                <p className="vendor-customer-section-hint">Tap to turn on or off</p>
+              </div>
+              <div className="vendor-analytics-tag-picks vendor-analytics-tag-picks--detail" role="group" aria-label={`Tags for ${shown.name}`}>
                 {PLAYER_TAG_OPTIONS.map((tag) => {
                   const active = (shown.tags || []).includes(tag.id)
                   return (

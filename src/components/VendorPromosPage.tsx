@@ -22,14 +22,34 @@ const PROMOS_TABS: { id: PromosTab; label: string; icon: string }[] = [
 
 type PromoStatus = 'active' | 'draft' | 'expired'
 
+function splitDateTime(value?: string): { date: string; time: string } {
+  if (!value) return { date: '', time: '' }
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const d = new Date(normalized)
+  if (Number.isNaN(d.getTime())) {
+    const [datePart, timePart = ''] = value.split(/[ T]/)
+    return {
+      date: (datePart || '').slice(0, 10),
+      time: (timePart || '').slice(0, 5) || '00:00',
+    }
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  }
+}
+
 function PromotionCard({
   promo,
   busy,
+  onEdit,
   onToggle,
   onDelete,
 }: {
   promo: VendorPromotion
   busy: boolean
+  onEdit: (promo: VendorPromotion) => void
   onToggle: (promo: VendorPromotion) => void
   onDelete: (promo: VendorPromotion) => void
 }) {
@@ -89,6 +109,16 @@ function PromotionCard({
           </div>
         </div>
         <div className="vendor-promo-list-actions">
+          {status !== 'expired' ? (
+            <button
+              type="button"
+              className="vendor-promo-list-action-btn"
+              disabled={busy}
+              onClick={() => onEdit(promo)}
+            >
+              Edit
+            </button>
+          ) : null}
           {canToggle ? (
             <button
               type="button"
@@ -118,6 +148,7 @@ function PromotionsTab() {
   const [loading, setLoading] = useState(isApiConfigured())
   const [saving, setSaving] = useState(false)
   const [actionId, setActionId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [promoType, setPromoType] = useState('bonus-credit')
@@ -162,36 +193,85 @@ function PromotionsTab() {
     void load()
   }, [load])
 
+  function resetForm() {
+    setEditingId(null)
+    setTitle('')
+    setPromoType('bonus-credit')
+    setMinAmount('25')
+    setRewardValue('5')
+    setStartDate(new Date().toISOString().slice(0, 10))
+    setStartTime('00:00')
+    const end = new Date()
+    end.setDate(end.getDate() + 14)
+    setEndDate(end.toISOString().slice(0, 10))
+    setEndTime('23:59')
+    setSummary('')
+    setLimitPerPlayer('1')
+    setLimitPerDay('')
+    setLimitTotal('')
+    setPlayerTags([])
+  }
+
+  function beginEdit(promo: VendorPromotion) {
+    const start = splitDateTime(promo.startsAt)
+    const end = splitDateTime(promo.endsAt)
+    setEditingId(promo.id)
+    setTitle(promo.title || '')
+    setPromoType(promo.type || 'bonus-credit')
+    setMinAmount(String(promo.minAmount ?? 25))
+    setRewardValue(String(promo.rewardValue ?? 5))
+    setStartDate(start.date || new Date().toISOString().slice(0, 10))
+    setStartTime(start.time || '00:00')
+    setEndDate(end.date || '')
+    setEndTime(end.time || '23:59')
+    setSummary(promo.summary || '')
+    const perPlayer = promo.limitPerPlayer ?? 1
+    setLimitPerPlayer(perPlayer <= 0 ? 'unlimited' : String(perPlayer))
+    setLimitPerDay(promo.limitPerDay && promo.limitPerDay > 0 ? String(promo.limitPerDay) : '')
+    setLimitTotal(promo.limitTotal && promo.limitTotal > 0 ? String(promo.limitTotal) : '')
+    setPlayerTags(promo.playerTags || [])
+    setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!isApiConfigured() || saving) return
     setError('')
     setSaving(true)
+    const payload = {
+      title: title.trim(),
+      type: promoType,
+      summary: summary.trim(),
+      minAmount: Number(minAmount),
+      rewardValue: Number(rewardValue),
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      limitPerPlayer: limitPerPlayer === '' || limitPerPlayer === 'unlimited' ? 0 : Number(limitPerPlayer),
+      limitPerDay: limitPerDay === '' ? 0 : Number(limitPerDay),
+      limitTotal: limitTotal === '' ? 0 : Number(limitTotal),
+      playerTags,
+    }
     try {
-      await tapstackApi.vendorPromoCreate({
-        title: title.trim(),
-        type: promoType,
-        summary: summary.trim(),
-        minAmount: Number(minAmount),
-        rewardValue: Number(rewardValue),
-        startDate,
-        startTime,
-        endDate,
-        endTime,
-        limitPerPlayer: limitPerPlayer === '' || limitPerPlayer === 'unlimited' ? 0 : Number(limitPerPlayer),
-        limitPerDay: limitPerDay === '' ? 0 : Number(limitPerDay),
-        limitTotal: limitTotal === '' ? 0 : Number(limitTotal),
-        playerTags,
-      })
-      setTitle('')
-      setSummary('')
-      setLimitPerPlayer('1')
-      setLimitPerDay('')
-      setLimitTotal('')
-      setPlayerTags([])
-      await load()
+      if (editingId) {
+        const res = await tapstackApi.vendorPromoUpdate(editingId, payload)
+        setList((prev) => prev.map((item) => (item.id === editingId ? res.promotion : item)))
+        resetForm()
+      } else {
+        await tapstackApi.vendorPromoCreate(payload)
+        resetForm()
+        await load()
+      }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create promotion.')
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : editingId
+            ? 'Could not update promotion.'
+            : 'Could not create promotion.',
+      )
     } finally {
       setSaving(false)
     }
@@ -234,7 +314,7 @@ function PromotionsTab() {
       </div>
 
       <form className="vendor-promos-form-card" onSubmit={handleSubmit}>
-        <p className="vendor-promos-form-label">New Promotion</p>
+        <p className="vendor-promos-form-label">{editingId ? 'Edit Promotion' : 'New Promotion'}</p>
 
         <input
           type="text"
@@ -422,9 +502,30 @@ function PromotionsTab() {
 
         {error ? <p className="vendor-promos-error">{error}</p> : null}
 
-        <button type="submit" className="vendor-promos-submit-btn" disabled={saving || !title.trim()}>
-          {saving ? 'Creating…' : 'Create Promotion'}
-        </button>
+        <div className="vendor-promos-form-actions">
+          {editingId ? (
+            <button
+              type="button"
+              className="vendor-promos-cancel-btn"
+              disabled={saving}
+              onClick={() => {
+                resetForm()
+                setError('')
+              }}
+            >
+              Cancel
+            </button>
+          ) : null}
+          <button type="submit" className="vendor-promos-submit-btn" disabled={saving || !title.trim()}>
+            {saving
+              ? editingId
+                ? 'Saving…'
+                : 'Creating…'
+              : editingId
+                ? 'Save Changes'
+                : 'Create Promotion'}
+          </button>
+        </div>
       </form>
 
       {loading ? <p className="vendor-promos-hint">Loading…</p> : null}
@@ -433,7 +534,8 @@ function PromotionsTab() {
           <li key={promo.id}>
             <PromotionCard
               promo={promo}
-              busy={actionId === promo.id}
+              busy={actionId === promo.id || editingId === promo.id}
+              onEdit={beginEdit}
               onToggle={handleToggle}
               onDelete={handleDelete}
             />
