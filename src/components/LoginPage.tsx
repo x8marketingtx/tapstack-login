@@ -89,55 +89,144 @@ function RoleDropdown({
   )
 }
 
-function AdminShieldIcon() {
-  return (
-    <svg
-      className="admin-shield"
-      width="28"
-      height="28"
-      viewBox="0 0 28 28"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M14 2 L24 6.5 V13.5 C24 19.5 19.5 24.5 14 26 C8.5 24.5 4 19.5 4 13.5 V6.5 L14 2Z"
-        fill="#fff"
-        stroke="#e5e7eb"
-        strokeWidth="0.5"
-      />
-      <path d="M14 5 L21 8.2 V13.2 C21 17.6 17.8 21.4 14 22.6 C10.2 21.4 7 17.6 7 13.2 V8.2 L14 5Z" fill="#b91c1c" />
-      <path d="M10 12 H18 V14 H10 Z M10 16 H18 V18 H10 Z" fill="#fff" opacity="0.9" />
-    </svg>
-  )
+const PORTAL_COPY: Record<'vendor' | 'admin', { subtitle: string; demoEmail: string }> = {
+  vendor: {
+    subtitle: 'Sign in to your vendor console',
+    demoEmail: 'vendor@tapstack.demo',
+  },
+  admin: {
+    subtitle: 'Sign in to your admin console',
+    demoEmail: 'admin@tapstack.demo',
+  },
 }
 
-function StatusBar() {
+function PortalLogin({
+  portalType,
+  userType,
+  onUserTypeChange,
+  onSubmit: _onSubmit,
+  onApply,
+  onOpenLegal,
+}: {
+  portalType: 'vendor' | 'admin'
+  userType: UserType
+  onUserTypeChange: (type: UserType) => void
+  onSubmit: () => void
+  onApply: () => void
+  onOpenLegal: (doc: LegalDoc) => void
+}) {
+  const copy = PORTAL_COPY[portalType]
+  const [email, setEmail] = useState(isApiConfigured() ? copy.demoEmail : '')
+  const [password, setPassword] = useState(isApiConfigured() ? 'password' : '')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const canSubmit = email.trim().length > 0 && password.trim().length > 0 && !loading
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!email.trim() || !password.trim()) return
+    setError('')
+
+    if (isApiConfigured()) {
+      try {
+        setLoading(true)
+        clearSession()
+        const res = await tapstackApi.portalLogin(email.trim(), password, portalType)
+        if (res.user.role !== portalType) {
+          throw new ApiError(
+            portalType === 'admin' ? 'This account is not an admin.' : 'This account is not a vendor.',
+            403,
+            'tapstack_role_mismatch',
+          )
+        }
+        applyAuthSession(res.token, res.user)
+        window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Login failed.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    setDemoSession(portalType, {
+      displayName: portalType === 'vendor' ? 'Lucky Strike Arcade' : undefined,
+      email: portalType === 'vendor' ? 'vendor@tapstack.demo' : undefined,
+      username: portalType === 'vendor' ? '@luckystrike' : undefined,
+      phone: portalType === 'vendor' ? '+15558124200' : undefined,
+    })
+    window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
+  }
+
   return (
-    <div className="status-bar" aria-hidden="true">
-      <span className="status-time">9:41</span>
-      <div className="status-icons">
-        <svg width="17" height="12" viewBox="0 0 17 12" fill="none">
-          <rect x="0" y="8" width="3" height="4" rx="0.5" fill="currentColor" />
-          <rect x="4.5" y="5.5" width="3" height="6.5" rx="0.5" fill="currentColor" />
-          <rect x="9" y="3" width="3" height="9" rx="0.5" fill="currentColor" />
-          <rect x="13.5" y="0" width="3" height="12" rx="0.5" fill="currentColor" />
-        </svg>
-        <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-          <path
-            d="M8 2.5 C10.5 2.5 12.7 3.6 14.2 5.3 L15.6 3.9 C13.7 1.8 11 0.5 8 0.5 C5 0.5 2.3 1.8 0.4 3.9 L1.8 5.3 C3.3 3.6 5.5 2.5 8 2.5Z"
-            fill="currentColor"
-          />
-          <path
-            d="M8 6.5 C9.4 6.5 10.7 7 11.7 7.9 L13.1 6.5 C11.7 5.2 9.9 4.5 8 4.5 C6.1 4.5 4.3 5.2 2.9 6.5 L4.3 7.9 C5.3 7 6.6 6.5 8 6.5Z"
-            fill="currentColor"
-          />
-          <circle cx="8" cy="10.5" r="1.5" fill="currentColor" />
-        </svg>
-        <svg width="25" height="12" viewBox="0 0 25 12" fill="none">
-          <rect x="0.5" y="0.5" width="21" height="11" rx="2.5" stroke="currentColor" strokeOpacity="0.35" />
-          <rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor" />
-          <rect x="22.5" y="4" width="2" height="4" rx="1" fill="currentColor" fillOpacity="0.4" />
-        </svg>
+    <div className="login-shell">
+      <span className="webview-badge">webview</span>
+
+      <div className="brand">
+        <div className="login-brand-stack">
+          <img src={tapstackIcon} alt="" className="tapstack-icon" aria-hidden="true" />
+          <TapStackLogo height={56} />
+        </div>
+        <p className="subtitle">{copy.subtitle}</p>
+      </div>
+
+      <div className="login-panel">
+        <form className="form" onSubmit={handleSubmit}>
+          <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="players" />
+
+          <div className="phone-field">
+            <input
+              id={`${portalType}-email`}
+              type="email"
+              autoComplete="email"
+              placeholder="Email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              aria-label="Email"
+            />
+          </div>
+
+          <div className="phone-field phone-field--password">
+            <input
+              id={`${portalType}-password`}
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-label="Password"
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((value) => !value)}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+
+          <div className="forgot-row">
+            <a href="#forgot" className="forgot-link">
+              Forgot password?
+            </a>
+          </div>
+
+          {error ? <p className="otp-error">{error}</p> : null}
+
+          <button type="submit" className="login-button" disabled={!canSubmit}>
+            {loading ? 'Signing in…' : 'Log In'}
+          </button>
+        </form>
+
+        <p className="footer">
+          Need access?{' '}
+          <button type="button" className="footer-link" onClick={onApply}>
+            Apply for an account
+          </button>
+        </p>
+
+        <LegalLinks onOpen={onOpenLegal} />
       </div>
     </div>
   )
@@ -258,160 +347,6 @@ function PlayersLogin({
   )
 }
 
-const PORTAL_COPY: Record<
-  'vendor' | 'admin',
-  { label: string; heading: string; subheading: string; accent: 'vendor' | 'admin'; demoEmail: string }
-> = {
-  vendor: {
-    label: 'VENDOR PORTAL',
-    heading: 'Welcome back',
-    subheading: 'Sign in to your vendor console',
-    accent: 'vendor',
-    demoEmail: 'vendor@tapstack.demo',
-  },
-  admin: {
-    label: 'ADMIN PORTAL',
-    heading: 'Welcome back',
-    subheading: 'Sign in to your admin console',
-    accent: 'admin',
-    demoEmail: 'admin@tapstack.demo',
-  },
-}
-
-function PortalLogin({
-  portalType,
-  userType,
-  onUserTypeChange,
-  onSubmit: _onSubmit,
-  onApply,
-  onOpenLegal,
-}: {
-  portalType: 'vendor' | 'admin'
-  userType: UserType
-  onUserTypeChange: (type: UserType) => void
-  onSubmit: () => void
-  onApply: () => void
-  onOpenLegal: (doc: LegalDoc) => void
-}) {
-  const copy = PORTAL_COPY[portalType]
-  const [email, setEmail] = useState(isApiConfigured() ? copy.demoEmail : 'you@arcade.com')
-  const [password, setPassword] = useState(isApiConfigured() ? 'password' : '')
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const canSubmit = email.trim().length > 0 && password.trim().length > 0 && !loading
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault()
-    if (!email.trim() || !password.trim()) return
-    setError('')
-
-    if (isApiConfigured()) {
-      try {
-        setLoading(true)
-        // Drop any previous portal session before accepting a new token.
-        clearSession()
-        const res = await tapstackApi.portalLogin(email.trim(), password, portalType)
-        if (res.user.role !== portalType) {
-          throw new ApiError(
-            portalType === 'admin' ? 'This account is not an admin.' : 'This account is not a vendor.',
-            403,
-            'tapstack_role_mismatch',
-          )
-        }
-        applyAuthSession(res.token, res.user)
-        window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Login failed.')
-      } finally {
-        setLoading(false)
-      }
-      return
-    }
-
-    setDemoSession(portalType, {
-      displayName: portalType === 'vendor' ? 'Lucky Strike Arcade' : undefined,
-      email: portalType === 'vendor' ? 'vendor@tapstack.demo' : undefined,
-      username: portalType === 'vendor' ? '@luckystrike' : undefined,
-      phone: portalType === 'vendor' ? '+15558124200' : undefined,
-    })
-    window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
-  }
-
-  return (
-    <div className={`admin-screen admin-screen--${copy.accent}`}>
-      <div className="admin-header">
-        <StatusBar />
-
-        <div className="admin-brand">
-          <AdminShieldIcon />
-          <span className="admin-portal-label">{copy.label}</span>
-        </div>
-
-        <h1 className="admin-heading">{copy.heading}</h1>
-        <p className="admin-subheading">{copy.subheading}</p>
-      </div>
-
-      <div className="admin-body">
-        <form className="admin-form" onSubmit={handleSubmit}>
-          <RoleDropdown userType={userType} onChange={onUserTypeChange} variant="portal" />
-
-          <label className="field-label" htmlFor={`${portalType}-email`}>
-            Email
-          </label>
-          <input
-            id={`${portalType}-email`}
-            type="email"
-            className="text-field"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-
-          <label className="field-label" htmlFor={`${portalType}-password`}>
-            Password
-          </label>
-          <div className="password-field">
-            <input
-              id={`${portalType}-password`}
-              type={showPassword ? 'text' : 'password'}
-              className="text-field password-input"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <button
-              type="button"
-              className="show-password"
-              onClick={() => setShowPassword((value) => !value)}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
-
-          <div className="forgot-row">
-            <a href="#forgot" className="forgot-link">
-              Forgot password?
-            </a>
-          </div>
-
-          {error ? <p className="otp-error">{error}</p> : null}
-
-          <button type="submit" className="admin-login-button" disabled={!canSubmit}>
-            {loading ? 'Signing in…' : 'Log In'}
-          </button>
-        </form>
-
-        <button type="button" className="apply-link" onClick={onApply}>
-          Apply for an Account
-        </button>
-
-        <LegalLinks onOpen={onOpenLegal} />
-      </div>
-    </div>
-  )
-}
-
 type LoginPageProps = {
   userType: UserType
   onUserTypeChange: (type: UserType) => void
@@ -433,26 +368,14 @@ export default function LoginPage({
   onApply,
   onOpenLegal,
 }: LoginPageProps) {
-  if (userType === 'vendor') {
+  if (userType === 'vendor' || userType === 'admin') {
     return (
       <PortalLogin
-        portalType="vendor"
+        key={userType}
+        portalType={userType}
         userType={userType}
         onUserTypeChange={onUserTypeChange}
-        onSubmit={onVendorLogin}
-        onApply={onApply}
-        onOpenLegal={onOpenLegal}
-      />
-    )
-  }
-
-  if (userType === 'admin') {
-    return (
-      <PortalLogin
-        portalType="admin"
-        userType={userType}
-        onUserTypeChange={onUserTypeChange}
-        onSubmit={onAdminLogin}
+        onSubmit={userType === 'admin' ? onAdminLogin : onVendorLogin}
         onApply={onApply}
         onOpenLegal={onOpenLegal}
       />

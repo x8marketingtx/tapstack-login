@@ -232,8 +232,6 @@ function App() {
     replaceUrl(routeForView(view))
   }, [view])
 
-  const isPortalLogin = userType === 'admin' || userType === 'vendor'
-
   const screenClass =
     view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
       ? 'screen--dashboard'
@@ -241,9 +239,7 @@ function App() {
         ? 'screen--apply'
         : view === 'otp' || view === 'player-signup' || isLegalView(view)
           ? 'screen--otp'
-          : view === 'login' && isPortalLogin
-            ? 'screen--admin'
-            : ''
+          : ''
 
   return (
     <div className="page">
