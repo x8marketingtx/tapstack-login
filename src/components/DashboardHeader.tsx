@@ -12,7 +12,6 @@ type DashboardHeaderProps = {
 }
 
 export default function DashboardHeader({
-  level = 1,
   levelProgressPct = 0,
   tier = 'bronze',
   initials = 'P',

@@ -621,6 +621,7 @@ export default function CustomerDashboard({
               initials: 'P',
               level: 1,
               levelProgressPct: 0,
+              tier: 'bronze',
             })
           }
           setCashBalance((value) => value || '$0.00')
