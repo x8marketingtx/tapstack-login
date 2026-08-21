@@ -32,6 +32,33 @@ textarea {
   max-width: 100%;
 }
 
+button,
+[role='button'],
+[role='tab'],
+[role='switch'],
+[role='menuitem'],
+[role='option'],
+a[href],
+summary,
+label[for],
+input[type='button'],
+input[type='submit'],
+input[type='reset'],
+input[type='checkbox'],
+input[type='radio'],
+select {
+  cursor: pointer;
+}
+
+button:disabled,
+[role='button'][aria-disabled='true'],
+[aria-disabled='true'],
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
 img,
 svg {
   max-width: 100%;

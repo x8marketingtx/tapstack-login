@@ -1,0 +1,408 @@
+.vod-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(8, 12, 18, 0.55);
+  backdrop-filter: blur(8px);
+}
+
+.vod-modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: min(88vh, 760px);
+  overflow: auto;
+  padding: 18px 16px 20px;
+  border-radius: 22px 22px 18px 18px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
+  animation: vod-in 180ms ease-out;
+}
+
+@keyframes vod-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vod-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.vod-eyebrow {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.vod-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.vod-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.vod-close {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.vod-section {
+  margin-top: 16px;
+}
+
+.vod-section h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.vod-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.vod-section-head h3 {
+  margin: 0;
+}
+
+.vod-order-card,
+.vod-account-card,
+.vod-history-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.vod-order-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+
+.vod-order-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vod-order-main strong,
+.vod-account-top strong,
+.vod-history-item strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.vod-order-main span,
+.vod-account-top span,
+.vod-history-item span,
+.vod-account-meta {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vod-customer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.vod-customer-grid > div,
+.vod-cred-row > div {
+  min-width: 0;
+}
+
+.vod-label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.vod-customer-grid strong,
+.vod-cred-row strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.vod-amount.is-in {
+  color: #059669;
+}
+
+.vod-amount.is-out {
+  color: #d97706;
+}
+
+.vod-account-list,
+.vod-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vod-account-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.vod-account-card--empty {
+  opacity: 0.95;
+}
+
+.vod-load-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vod-load-details .vod-cred-row,
+.vod-load-details .vod-note-box {
+  margin: 0;
+}
+
+.vod-subsection-head {
+  margin-top: 8px;
+}
+
+.vod-subsection-head .vod-subsection {
+  margin: 0;
+}
+
+.vod-account-badge {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.vod-subsection {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.vod-account-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vod-account-top > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vod-cred-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.vod-ghost-btn {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.vod-ghost-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vod-order-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.vod-note-box {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.vod-note-box p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.vod-history-item {
+  justify-content: space-between;
+}
+
+.vod-history-item > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vod-empty,
+.vod-error,
+.vod-copy-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.vod-empty {
+  color: #64748b;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.vod-empty--inline {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.vod-actions {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.vod-complete-btn,
+.vod-reject-btn {
+  height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.vod-complete-btn {
+  border: none;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(5, 150, 105, 0.25);
+}
+
+.vod-reject-btn {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #b91c1c;
+}
+
+.vod-complete-btn:disabled,
+.vod-reject-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.vod-action-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.vod-action-note.is-ok {
+  color: #047857;
+}
+
+.vod-action-note.is-error {
+  color: #b91c1c;
+}
+
+.vod-error {
+  color: #b91c1c;
+}
+
+.vod-copy-note {
+  color: #047857;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .vod-overlay {
+    align-items: center;
+  }
+
+  .vod-modal {
+    border-radius: 22px;
+  }
+}

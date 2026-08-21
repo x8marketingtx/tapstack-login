@@ -12,14 +12,16 @@ const TABS: { id: AdminTab; icon: string; label: string; badge?: string }[] = [
 type AdminBottomNavProps = {
   activeTab: AdminTab
   onTabChange: (tab: AdminTab) => void
+  badges?: Partial<Record<AdminTab, string>>
 }
 
-export default function AdminBottomNav({ activeTab, onTabChange }: AdminBottomNavProps) {
+export default function AdminBottomNav({ activeTab, onTabChange, badges }: AdminBottomNavProps) {
   return (
     <nav className="admin-bottom-nav" aria-label="Admin navigation">
       <div className="admin-bottom-nav-items">
         {TABS.map((tab) => {
           const active = activeTab === tab.id
+          const badge = badges?.[tab.id] ?? tab.badge
           return (
             <button
               key={tab.id}
@@ -31,7 +33,7 @@ export default function AdminBottomNav({ activeTab, onTabChange }: AdminBottomNa
                 <span className="admin-nav-icon" aria-hidden="true">
                   {tab.icon}
                 </span>
-                {tab.badge ? <span className="admin-nav-badge">{tab.badge}</span> : null}
+                {badge ? <span className="admin-nav-badge">{badge}</span> : null}
               </span>
               {active && <span className="admin-nav-dot" aria-hidden="true" />}
               <span className="admin-nav-label">{tab.label}</span>

@@ -163,3 +163,35 @@
   background: transparent;
   color: #d1d5db;
 }
+
+.admin-signup-decision-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.admin-signup-decision-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-signup-decision-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.admin-signup-decision-btn--approve {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-signup-decision-btn--reject {
+  background: #fee2e2;
+  color: #b91c1c;
+}

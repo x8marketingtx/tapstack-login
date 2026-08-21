@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
-import { ApiError, isApiConfigured, setDemoSession, setSession, tapstackApi } from '../api/client'
+import { ApiError, applyAuthSession, clearSession, isApiConfigured, setDemoSession, tapstackApi } from '../api/client'
 import { LegalLinks, type LegalDoc } from './LegalPage'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
@@ -187,6 +187,7 @@ function PlayersLogin({
           }
         }
         await tapstackApi.requestOtp(phone.trim(), 'login')
+        clearSession()
         onSubmitPhone(phone.trim())
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not send code.')
@@ -247,6 +248,10 @@ function PlayersLogin({
           </button>
         </p>
 
+        <p className="login-beta-notice" role="note">
+          This is a beta version and Tapstack is not responsible for any issue or loss to the player.
+        </p>
+
         <LegalLinks onOpen={onOpenLegal} />
       </div>
     </div>
@@ -277,7 +282,7 @@ function PortalLogin({
   portalType,
   userType,
   onUserTypeChange,
-  onSubmit,
+  onSubmit: _onSubmit,
   onApply,
   onOpenLegal,
 }: {
@@ -304,6 +309,8 @@ function PortalLogin({
     if (isApiConfigured()) {
       try {
         setLoading(true)
+        // Drop any previous portal session before accepting a new token.
+        clearSession()
         const res = await tapstackApi.portalLogin(email.trim(), password, portalType)
         if (res.user.role !== portalType) {
           throw new ApiError(
@@ -312,12 +319,8 @@ function PortalLogin({
             'tapstack_role_mismatch',
           )
         }
-        setSession({
-          token: res.token,
-          role: portalType,
-          user: res.user,
-        })
-        onSubmit()
+        applyAuthSession(res.token, res.user)
+        window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Login failed.')
       } finally {
@@ -332,7 +335,7 @@ function PortalLogin({
       username: portalType === 'vendor' ? '@luckystrike' : undefined,
       phone: portalType === 'vendor' ? '+15558124200' : undefined,
     })
-    onSubmit()
+    window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
   }
 
   return (

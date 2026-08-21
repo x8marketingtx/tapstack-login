@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
 import {
+  applyAuthSession,
   getSessionUser,
   getToken,
   isApiConfigured,
-  setSession,
+  isMeForCurrentSession,
+  normalizeSessionRole,
   tapstackApi,
+  type SessionRole,
 } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import VendorBottomNav, { type VendorTab } from './VendorBottomNav'
 import VendorOrdersPage from './VendorOrdersPage'
 import VendorAnalyticsPage from './VendorAnalyticsPage'
 import VendorPromosPage from './VendorPromosPage'
-import VendorSettingsPage from './VendorSettingsPage'
+import VendorSettingsPage, { prefetchVendorGames } from './VendorSettingsPage'
 import TopUpModal from './TopUpModal'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
+import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
 import './VendorDashboard.css'
 
 const DEMO_VENDOR_PROFILE: PlayerProfile = {
@@ -67,25 +71,90 @@ function VendorHeader({
   )
 }
 
+function formatChangePct(pct: number | undefined): string {
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) return 'vs yesterday'
+  const rounded = Math.round(pct * 10) / 10
+  const sign = rounded > 0 ? '+' : ''
+  return `${sign}${rounded}% vs yesterday`
+}
+
+function formatCompactMoney(amount: number): string {
+  if (!Number.isFinite(amount)) return '$0'
+  if (Math.abs(amount) >= 1000) {
+    return `$${(amount / 1000).toLocaleString('en-US', {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: amount % 1000 === 0 ? 0 : 1,
+    })}k`
+  }
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+}
+
+type VendorHomeStats = {
+  depositsFormatted: string
+  depositsChangePct?: number
+  redeemsFormatted: string
+  redeemsChangePct?: number
+  netFormatted: string
+  net: number
+  customers: number
+  customersNewWeek: number
+}
+
+type VendorMonthlyVolume = {
+  current: number
+  target: number
+  remaining: number
+  progressPct: number
+  currentFormatted: string
+  targetFormatted: string
+  remainingFormatted: string
+}
+
 function VendorHome({
   walletBalance,
   storeName,
   storeInitials,
+  inviteCode,
+  recentTx,
+  today,
+  monthlyVolume,
   onTopUp,
   onProfileClick,
 }: {
   walletBalance: string
   storeName: string
   storeInitials: string
+  inviteCode: string
+  recentTx: Array<{ id?: number; name: string; meta: string; amount: string; tone?: string }>
+  today: VendorHomeStats
+  monthlyVolume: VendorMonthlyVolume
   onTopUp: () => void
   onProfileClick: () => void
 }) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopyCode() {
+    if (!inviteCode) return
+    try {
+      await navigator.clipboard.writeText(inviteCode)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
   return (
     <div className="vendor-home">
       <section className="vendor-store-row">
         <button type="button" className="vendor-store-info" onClick={onProfileClick}>
           <div className="vendor-store-avatar">{storeInitials}</div>
-          <span className="vendor-store-name">{storeName}</span>
+          <div className="vendor-store-text">
+            <span className="vendor-store-name">{storeName}</span>
+            {inviteCode ? (
+              <span className="vendor-store-invite-hint">Players join with your invite code</span>
+            ) : null}
+          </div>
         </button>
         <button type="button" className="vendor-icon-button" aria-label="Notifications">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -98,49 +167,20 @@ function VendorHome({
             />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.8" />
           </svg>
-          <span className="vendor-badge">4</span>
         </button>
       </section>
 
-      <div className="vendor-alert-card vendor-alert-card--message">
-        <div className="vendor-alert-icon vendor-alert-icon--blue">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
-              stroke="#2563eb"
-              strokeWidth="1.8"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-        <div className="vendor-alert-content">
-          <p className="vendor-alert-title">2 new messages from Pacific Gaming Distribution</p>
-          <p className="vendor-alert-subtitle">December settlement schedule update</p>
-        </div>
-        <button type="button" className="vendor-alert-action">
-          View
-        </button>
-      </div>
-
-      <div className="vendor-alert-card vendor-alert-card--invoice">
-        <div className="vendor-alert-icon vendor-alert-icon--red">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-              stroke="#db2777"
-              strokeWidth="1.8"
-            />
-            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#db2777" strokeWidth="1.8" />
-          </svg>
-        </div>
-        <div className="vendor-alert-content">
-          <p className="vendor-alert-title">2 invoices awaiting payment</p>
-          <p className="vendor-alert-subtitle">Tap to review and pay from your wallet</p>
-        </div>
-        <button type="button" className="vendor-alert-action vendor-alert-action--red">
-          View
-        </button>
-      </div>
+      {inviteCode ? (
+        <section className="vendor-invite-card">
+          <div className="vendor-invite-copy">
+            <p className="vendor-invite-label">PLAYER INVITE CODE</p>
+            <p className="vendor-invite-code">{inviteCode}</p>
+          </div>
+          <button type="button" className="vendor-invite-btn" onClick={handleCopyCode}>
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </section>
+      ) : null}
 
       <section className="vendor-wallet-card">
         <div className="vendor-wallet-top">
@@ -160,18 +200,6 @@ function VendorHome({
           <button type="button" className="vendor-wallet-btn vendor-wallet-btn--outline" onClick={onTopUp}>
             + Top Up
           </button>
-          <button type="button" className="vendor-wallet-btn vendor-wallet-btn--outline">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Send
-          </button>
           <button type="button" className="vendor-wallet-btn vendor-wallet-btn--primary">
             Withdraw
           </button>
@@ -189,14 +217,30 @@ function VendorHome({
           <div className="vendor-volume-info">
             <div className="vendor-volume-row">
               <span className="vendor-volume-label">Monthly Volume</span>
-              <span className="vendor-volume-value">$42.3k / $60k</span>
+              <span className="vendor-volume-value">
+                {formatCompactMoney(monthlyVolume.current)} / {formatCompactMoney(monthlyVolume.target)}
+              </span>
             </div>
             <div className="vendor-volume-bar">
-              <div className="vendor-volume-fill" style={{ width: '70.5%' }} />
+              <div
+                className="vendor-volume-fill"
+                style={{ width: `${Math.min(100, Math.max(0, monthlyVolume.progressPct))}%` }}
+              />
             </div>
             <p className="vendor-volume-footnote">
-              <span className="vendor-volume-highlight">$17.7k more</span> unlocks{' '}
-              <span className="vendor-volume-cashback">1% cashback</span>
+              {monthlyVolume.remaining > 0 ? (
+                <>
+                  <span className="vendor-volume-highlight">
+                    {monthlyVolume.remainingFormatted} more
+                  </span>{' '}
+                  unlocks <span className="vendor-volume-cashback">1% cashback</span>
+                </>
+              ) : (
+                <>
+                  <span className="vendor-volume-highlight">Target reached</span> —{' '}
+                  <span className="vendor-volume-cashback">1% cashback unlocked</span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -211,8 +255,8 @@ function VendorHome({
               <path d="M16 6 H20 V10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </div>
-          <p className="vendor-stat-value">$3,218</p>
-          <p className="vendor-stat-subtext">+18% vs yesterday</p>
+          <p className="vendor-stat-value">{today.depositsFormatted}</p>
+          <p className="vendor-stat-subtext">{formatChangePct(today.depositsChangePct)}</p>
         </article>
 
         <article className="vendor-stat-card">
@@ -223,8 +267,8 @@ function VendorHome({
               <path d="M16 18 H20 V14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </div>
-          <p className="vendor-stat-value">$2,140</p>
-          <p className="vendor-stat-subtext">+6% vs yesterday</p>
+          <p className="vendor-stat-value">{today.redeemsFormatted}</p>
+          <p className="vendor-stat-subtext">{formatChangePct(today.redeemsChangePct)}</p>
         </article>
 
         <article className="vendor-stat-card">
@@ -235,7 +279,13 @@ function VendorHome({
               <path d="M16 4 H20 V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </div>
-          <p className="vendor-stat-value vendor-stat-value--green">$1,078</p>
+          <p
+            className={`vendor-stat-value ${
+              today.net >= 0 ? 'vendor-stat-value--green' : 'vendor-stat-value--orange'
+            }`}
+          >
+            {today.netFormatted}
+          </p>
           <p className="vendor-stat-subtext">Deposits – redeems</p>
         </article>
 
@@ -249,79 +299,135 @@ function VendorHome({
               <path d="M14 20c.4-2.2 2-4 4-4" stroke="#2563eb" strokeWidth="1.8" />
             </svg>
           </div>
-          <p className="vendor-stat-value">247</p>
-          <p className="vendor-stat-subtext">12 new this week</p>
+          <p className="vendor-stat-value">{today.customers.toLocaleString()}</p>
+          <p className="vendor-stat-subtext">
+            {today.customersNewWeek} new this week
+          </p>
         </article>
       </section>
 
       <section className="vendor-transactions">
         <div className="vendor-transactions-header">
           <h2 className="vendor-transactions-title">Recent Transactions</h2>
-          <button type="button" className="vendor-transactions-view-all">
-            View all
-          </button>
         </div>
 
         <ul className="vendor-transactions-list">
-          <li className="vendor-transaction-item">
-            <div className="vendor-transaction-details">
-              <p className="vendor-transaction-name">Customer Deposit</p>
-              <p className="vendor-transaction-meta">Jordan M. · 2m ago</p>
-            </div>
-            <span className="vendor-transaction-amount vendor-transaction-amount--green">+$120.00</span>
-          </li>
-
-          <li className="vendor-transaction-item">
-            <div className="vendor-transaction-details">
-              <p className="vendor-transaction-name">Platform Fee</p>
-              <p className="vendor-transaction-meta">System · 2m ago</p>
-            </div>
-            <span className="vendor-transaction-amount vendor-transaction-amount--pink">-$6.00</span>
-          </li>
-
-          <li className="vendor-transaction-item">
-            <div className="vendor-transaction-details">
-              <p className="vendor-transaction-name">Customer Deposit</p>
-              <p className="vendor-transaction-meta">Riley K. · 14m ago</p>
-            </div>
-            <span className="vendor-transaction-amount vendor-transaction-amount--green">+$85.00</span>
-          </li>
-
-          <li className="vendor-transaction-item">
-            <div className="vendor-transaction-details">
-              <p className="vendor-transaction-name">Customer Redeem</p>
-              <p className="vendor-transaction-meta">Jordan M. · 18m ago</p>
-            </div>
-            <span className="vendor-transaction-amount vendor-transaction-amount--orange">-$72.00</span>
-          </li>
-
-          <li className="vendor-transaction-item">
-            <div className="vendor-transaction-details">
-              <p className="vendor-transaction-name">Customer Deposit</p>
-              <p className="vendor-transaction-meta">Alex P. · 31m ago</p>
-            </div>
-            <span className="vendor-transaction-amount vendor-transaction-amount--green">+$200.00</span>
-          </li>
+          {recentTx.length === 0 ? (
+            <li className="vendor-transaction-item">
+              <div className="vendor-transaction-details">
+                <p className="vendor-transaction-name">No ledger activity yet</p>
+                <p className="vendor-transaction-meta">Loads, top-ups, and redeems will show here</p>
+              </div>
+            </li>
+          ) : (
+            recentTx.map((tx) => (
+              <li key={tx.id ?? `${tx.name}-${tx.meta}`} className="vendor-transaction-item">
+                <div className="vendor-transaction-details">
+                  <p className="vendor-transaction-name">{tx.name}</p>
+                  <p className="vendor-transaction-meta">{tx.meta}</p>
+                </div>
+                <span
+                  className={`vendor-transaction-amount vendor-transaction-amount--${
+                    tx.tone === 'green' ? 'green' : tx.tone === 'orange' ? 'orange' : 'pink'
+                  }`}
+                >
+                  {tx.amount}
+                </span>
+              </li>
+            ))
+          )}
         </ul>
       </section>
     </div>
   )
 }
 
-export default function VendorDashboard({ onLogout }: { onLogout?: () => void }) {
+export default function VendorDashboard({
+  onLogout,
+  onRoleMismatch,
+}: {
+  onLogout?: () => void
+  onRoleMismatch?: (role: SessionRole) => void
+}) {
   const shouldLoadFromApi = isApiConfigured() && Boolean(getToken())
   const cachedUser = getSessionUser()
-  const [activeTab, setActiveTab] = useState<VendorTab>('home')
-  const [showProfile, setShowProfile] = useState(false)
+  const initialRoute = parseLocation()
+  const [activeTab, setActiveTab] = useState<VendorTab>(() =>
+    initialRoute.portal === 'vendor' ? initialRoute.tab : 'home',
+  )
+  const [showProfile, setShowProfile] = useState(
+    () => initialRoute.portal === 'vendor' && Boolean(initialRoute.profile),
+  )
   const [topUpOpen, setTopUpOpen] = useState(false)
-  const [walletBalance, setWalletBalance] = useState('$12,440.00')
+  const [walletBalance, setWalletBalance] = useState('$0.00')
+  const [inviteCode, setInviteCode] = useState('')
+  const [recentTx, setRecentTx] = useState<
+    Array<{ id?: number; name: string; meta: string; amount: string; tone?: string }>
+  >([])
+  const [todayStats, setTodayStats] = useState<VendorHomeStats>({
+    depositsFormatted: '$0.00',
+    depositsChangePct: 0,
+    redeemsFormatted: '$0.00',
+    redeemsChangePct: 0,
+    netFormatted: '$0.00',
+    net: 0,
+    customers: 0,
+    customersNewWeek: 0,
+  })
+  const [monthlyVolume, setMonthlyVolume] = useState<VendorMonthlyVolume>({
+    current: 0,
+    target: 60000,
+    remaining: 60000,
+    progressPct: 0,
+    currentFormatted: '$0.00',
+    targetFormatted: '$60,000.00',
+    remainingFormatted: '$60,000.00',
+  })
   const [profile, setProfile] = useState<PlayerProfile>(() => {
     if (cachedUser?.role === 'vendor') return profileFromUser(cachedUser)
     return DEMO_VENDOR_PROFILE
   })
 
+  function syncFromRoute() {
+    const route = parseLocation()
+    if (route.portal !== 'vendor') return
+    setActiveTab(route.tab)
+    setShowProfile(Boolean(route.profile))
+  }
+
+  useEffect(() => {
+    window.addEventListener('popstate', syncFromRoute)
+    return () => window.removeEventListener('popstate', syncFromRoute)
+  }, [])
+
+  useEffect(() => {
+    if (showProfile) {
+      applyDocumentTitle({ portal: 'vendor', tab: activeTab, profile: true })
+      return
+    }
+    applyDocumentTitle({ portal: 'vendor', tab: activeTab })
+  }, [activeTab, showProfile])
+
+  function handleTabChange(tab: VendorTab) {
+    setShowProfile(false)
+    setActiveTab(tab)
+    navigate({ portal: 'vendor', tab })
+  }
+
+  function openProfile() {
+    setShowProfile(true)
+    navigate({ portal: 'vendor', tab: activeTab, profile: true })
+  }
+
+  function closeProfile() {
+    setShowProfile(false)
+    navigate({ portal: 'vendor', tab: activeTab })
+  }
+
   useEffect(() => {
     if (!shouldLoadFromApi) return
+
+    prefetchVendorGames()
 
     let cancelled = false
     ;(async () => {
@@ -332,12 +438,21 @@ export default function VendorDashboard({ onLogout }: { onLogout?: () => void })
         ])
         if (cancelled) return
 
-        if (me?.user?.role === 'vendor') {
-          const next = profileFromUser(me.user, me.level, me.levelProgressPct)
-          setProfile(next)
-          const token = getToken()
-          if (token) {
-            setSession({ token, role: 'vendor', user: me.user })
+        if (me?.user) {
+          const role = normalizeSessionRole(me.user.role)
+          if (role && role !== 'vendor' && isMeForCurrentSession(me.user)) {
+            const token = getToken()
+            if (token) applyAuthSession(token, me.user)
+            onRoleMismatch?.(role)
+            return
+          }
+          if (role === 'vendor' && isMeForCurrentSession(me.user)) {
+            const next = profileFromUser(me.user, me.level, me.levelProgressPct)
+            setProfile(next)
+            const token = getToken()
+            if (token) {
+              applyAuthSession(token, me.user)
+            }
           }
         } else if (getSessionUser()?.role === 'vendor') {
           setProfile(profileFromUser(getSessionUser()!))
@@ -346,12 +461,59 @@ export default function VendorDashboard({ onLogout }: { onLogout?: () => void })
           setProfile(DEMO_VENDOR_PROFILE)
         }
 
-        const balance = (dash as { wallet?: { balance?: number; amount?: number } } | null)?.wallet
-        const amount = balance?.balance ?? balance?.amount
+        const balance = dash?.wallet
+        const amount = balance?.amount
         if (typeof amount === 'number') {
           setWalletBalance(
             amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' }),
           )
+        } else if (typeof balance?.balance === 'string') {
+          setWalletBalance(balance.balance)
+        }
+
+        const code = dash?.store?.inviteCode || dash?.store?.code || ''
+        if (code) setInviteCode(String(code).toUpperCase())
+
+        if (Array.isArray(dash?.recentTx)) {
+          setRecentTx(dash.recentTx)
+        }
+
+        if (dash?.today) {
+          const t = dash.today
+          setTodayStats({
+            depositsFormatted: t.depositsFormatted || '$0.00',
+            depositsChangePct: t.depositsChangePct ?? 0,
+            redeemsFormatted: t.redeemsFormatted || '$0.00',
+            redeemsChangePct: t.redeemsChangePct ?? 0,
+            netFormatted: t.netFormatted || '$0.00',
+            net: typeof t.net === 'number' ? t.net : 0,
+            customers: typeof t.customers === 'number' ? t.customers : 0,
+            customersNewWeek: typeof t.customersNewWeek === 'number' ? t.customersNewWeek : 0,
+          })
+        }
+
+        if (dash?.monthlyVolume) {
+          const m = dash.monthlyVolume
+          const current = typeof m.current === 'number' ? m.current : 0
+          const target = typeof m.target === 'number' ? m.target : 60000
+          const remaining =
+            typeof m.cashbackUnlockRemaining === 'number'
+              ? m.cashbackUnlockRemaining
+              : Math.max(0, target - current)
+          setMonthlyVolume({
+            current,
+            target,
+            remaining,
+            progressPct:
+              typeof m.progressPct === 'number'
+                ? m.progressPct
+                : target > 0
+                  ? Math.min(100, (current / target) * 100)
+                  : 0,
+            currentFormatted: m.currentFormatted || `$${current.toFixed(2)}`,
+            targetFormatted: m.targetFormatted || `$${target.toFixed(2)}`,
+            remainingFormatted: m.remainingFormatted || `$${remaining.toFixed(2)}`,
+          })
         }
       } catch {
         const saved = getSessionUser()
@@ -364,11 +526,7 @@ export default function VendorDashboard({ onLogout }: { onLogout?: () => void })
     return () => {
       cancelled = true
     }
-  }, [shouldLoadFromApi])
-
-  function openProfile() {
-    setShowProfile(true)
-  }
+  }, [shouldLoadFromApi, onRoleMismatch])
 
   function handleLogout() {
     onLogout?.()
@@ -388,8 +546,9 @@ export default function VendorDashboard({ onLogout }: { onLogout?: () => void })
             profile={profile}
             showLevel={false}
             expectedRole="vendor"
-            onBack={() => setShowProfile(false)}
+            onBack={closeProfile}
             onLogout={handleLogout}
+            onRoleMismatch={onRoleMismatch}
             onProfileChange={setProfile}
           />
         ) : (
@@ -399,6 +558,10 @@ export default function VendorDashboard({ onLogout }: { onLogout?: () => void })
                 walletBalance={walletBalance}
                 storeName={profile.displayName}
                 storeInitials={initials}
+                inviteCode={inviteCode}
+                recentTx={recentTx}
+                today={todayStats}
+                monthlyVolume={monthlyVolume}
                 onTopUp={() => setTopUpOpen(true)}
                 onProfileClick={openProfile}
               />
@@ -406,13 +569,15 @@ export default function VendorDashboard({ onLogout }: { onLogout?: () => void })
             {activeTab === 'orders' && <VendorOrdersPage />}
             {activeTab === 'analytics' && <VendorAnalyticsPage />}
             {activeTab === 'promos' && <VendorPromosPage />}
-            {activeTab === 'settings' && <VendorSettingsPage />}
+            <div hidden={activeTab !== 'settings'}>
+              <VendorSettingsPage />
+            </div>
           </>
         )}
       </main>
 
       {!showProfile ? (
-        <VendorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <VendorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       ) : null}
 
       <TopUpModal

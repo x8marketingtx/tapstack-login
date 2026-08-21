@@ -1,5 +1,11 @@
-import { useState, type ReactNode } from 'react'
-import { TapStackLogo } from './TapStackLogo'
+import { useEffect, useState, type ReactNode } from 'react'
+import {
+  ApiError,
+  isApiConfigured,
+  tapstackApi,
+  type AdminSettings,
+} from '../api/client'
+import { AdminHeader } from './AdminHeader'
 import './AdminSettingsPage.css'
 
 type SettingsSubTab = 'account' | 'comms' | 'chargebacks'
@@ -60,52 +66,38 @@ const SETTINGS_SUB_TABS: { id: SettingsSubTab; label: string; icon: ReactNode }[
 
 type AdminRole = 'super-admin' | 'support' | 'read-only'
 
-const PLATFORM_ADMINS: {
+type PlatformAdmin = {
   id: string
   initials: string
   name: string
   email: string
   role: AdminRole
   lastActive: string
-}[] = [
-  {
-    id: 'morgan-chen',
-    initials: 'MC',
-    name: 'Morgan Chen',
-    email: 'morgan@tapstack.io',
-    role: 'super-admin',
-    lastActive: 'Now',
-  },
-  {
-    id: 'jordan-rivera',
-    initials: 'JR',
-    name: 'Jordan Rivera',
-    email: 'jordan@tapstack.io',
-    role: 'support',
-    lastActive: '2h ago',
-  },
-  {
-    id: 'sam-okafor',
-    initials: 'SO',
-    name: 'Sam Okafor',
-    email: 'sam@tapstack.io',
-    role: 'support',
-    lastActive: 'Yesterday',
-  },
-  {
-    id: 'taylor-nguyen',
-    initials: 'TN',
-    name: 'Taylor Nguyen',
-    email: 'taylor@tapstack.io',
-    role: 'read-only',
-    lastActive: '3d ago',
-  },
-]
+}
 
 const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   'super-admin': 'Super Admin',
   support: 'Support',
   'read-only': 'Read Only',
+}
+
+function normalizeAdminRole(role: string): AdminRole {
+  const key = role.toLowerCase().replace(/[_\s]+/g, '-')
+  if (key === 'super-admin' || key === 'superadmin') return 'super-admin'
+  if (key === 'read-only' || key === 'readonly') return 'read-only'
+  if (key === 'support') return 'support'
+  return 'support'
+}
+
+function mapApiAdmin(admin: AdminSettings['admins'][number]): PlatformAdmin {
+  return {
+    id: admin.id,
+    initials: admin.initials,
+    name: admin.name,
+    email: admin.email,
+    role: normalizeAdminRole(admin.role),
+    lastActive: admin.lastActive,
+  }
 }
 
 function AdminRoleIcon({ role }: { role: AdminRole }) {
@@ -192,19 +184,6 @@ function AdminUserCard({
   )
 }
 
-function AdminHeader() {
-  return (
-    <header className="admin-dash-header">
-      <div className="admin-dash-header-row">
-        <TapStackLogo height={40} />
-        <button type="button" className="admin-dash-avatar" aria-label="Admin profile">
-          AV
-        </button>
-      </div>
-    </header>
-  )
-}
-
 function SettingsToggle({
   checked,
   onChange,
@@ -242,6 +221,61 @@ function AdminSettingsAccountTab() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [emailAlerts, setEmailAlerts] = useState(true)
   const [smsAlerts, setSmsAlerts] = useState(false)
+  const [admins, setAdmins] = useState<PlatformAdmin[]>([])
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setAdmins([])
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setError('')
+
+    tapstackApi
+      .adminSettings()
+      .then((res) => {
+        if (cancelled) return
+        setEmailAlerts(Boolean(res.account?.emailAlerts))
+        setSmsAlerts(Boolean(res.account?.smsAlerts))
+        setAdmins((res.admins || []).map(mapApiAdmin))
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setAdmins([])
+        setError(err instanceof ApiError ? err.message : 'Could not load settings.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleSaveNotifications() {
+    if (!isApiConfigured() || saving) return
+    setSaving(true)
+    setError('')
+    setSuccess('')
+    try {
+      await tapstackApi.adminSettingsUpdate({
+        account: { emailAlerts, smsAlerts },
+      })
+      setSuccess('Notification settings saved.')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save settings.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="admin-settings-account">
@@ -249,6 +283,9 @@ function AdminSettingsAccountTab() {
         <h1 className="admin-settings-title">Account Settings</h1>
         <p className="admin-settings-subtitle">Manage your admin login &amp; security</p>
       </div>
+
+      {error ? <p className="admin-api-error">{error}</p> : null}
+      {success ? <p className="admin-api-success">{success}</p> : null}
 
       <section className="admin-settings-card">
         <div className="admin-settings-card-head">
@@ -342,13 +379,32 @@ function AdminSettingsAccountTab() {
           checked={smsAlerts}
           onChange={setSmsAlerts}
         />
+
+        {isApiConfigured() ? (
+          <button
+            type="button"
+            className="admin-settings-primary-btn"
+            disabled={saving}
+            onClick={() => void handleSaveNotifications()}
+          >
+            {saving ? 'Saving…' : 'Save Notifications'}
+          </button>
+        ) : null}
       </section>
 
       <section className="admin-settings-users-section">
         <div className="admin-settings-users">
           <div>
             <h2 className="admin-settings-users-title">Users &amp; Roles</h2>
-            <p className="admin-settings-users-subtitle">4 platform admins</p>
+            <p className="admin-settings-users-subtitle">
+              {loading ? (
+                <span className="admin-skel admin-skel--line-sm" style={{ display: 'inline-block', width: 120 }} />
+              ) : (
+                <>
+                  {admins.length} platform admin{admins.length === 1 ? '' : 's'}
+                </>
+              )}
+            </p>
           </div>
           <button type="button" className="admin-settings-invite-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -371,16 +427,31 @@ function AdminSettingsAccountTab() {
         </div>
 
         <div className="admin-settings-user-list">
-          {PLATFORM_ADMINS.map((admin) => (
-            <AdminUserCard
-              key={admin.id}
-              initials={admin.initials}
-              name={admin.name}
-              email={admin.email}
-              role={admin.role}
-              lastActive={admin.lastActive}
-            />
-          ))}
+          {loading ? (
+            [1, 2, 3].map((n) => (
+              <article key={n} className="admin-settings-user-card" aria-busy="true">
+                <div className="admin-skel admin-skel--icon" />
+                <div className="admin-settings-user-main">
+                  <div className="admin-skel admin-skel--title" />
+                  <div className="admin-skel admin-skel--sub" />
+                </div>
+                <div className="admin-skel admin-skel--pill" />
+              </article>
+            ))
+          ) : admins.length === 0 ? (
+            <p className="admin-empty-hint">No platform admins yet.</p>
+          ) : (
+            admins.map((admin) => (
+              <AdminUserCard
+                key={admin.id}
+                initials={admin.initials}
+                name={admin.name}
+                email={admin.email}
+                role={admin.role}
+                lastActive={admin.lastActive}
+              />
+            ))
+          )}
         </div>
       </section>
     </div>

@@ -19,6 +19,10 @@
   padding: 0 16px 110px;
 }
 
+.admin-dashboard-scroll--profile {
+  padding-bottom: 24px;
+}
+
 .admin-dash-header {
   padding: 16px 0 0;
 }
@@ -121,6 +125,7 @@
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .admin-range-btn--active {
@@ -382,6 +387,7 @@
   font-size: 9px;
   font-weight: 500;
   padding: 2px 0 4px;
+  cursor: pointer;
 }
 
 .admin-nav-item--active {
@@ -449,4 +455,183 @@
   margin: 6px auto 2px;
   border-radius: 999px;
   background: #d1d5db;
+}
+
+.admin-api-error {
+  margin: 0;
+  padding: 0 2px;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-api-loading {
+  margin: 0;
+  padding: 0 2px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-api-success {
+  margin: 0;
+  padding: 0 2px;
+  color: #15803d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-overview-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-profit-hero--skel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 120px;
+}
+
+.admin-profit-hero-badge--flat {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes admin-skel-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.admin-skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e5e7eb 0%, #f3f4f6 50%, #e5e7eb 100%);
+  background-size: 200% 100%;
+  animation: admin-skel-pulse 1.1s ease-in-out infinite;
+}
+
+.admin-profit-hero--skel .admin-skel {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+  background-size: 200% 100%;
+}
+
+.admin-skel--label {
+  width: 120px;
+  height: 12px;
+}
+
+.admin-skel--hero {
+  width: 160px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.admin-skel--meta {
+  width: 180px;
+  height: 12px;
+}
+
+.admin-skel--stat {
+  width: 88px;
+  height: 24px;
+  margin-bottom: 8px;
+}
+
+.admin-skel--stat-sm {
+  width: 48px;
+  height: 22px;
+  margin-top: 6px;
+}
+
+.admin-skel--caption {
+  width: 64px;
+  height: 10px;
+}
+
+.admin-skel--icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.admin-skel--icon-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+.admin-skel--title {
+  width: 110px;
+  height: 14px;
+  margin-bottom: 6px;
+}
+
+.admin-skel--sub {
+  width: 72px;
+  height: 11px;
+}
+
+.admin-skel--value {
+  width: 70px;
+  height: 16px;
+  margin-left: auto;
+  margin-bottom: 6px;
+}
+
+.admin-skel--line {
+  width: 100%;
+  height: 12px;
+}
+
+.admin-skel--line-sm {
+  width: 55%;
+  height: 11px;
+}
+
+.admin-skel--line-md {
+  width: 75%;
+  height: 13px;
+}
+
+.admin-skel--pill {
+  width: 64px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.admin-skel--block {
+  width: 100%;
+  height: 72px;
+  border-radius: 14px;
+}
+
+.admin-skel--block-lg {
+  width: 100%;
+  height: 110px;
+  border-radius: 16px;
+}
+
+.admin-skel--center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-empty-hint {
+  margin: 8px 2px 0;
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 500;
 }

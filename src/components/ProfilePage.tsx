@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
-import { ApiError, getSessionRole, getToken, isApiConfigured, setSession, tapstackApi, type SessionRole, type TapstackUser } from '../api/client'
+import {
+  ApiError,
+  applyAuthSession,
+  getToken,
+  isApiConfigured,
+  isMeForCurrentSession,
+  normalizeSessionRole,
+  tapstackApi,
+  type SessionRole,
+  type TapstackUser,
+} from '../api/client'
 import './ProfilePage.css'
 
 export type PlayerProfile = {
@@ -81,6 +91,7 @@ type ProfilePageProps = {
   showLevel?: boolean
   /** Only hydrate/save session data for this role (avoids player data on vendor portal). */
   expectedRole?: SessionRole
+  onRoleMismatch?: (role: SessionRole) => void
 }
 
 export default function ProfilePage({
@@ -90,6 +101,7 @@ export default function ProfilePage({
   onProfileChange,
   showLevel = true,
   expectedRole,
+  onRoleMismatch,
 }: ProfilePageProps) {
   const [loggingOut, setLoggingOut] = useState(false)
   const [loading, setLoading] = useState(isApiConfigured())
@@ -123,9 +135,15 @@ export default function ProfilePage({
         const res = await tapstackApi.me()
         if (cancelled) return
 
-        const userRole = res.user.role as SessionRole
+        const userRole = normalizeSessionRole(res.user.role)
+        if (!isMeForCurrentSession(res.user)) {
+          return
+        }
         if (expectedRole && userRole && userRole !== expectedRole) {
-          // Token belongs to a different portal — keep the profile we were given.
+          const token = getToken()
+          if (token) applyAuthSession(token, res.user)
+          if (onRoleMismatch) onRoleMismatch(userRole)
+          else onLogout()
           return
         }
 
@@ -133,9 +151,8 @@ export default function ProfilePage({
         setLocalProfile(next)
         onProfileChange(next)
         const token = getToken()
-        const role = expectedRole || userRole || getSessionRole() || 'player'
         if (token) {
-          setSession({ token, role, user: res.user })
+          applyAuthSession(token, res.user)
         }
         setFullName(next.displayName)
         setEmail(isPlaceholderEmail(next.email) ? '' : next.email)
@@ -152,7 +169,7 @@ export default function ProfilePage({
     return () => {
       cancelled = true
     }
-  }, [expectedRole, onProfileChange])
+  }, [expectedRole, onProfileChange, onLogout, onRoleMismatch])
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault()
@@ -179,9 +196,8 @@ export default function ProfilePage({
         setLocalProfile(next)
         onProfileChange(next)
         const token = getToken()
-        const role = expectedRole || (res.user.role as SessionRole) || getSessionRole() || 'player'
         if (token) {
-          setSession({ token, role, user: res.user })
+          applyAuthSession(token, res.user)
         }
         setEditing(false)
       } else {

@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react'
-import { ApiError, isApiConfigured, setDemoSession, setSession, tapstackApi } from '../api/client'
+import {
+  ApiError,
+  applyAuthSession,
+  isApiConfigured,
+  normalizeSessionRole,
+  setDemoSession,
+  tapstackApi,
+} from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './PlayerSignupPage.css'
 
@@ -12,7 +19,7 @@ type PlayerSignupPageProps = {
 
 type Step = 'details' | 'otp'
 
-export default function PlayerSignupPage({ onComplete, onBack }: PlayerSignupPageProps) {
+export default function PlayerSignupPage({ onComplete: _onComplete, onBack }: PlayerSignupPageProps) {
   const [step, setStep] = useState<Step>('details')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -88,8 +95,16 @@ export default function PlayerSignupPage({ onComplete, onBack }: PlayerSignupPag
           fullName: fullName.trim(),
           email: email.trim(),
         })
-        setSession({ token: res.token, role: 'player', user: res.user })
-        onComplete()
+        const role = normalizeSessionRole(res.user.role) ?? 'player'
+        if (role !== 'player') {
+          throw new ApiError(
+            'This phone is linked to a non-player account. Use Vendor/Admin login instead.',
+            403,
+            'tapstack_role_mismatch',
+          )
+        }
+        applyAuthSession(res.token, { ...res.user, role: 'player' })
+        window.location.replace('/customer')
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Verification failed.')
       } finally {
@@ -105,7 +120,7 @@ export default function PlayerSignupPage({ onComplete, onBack }: PlayerSignupPag
         phone: phone.trim(),
         username: `@${fullName.trim().toLowerCase().replace(/\s+/g, '_')}`,
       })
-      onComplete()
+      window.location.replace('/customer')
       return
     }
 

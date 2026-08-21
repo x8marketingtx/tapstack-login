@@ -382,18 +382,64 @@
 .vendor-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.75);
   text-align: left;
-  cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .vendor-card:hover {
   background: #fff;
+}
+
+.vendor-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vendor-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.vendor-card-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.vendor-card-action:hover {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.vendor-card-action--star.is-on {
+  color: #f59e0b;
+}
+
+.vendor-card-action--trash:hover {
+  color: #dc2626;
+  background: #fef2f2;
 }
 
 .vendor-icon {
@@ -469,6 +515,27 @@
 
 .activity-see-all:hover {
   text-decoration: underline;
+}
+
+.activity-empty {
+  padding: 16px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.activity-empty-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.activity-empty-copy {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 550;
+  color: #6b7280;
 }
 
 .activity-list {
@@ -558,8 +625,9 @@
   left: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  padding: 10px 6px max(18px, env(safe-area-inset-bottom));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  padding: 10px 4px max(18px, env(safe-area-inset-bottom));
   border-top: 1px solid #e5e7eb;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
@@ -598,12 +666,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  min-width: 0;
+  padding: 0 2px;
   border: none;
   background: none;
   color: #9ca3af;
   font-size: 10px;
   font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .nav-item--active.nav-item--games {
@@ -615,7 +688,7 @@
 }
 
 .nav-item--active.nav-item--giveaway {
-  color: #db2777;
+  color: #d97706;
 }
 
 .nav-item--active.nav-item--promos {

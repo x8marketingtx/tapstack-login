@@ -1,18 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { ApiError, isApiConfigured, tapstackApi, type VendorCustomer } from '../api/client'
 import './VendorAnalyticsPage.css'
 
 type AnalyticsTab = 'customers' | 'financial' | 'games' | 'ai-insights'
 
-type CustomerRow = {
-  id: string
-  name: string
-  username: string
-  meta: string
-  initial: string
-  inAmount: string
-  outAmount: string
-  visits: number
-}
+type CustomerRow = VendorCustomer
 
 const ANALYTICS_TABS: { id: AnalyticsTab; label: string; icon: string }[] = [
   { id: 'customers', label: 'Customers', icon: '👥' },
@@ -21,72 +13,96 @@ const ANALYTICS_TABS: { id: AnalyticsTab; label: string; icon: string }[] = [
   { id: 'ai-insights', label: 'AI Insights', icon: '🤖' },
 ]
 
-const CUSTOMERS: CustomerRow[] = [
-  {
-    id: '1',
-    name: 'Jordan M.',
-    username: '@jordanm',
-    meta: 'Today · 9:50 AM',
-    initial: 'J',
-    inAmount: '$420',
-    outAmount: '$380',
-    visits: 14,
-  },
-  {
-    id: '2',
-    name: 'Riley K.',
-    username: '@rileyk22',
-    meta: 'Today · 9:30 AM',
-    initial: 'R',
-    inAmount: '$215',
-    outAmount: '$180',
-    visits: 7,
-  },
-  {
-    id: '3',
-    name: 'Alex P.',
-    username: '@bigalex',
-    meta: 'Today · 8:12 AM',
-    initial: 'A',
-    inAmount: '$890',
-    outAmount: '$740',
-    visits: 31,
-  },
-  {
-    id: '4',
-    name: 'Sam T.',
-    username: '@samtee',
-    meta: 'Jun 8 · Jun 8',
-    initial: 'S',
-    inAmount: '$120',
-    outAmount: '$95',
-    visits: 4,
-  },
-  {
-    id: '5',
-    name: 'Dana L.',
-    username: '@dana_lux',
-    meta: 'Jun 8 · Jun 8',
-    initial: 'D',
-    inAmount: '$60',
-    outAmount: '$55',
-    visits: 2,
-  },
-]
+function downloadCustomersCsv(customers: CustomerRow[]) {
+  const header = ['Name', 'Username', 'Last activity', 'In', 'Out', 'Visits']
+  const rows = customers.map((c) => [
+    c.name,
+    c.username,
+    c.meta,
+    c.inAmount,
+    c.outAmount,
+    String(c.visits),
+  ])
+  const csv = [header, ...rows]
+    .map((row) =>
+      row
+        .map((cell) => {
+          const value = String(cell ?? '')
+          return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+        })
+        .join(','),
+    )
+    .join('\n')
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'tapstack-customers.csv'
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
 
 function CustomersTab() {
   const [query, setQuery] = useState('')
+  const [customers, setCustomers] = useState<CustomerRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [error, setError] = useState('')
 
-  const filteredCustomers = CUSTOMERS.filter((customer) => {
-    const haystack = `${customer.name} ${customer.username}`.toLowerCase()
-    return haystack.includes(query.trim().toLowerCase())
-  })
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const res = await tapstackApi.vendorCustomers()
+        if (cancelled) return
+        setCustomers(res.customers || [])
+        setTotal(res.total ?? res.customers?.length ?? 0)
+      } catch (err) {
+        if (cancelled) return
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : 'Could not load customers.',
+        )
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const filteredCustomers = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return customers
+    return customers.filter((customer) => {
+      const haystack = `${customer.name} ${customer.username}`.toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [customers, query])
 
   return (
     <div className="vendor-analytics-content">
       <div className="vendor-analytics-toolbar">
-        <h2 className="vendor-analytics-heading">Customers · 1,240</h2>
-        <button type="button" className="vendor-analytics-csv-btn">
+        <h2 className="vendor-analytics-heading">
+          Customers · {loading ? '…' : total.toLocaleString()}
+        </h2>
+        <button
+          type="button"
+          className="vendor-analytics-csv-btn"
+          disabled={filteredCustomers.length === 0}
+          onClick={() => downloadCustomersCsv(filteredCustomers)}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M12 3v12M7 10l5 5 5-5M5 21h14"
@@ -113,6 +129,8 @@ function CustomersTab() {
         />
       </label>
 
+      {error ? <p className="vendor-analytics-error">{error}</p> : null}
+
       <div className="vendor-analytics-table-head" aria-hidden="true">
         <span>PLAYER</span>
         <span>IN</span>
@@ -120,24 +138,32 @@ function CustomersTab() {
         <span>VISITS</span>
       </div>
 
-      <ul className="vendor-analytics-list">
-        {filteredCustomers.map((customer) => (
-          <li key={customer.id} className="vendor-analytics-row">
-            <div className="vendor-analytics-player">
-              <div className="vendor-analytics-avatar">{customer.initial}</div>
-              <div className="vendor-analytics-player-info">
-                <p className="vendor-analytics-player-name">{customer.name}</p>
-                <p className="vendor-analytics-player-meta">
-                  {customer.username} · {customer.meta}
-                </p>
+      {loading ? (
+        <p className="vendor-analytics-empty">Loading customers…</p>
+      ) : filteredCustomers.length === 0 ? (
+        <p className="vendor-analytics-empty">
+          No customers yet. Players who join with your invite code will appear here.
+        </p>
+      ) : (
+        <ul className="vendor-analytics-list">
+          {filteredCustomers.map((customer) => (
+            <li key={customer.id} className="vendor-analytics-row">
+              <div className="vendor-analytics-player">
+                <div className="vendor-analytics-avatar">{customer.initial}</div>
+                <div className="vendor-analytics-player-info">
+                  <p className="vendor-analytics-player-name">{customer.name}</p>
+                  <p className="vendor-analytics-player-meta">
+                    {[customer.username, customer.meta].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
               </div>
-            </div>
-            <span className="vendor-analytics-in">{customer.inAmount}</span>
-            <span className="vendor-analytics-out">{customer.outAmount}</span>
-            <span className="vendor-analytics-visits">{customer.visits}</span>
-          </li>
-        ))}
-      </ul>
+              <span className="vendor-analytics-in">{customer.inAmount}</span>
+              <span className="vendor-analytics-out">{customer.outAmount}</span>
+              <span className="vendor-analytics-visits">{customer.visits}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

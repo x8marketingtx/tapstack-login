@@ -3,7 +3,7 @@ export type DashboardTab = 'games' | 'earn' | 'giveaway' | 'promos' | 'account'
 const TABS: { id: DashboardTab; icon: string; label: string }[] = [
   { id: 'games', icon: '🎮', label: 'Games' },
   { id: 'earn', icon: '⚡', label: 'Earn' },
-  { id: 'giveaway', icon: '🎟️', label: 'Giveaway' },
+  { id: 'giveaway', icon: '🎟️', label: 'Tickets' },
   { id: 'promos', icon: '🎁', label: 'Promos' },
   { id: 'account', icon: '🏦', label: 'Account' },
 ]

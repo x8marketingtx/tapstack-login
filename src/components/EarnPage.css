@@ -1,224 +1,528 @@
 .earn-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+  animation: earn-page-in 420ms cubic-bezier(0.2, 0.85, 0.2, 1);
 }
 
-.earn-hero {
+@keyframes earn-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* —— Points wallet hero —— */
+.earn-wallet {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 16px 14px;
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, #4c1d95 0%, #6d28d9 42%, #7c3aed 100%);
+  color: #fff;
+  box-shadow: 0 14px 32px rgba(91, 33, 182, 0.28);
+}
+
+.earn-wallet-glow {
+  position: absolute;
+  top: -40%;
+  right: -15%;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.35), transparent 70%);
+  pointer-events: none;
+}
+
+.earn-wallet-top {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
-.earn-hero-text {
-  min-width: 0;
+.earn-wallet-label {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(237, 233, 254, 0.85);
 }
 
-.earn-title {
+.earn-wallet-balance {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.earn-wallet-unit {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(237, 233, 254, 0.75);
+}
+
+.earn-wallet-badge {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 700;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 22px;
+  backdrop-filter: blur(6px);
+}
+
+.earn-wallet-stats {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.earn-wallet-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.earn-wallet-stat-value {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.earn-wallet-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(237, 233, 254, 0.7);
+}
+
+.earn-wallet-stat-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* —— Sections —— */
+.earn-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.earn-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.earn-section-title {
+  margin: 0 0 3px;
+  font-size: 16px;
+  font-weight: 750;
   color: #111827;
   letter-spacing: -0.02em;
 }
 
-.earn-title-icon {
-  font-size: 18px;
-}
-
-.earn-subtitle {
+.earn-section-sub {
   margin: 0;
   font-size: 12px;
   color: #6b7280;
+  line-height: 1.35;
 }
 
-.earn-hero-actions {
+.earn-spin-dots {
+  display: flex;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.earn-spin-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  transition: background 220ms ease, transform 220ms ease;
+}
+
+.earn-spin-dot.is-on {
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+
+/* —— Wheel —— */
+.earn-wheel-card {
+  padding: 18px 14px 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(167, 139, 250, 0.22), transparent 55%),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  box-shadow: 0 10px 28px rgba(124, 58, 237, 0.08);
+  transition: box-shadow 280ms ease, border-color 280ms ease;
+}
+
+.earn-wheel-card.is-won {
+  border-color: rgba(124, 58, 237, 0.38);
+  box-shadow: 0 14px 34px rgba(124, 58, 237, 0.18);
+}
+
+.earn-wheel-stage {
+  position: relative;
+  width: min(280px, 78vw);
+  aspect-ratio: 1 / 1;
+  margin: 8px auto 16px;
+}
+
+.earn-wheel-pointer {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 20px solid #7c3aed;
+  filter: drop-shadow(0 2px 4px rgba(91, 33, 182, 0.35));
+}
+
+.earn-wheel-pointer::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7c3aed;
+  transform: translateX(-50%);
+  box-shadow: 0 0 0 3px #ede9fe;
+}
+
+.earn-wheel-disc {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  will-change: transform;
+  transition: none;
+}
+
+.earn-wheel-disc.is-spinning {
+  transition: transform 4.2s cubic-bezier(0.12, 0.75, 0.08, 1);
+}
+
+.earn-wheel-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: visible;
+  filter: drop-shadow(0 10px 22px rgba(91, 33, 182, 0.22));
+}
+
+.earn-wheel-center-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border: none;
+  border-radius: 50%;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+  box-shadow:
+    0 6px 16px rgba(91, 33, 182, 0.28),
+    inset 0 0 0 3px #ddd6fe;
+  color: #7c3aed;
+  cursor: pointer;
 }
 
-.earn-points-pill {
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-  color: #92400e;
-  font-size: 12px;
+.earn-wheel-center-btn strong {
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.earn-wheel-center-btn small {
+  font-size: 10px;
   font-weight: 700;
+  color: #a78bfa;
+}
+
+.earn-wheel-center-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.earn-wheel-card.is-spinning .earn-wheel-center-btn {
+  animation: earn-hub-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes earn-hub-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+.earn-wheel-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.earn-wheel-win {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #4c1d95;
+  animation: earn-win-pop 420ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.earn-wheel-win span {
+  color: #7c3aed;
+  font-size: 22px;
+  font-weight: 850;
+}
+
+.earn-wheel-hint {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  text-align: center;
+}
+
+.earn-wheel-spin-btn {
+  width: 100%;
+  max-width: 280px;
+  height: 46px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.earn-wheel-spin-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(124, 58, 237, 0.34);
+}
+
+.earn-wheel-spin-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@keyframes earn-win-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* —— Daily missions —— */
+.earn-mission-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.earn-mission-card {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.03);
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.earn-mission-card--claim {
+  border-color: #c4b5fd;
+  background: linear-gradient(135deg, #faf5ff, #fff);
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.1);
+}
+
+.earn-mission-card--done {
+  opacity: 0.72;
+}
+
+.earn-mission-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f5f3ff, #ede9fe);
+  border: 1px solid #ddd6fe;
+  font-size: 20px;
+}
+
+.earn-mission-card--claim .earn-mission-icon {
+  background: linear-gradient(145deg, #ede9fe, #ddd6fe);
+}
+
+.earn-mission-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.earn-mission-top strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.earn-mission-reward {
+  font-size: 12px;
+  font-weight: 800;
+  color: #7c3aed;
   white-space: nowrap;
 }
 
-.earn-redeem-btn {
-  padding: 8px 14px;
+.earn-mission-reward::after {
+  content: ' pts';
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.earn-mission-main > p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.earn-mission-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.earn-mission-bar > div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8b5cf6, #7c3aed);
+  transition: width 320ms ease;
+}
+
+.earn-mission-done {
+  font-size: 12px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.earn-mission-claim,
+.earn-mission-go {
+  flex-shrink: 0;
+  padding: 10px 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #8b5cf6, #7c3aed);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
-  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
 }
 
-.watch-win-card {
-  padding: 16px;
-  border-radius: 18px;
-  background: linear-gradient(145deg, #7c3aed 0%, #6d28d9 50%, #5b21b6 100%);
-  color: #fff;
+.earn-mission-claim {
+  animation: earn-claim-glow 1.8s ease-in-out infinite;
 }
 
-.watch-win-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+@keyframes earn-claim-glow {
+  0%,
+  100% {
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+  }
+  50% {
+    box-shadow: 0 4px 18px rgba(124, 58, 237, 0.45);
+  }
 }
 
-.watch-win-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.watch-win-icon {
-  font-size: 18px;
-}
-
-.watch-win-badge {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.watch-win-desc {
-  margin: 0 0 14px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.watch-win-progress {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-
-.watch-win-progress span {
-  flex: 1;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.watch-win-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  height: 44px;
-  border: none;
-  border-radius: 12px;
+.earn-mission-go {
   background: #fff;
   color: #7c3aed;
-  font-size: 14px;
-  font-weight: 700;
+  border: 1px solid #ddd6fe;
+  box-shadow: none;
 }
 
-.watch-win-btn-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: #ede9fe;
-  font-size: 10px;
-}
-
-.section-title {
-  margin: 0 0 4px;
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.section-subtitle {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.mini-games-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.mini-game-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 16px 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  border-radius: 16px;
+.earn-mission-status {
+  min-width: 36px;
   text-align: center;
-  cursor: pointer;
-}
-
-.mini-game-tap {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.7);
-  color: #6b7280;
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  color: #9ca3af;
 }
 
-.mini-game-icon {
-  font-size: 28px;
-  line-height: 1;
-}
-
-.mini-game-name {
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.mini-game-reward {
-  font-size: 11px;
-  font-weight: 500;
-  color: #6b7280;
-}
-
+/* —— Deposit path —— */
 .missions-section {
-  padding-bottom: 8px;
+  padding-bottom: 4px;
 }
 
 .current-mission-card {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   padding: 16px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(167, 139, 250, 0.22), transparent 45%),
+    linear-gradient(145deg, #faf5ff 0%, #f3e8ff 100%);
   border: 1px solid #ddd6fe;
 }
 
@@ -227,13 +531,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .mission-label {
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 750;
+  letter-spacing: 0.08em;
   color: #7c3aed;
 }
 
@@ -250,8 +554,9 @@
 .current-mission-name {
   margin: 0 0 12px;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 750;
   color: #111827;
+  letter-spacing: -0.02em;
 }
 
 .current-mission-progress-row {
@@ -266,17 +571,17 @@
 
 .current-mission-deposited strong {
   color: #111827;
-  font-weight: 700;
+  font-weight: 750;
 }
 
 .current-mission-percent {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 750;
   color: #111827;
 }
 
 .current-mission-bar {
-  height: 8px;
+  height: 9px;
   margin-bottom: 14px;
   border-radius: 999px;
   background: #e5e7eb;
@@ -287,6 +592,7 @@
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, #8b5cf6, #7c3aed);
+  transition: width 360ms ease;
 }
 
 .current-mission-btn {
@@ -298,6 +604,7 @@
   color: #fff;
   font-size: 14px;
   font-weight: 700;
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.24);
 }
 
 .mission-timeline {
@@ -349,6 +656,13 @@
   font-size: 10px;
 }
 
+.timeline-marker--claim {
+  background: #059669;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.2);
+  font-size: 10px;
+}
+
 .timeline-marker--locked {
   background: #fff;
   border: 2px solid #d1d5db;
@@ -365,7 +679,7 @@
   width: 2px;
   min-height: 12px;
   margin: 4px 0;
-  background: #c4b5fd;
+  background: linear-gradient(180deg, #c4b5fd, #ddd6fe);
 }
 
 .timeline-card {
@@ -383,6 +697,11 @@
 .timeline-card--active {
   background: #f5f3ff;
   border-color: #ddd6fe;
+}
+
+.timeline-card--claim {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .timeline-card--locked {
@@ -429,7 +748,8 @@
   color: #059669;
 }
 
-.timeline-card--active .timeline-card-reward {
+.timeline-card--active .timeline-card-reward,
+.timeline-card--claim .timeline-card-reward {
   color: #7c3aed;
 }
 
@@ -463,6 +783,43 @@
   color: #059669;
 }
 
-.timeline-card-note--active {
+.timeline-card-note--active,
+.timeline-card-note--claim {
   color: #7c3aed;
+}
+
+/* —— Toasts —— */
+.earn-toast {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 700;
+  animation: earn-win-pop 280ms ease;
+}
+
+.earn-toast--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+@media (max-width: 360px) {
+  .earn-wallet-balance {
+    font-size: 28px;
+  }
+
+  .earn-mission-card {
+    grid-template-columns: 36px 1fr auto;
+    gap: 8px;
+  }
+
+  .earn-mission-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
 }

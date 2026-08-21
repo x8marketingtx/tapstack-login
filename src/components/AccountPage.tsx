@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ApiError, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
 import type { PlayerProfile } from './ProfilePage'
 import './AccountPage.css'
 
-const QUICK_AMOUNTS = [10, 25, 50]
 const QUICK_POINTS = [500, 1000, 2000]
 
 type TimeFilter = '7d' | '30d' | 'custom'
@@ -12,59 +12,103 @@ type TxAmount = {
   variant: 'cash-positive' | 'cash-negative' | 'points-positive' | 'points-negative'
 }
 
-const TRANSACTIONS: {
+type TxRow = {
+  id: string | number
   icon: string
   iconBg: string
   title: string
   meta: string
   amounts: TxAmount[]
-}[] = [
-  {
-    icon: '💰',
-    iconBg: '#dcfce7',
-    title: 'Top Up — Card ending 4242',
-    meta: 'Jun 5 · Platform',
-    amounts: [{ text: '+$25.00', variant: 'cash-positive' }],
-  },
-]
+}
+
+function mapLedgerToRows(txns: WalletTxn[]): TxRow[] {
+  return txns.map((txn) => {
+    const meta = txn.meta || {}
+    const icon = typeof meta.icon === 'string' ? meta.icon : txn.amount >= 0 ? '💰' : '🎮'
+    const iconBg =
+      typeof meta.iconBg === 'string' ? meta.iconBg : txn.amount >= 0 ? '#dcfce7' : '#dbeafe'
+    const amounts: TxAmount[] = []
+    if (txn.amount !== 0) {
+      amounts.push({
+        text: `${txn.amount >= 0 ? '+' : '-'}$${Math.abs(txn.amount).toFixed(2)}`,
+        variant: txn.amount >= 0 ? 'cash-positive' : 'cash-negative',
+      })
+    }
+    if (txn.points !== 0) {
+      amounts.push({
+        text: `${txn.points >= 0 ? '+' : ''}${txn.points} pts`,
+        variant: txn.points >= 0 ? 'points-positive' : 'points-negative',
+      })
+    }
+    if (amounts.length === 0) {
+      amounts.push({ text: '$0.00', variant: 'cash-positive' })
+    }
+    return {
+      id: txn.id,
+      icon,
+      iconBg,
+      title: txn.title || txn.type,
+      meta: txn.createdAt || txn.type,
+      amounts,
+    }
+  })
+}
 
 export default function AccountPage({
   cashBalance = '$0.00',
   pointsBalance = 0,
   profile,
   loading = false,
+  transactions,
   onTopUp,
   onOpenProfile,
+  onWalletUpdate,
 }: {
   cashBalance?: string
   pointsBalance?: number
   profile: PlayerProfile
   loading?: boolean
+  transactions?: WalletTxn[]
   onTopUp?: () => void
   onOpenProfile?: () => void
+  onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
 }) {
-  const [recipient, setRecipient] = useState('')
-  const [amount, setAmount] = useState('')
-  const [selectedQuickAmount, setSelectedQuickAmount] = useState<number | null>(null)
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d')
+  const [ledgerRows, setLedgerRows] = useState<TxRow[]>(() =>
+    transactions ? mapLedgerToRows(transactions) : [],
+  )
+  const [ledgerLoading, setLedgerLoading] = useState(false)
   const [pointsToRedeem, setPointsToRedeem] = useState('')
   const [selectedQuickPoints, setSelectedQuickPoints] = useState<number | null>(null)
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d')
+  const [redeeming, setRedeeming] = useState(false)
+  const [redeemMsg, setRedeemMsg] = useState('')
+  const [redeemError, setRedeemError] = useState('')
 
-  function handleQuickAmount(value: number) {
-    setSelectedQuickAmount(value)
-    setAmount(String(value))
-  }
+  useEffect(() => {
+    if (transactions) {
+      setLedgerRows(mapLedgerToRows(transactions))
+      return
+    }
+    if (!isApiConfigured()) return
 
-  function handleAmountChange(value: string) {
-    setAmount(value)
-    setSelectedQuickAmount(null)
-  }
+    let cancelled = false
+    setLedgerLoading(true)
+    tapstackApi
+      .customerWallet()
+      .then((res) => {
+        if (!cancelled) setLedgerRows(mapLedgerToRows(res.recentTx || []))
+      })
+      .catch(() => {
+        if (!cancelled) setLedgerRows([])
+      })
+      .finally(() => {
+        if (!cancelled) setLedgerLoading(false)
+      })
 
-  function handleSend(event: React.FormEvent) {
-    event.preventDefault()
-    if (!recipient.trim() || !amount.trim()) return
-    alert(`Demo send $${amount} to ${recipient}`)
-  }
+    return () => {
+      cancelled = true
+    }
+  }, [transactions])
 
   function handleQuickPoints(value: number) {
     setSelectedQuickPoints(value)
@@ -76,11 +120,60 @@ export default function AccountPage({
     setSelectedQuickPoints(null)
   }
 
-  function handleRedeem(event: React.FormEvent) {
+  async function handleRedeem(event: React.FormEvent) {
     event.preventDefault()
-    if (!pointsToRedeem.trim()) return
-    alert(`Demo redeem ${pointsToRedeem} points`)
+    const pts = Math.floor(Number(pointsToRedeem))
+    if (!Number.isFinite(pts) || pts < 100 || pts % 100 !== 0) {
+      setRedeemError('Redeem in increments of 100 points (min 100).')
+      return
+    }
+    if (pts > pointsBalance) {
+      setRedeemError('Not enough points.')
+      return
+    }
+
+    setRedeemError('')
+    setRedeemMsg('')
+    setRedeeming(true)
+
+    try {
+      if (isApiConfigured()) {
+        const res = await tapstackApi.customerRedeemPoints(pts)
+        onWalletUpdate?.(res.wallet)
+        setRedeemMsg(`Redeemed ${pts.toLocaleString()} pts → $${(pts / 100).toFixed(2)}`)
+        setPointsToRedeem('')
+        setSelectedQuickPoints(null)
+        const walletRes = await tapstackApi.customerWallet()
+        setLedgerRows(mapLedgerToRows(walletRes.recentTx || []))
+        if (walletRes.wallet) {
+          onWalletUpdate?.({
+            balance: walletRes.wallet.balance,
+            formatted: walletRes.wallet.formatted,
+            points: walletRes.wallet.points,
+          })
+        }
+      } else {
+        const cashNum = Number(String(cashBalance).replace(/[^0-9.]/g, '') || 0)
+        onWalletUpdate?.({
+          points: Math.max(0, pointsBalance - pts),
+          balance: cashNum + pts / 100,
+          formatted: `$${(cashNum + pts / 100).toFixed(2)}`,
+        })
+        setRedeemMsg(`Demo redeemed ${pts.toLocaleString()} pts`)
+        setPointsToRedeem('')
+        setSelectedQuickPoints(null)
+      }
+    } catch (err) {
+      setRedeemError(err instanceof ApiError ? err.message : 'Redeem failed')
+    } finally {
+      setRedeeming(false)
+    }
   }
+
+  const cashPreview =
+    pointsToRedeem && Number(pointsToRedeem) >= 100
+      ? `≈ $${(Math.floor(Number(pointsToRedeem) / 100)).toFixed(2)}`
+      : null
 
   return (
     <div className="account-page">
@@ -96,14 +189,14 @@ export default function AccountPage({
               </button>
             ) : null}
           </div>
-          <p className="profile-hint">{profile.displayName} · Share to receive wallet transfers</p>
+          <p className="profile-hint">{profile.displayName}</p>
         </div>
       </section>
 
       <section className="account-balance-card">
         <div className="account-balance-top">
           <div>
-            <p className="account-balance-label">CASH BALANCE</p>
+            <p className="account-balance-label">Tapstack Balance</p>
             {loading ? (
               <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
             ) : (
@@ -117,7 +210,7 @@ export default function AccountPage({
         <div className="account-balance-actions">
           {onTopUp ? (
             <button type="button" className="account-topup-btn" onClick={onTopUp} disabled={loading}>
-              + Top Up with Wert
+              + Top Up
             </button>
           ) : null}
           <button type="button" className="account-withdraw-btn" disabled={loading}>
@@ -126,73 +219,10 @@ export default function AccountPage({
         </div>
       </section>
 
-      <section className="send-card">
-        <div className="send-header">
-          <div className="send-icon" aria-hidden="true">
-            💸
-          </div>
-          <div>
-            <h2 className="send-title">Send to Wallet</h2>
-            <p className="send-subtitle">Pay a vendor code or player username</p>
-          </div>
-        </div>
-
-        <div className="send-info-box">
-          For games that aren&apos;t on auto-load, send credits straight to the vendor&apos;s wallet
-          (e.g. <strong>@LUCKYSTRIKE</strong>). They&apos;ll load your game manually.
-        </div>
-
-        <form className="send-form" onSubmit={handleSend}>
-          <label className="send-field-label" htmlFor="recipient">
-            RECIPIENT USERNAME
-          </label>
-          <div className="send-input-wrap">
-            <span className="send-input-prefix">@</span>
-            <input
-              id="recipient"
-              type="text"
-              className="send-input"
-              placeholder="vendor code or @player"
-              value={recipient}
-              onChange={(event) => setRecipient(event.target.value)}
-            />
-          </div>
-
-          <span className="send-field-label">AMOUNT</span>
-          <div className="amount-quick-row">
-            {QUICK_AMOUNTS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={`amount-quick-btn ${selectedQuickAmount === value ? 'active' : ''}`}
-                onClick={() => handleQuickAmount(value)}
-              >
-                ${value}
-              </button>
-            ))}
-          </div>
-
-          <div className="amount-send-row">
-            <input
-              type="number"
-              className="amount-input"
-              placeholder="Enter amount..."
-              min="0"
-              step="0.01"
-              value={amount}
-              onChange={(event) => handleAmountChange(event.target.value)}
-            />
-            <button type="submit" className="send-submit-btn">
-              Send →
-            </button>
-          </div>
-        </form>
-      </section>
-
       <section className="points-card">
         <div className="points-top">
           <div>
-            <p className="points-label">POINTS BALANCE</p>
+            <p className="points-label">POINTS WALLET</p>
             {loading ? (
               <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
             ) : (
@@ -214,7 +244,7 @@ export default function AccountPage({
           <span className="points-rate-min">Min 100 pts</span>
         </div>
 
-        <form className="points-redeem-form" onSubmit={handleRedeem}>
+        <form className="points-redeem-form" onSubmit={(e) => void handleRedeem(e)}>
           <span className="send-field-label">POINTS TO REDEEM</span>
           <div className="points-quick-row">
             {QUICK_POINTS.map((value) => (
@@ -223,6 +253,7 @@ export default function AccountPage({
                 type="button"
                 className={`points-quick-btn ${selectedQuickPoints === value ? 'active' : ''}`}
                 onClick={() => handleQuickPoints(value)}
+                disabled={loading || redeeming || value > pointsBalance}
               >
                 {value.toLocaleString()}
               </button>
@@ -233,14 +264,18 @@ export default function AccountPage({
               type="number"
               className="points-redeem-input"
               placeholder="Enter points to redeem..."
-              min="0"
+              min={100}
+              step={100}
               value={pointsToRedeem}
               onChange={(event) => handlePointsChange(event.target.value)}
+              disabled={loading || redeeming}
             />
-            <button type="submit" className="points-redeem-btn">
-              Redeem →
+            <button type="submit" className="points-redeem-btn" disabled={loading || redeeming}>
+              {redeeming ? '…' : cashPreview ? `Redeem ${cashPreview}` : 'Redeem →'}
             </button>
           </div>
+          {redeemError ? <p className="points-redeem-error">{redeemError}</p> : null}
+          {redeemMsg ? <p className="points-redeem-ok">{redeemMsg}</p> : null}
         </form>
       </section>
 
@@ -276,24 +311,39 @@ export default function AccountPage({
         </div>
 
         <ul className="tx-list">
-          {TRANSACTIONS.map((tx) => (
-            <li key={tx.title} className="tx-item">
-              <div className="tx-icon" style={{ background: tx.iconBg }}>
-                {tx.icon}
-              </div>
+          {ledgerLoading ? (
+            <li className="tx-item">
               <div className="tx-details">
-                <p className="tx-title">{tx.title}</p>
-                <p className="tx-meta">{tx.meta}</p>
-              </div>
-              <div className="tx-amounts">
-                {tx.amounts.map((item) => (
-                  <span key={item.text} className={`tx-amount tx-amount--${item.variant}`}>
-                    {item.text}
-                  </span>
-                ))}
+                <p className="tx-title">Loading ledger…</p>
               </div>
             </li>
-          ))}
+          ) : ledgerRows.length === 0 ? (
+            <li className="tx-item">
+              <div className="tx-details">
+                <p className="tx-title">No transactions yet</p>
+                <p className="tx-meta">Top-ups, loads, and points activity appear here</p>
+              </div>
+            </li>
+          ) : (
+            ledgerRows.map((tx) => (
+              <li key={tx.id} className="tx-item">
+                <div className="tx-icon" style={{ background: tx.iconBg }}>
+                  {tx.icon}
+                </div>
+                <div className="tx-details">
+                  <p className="tx-title">{tx.title}</p>
+                  <p className="tx-meta">{tx.meta}</p>
+                </div>
+                <div className="tx-amounts">
+                  {tx.amounts.map((item) => (
+                    <span key={item.text} className={`tx-amount tx-amount--${item.variant}`}>
+                      {item.text}
+                    </span>
+                  ))}
+                </div>
+              </li>
+            ))
+          )}
         </ul>
       </section>
     </div>

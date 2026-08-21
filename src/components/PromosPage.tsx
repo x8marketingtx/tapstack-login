@@ -1,153 +1,226 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ApiError, isApiConfigured, tapstackApi, type PlayerPromo } from '../api/client'
 import './PromosPage.css'
 
-type PromoFilter = 'all' | 'lucky-strike' | 'nova-game' | 'golden'
+const CACHE_TTL_MS = 60_000
 
-const FILTERS: {
-  id: PromoFilter
-  label: string
-  icon?: string
-  iconBg?: string
-}[] = [
-  { id: 'all', label: 'All' },
-  { id: 'lucky-strike', label: 'Lucky Strike', icon: 'L', iconBg: '#8b5cf6' },
-  { id: 'nova-game', label: 'Nova Game', icon: 'N', iconBg: '#3b82f6' },
-  { id: 'golden', label: 'Golden', icon: 'G', iconBg: '#10b981' },
-]
+let promosCache: PlayerPromo[] | null = null
+let promosCacheAt = 0
+let promosInflight: Promise<PlayerPromo[]> | null = null
 
-const PROMOTIONS = [
-  {
-    id: 'lucky-strike-bonus',
-    vendor: 'lucky-strike' as PromoFilter,
-    vendorInitials: 'LS',
-    vendorName: 'Lucky Strike Arcade',
-    heroGradient: 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
-    badge: '+20%',
-    headline: '+20% Bonus Credits',
-    title: 'New Year Bonus',
-    categoryIcon: '🎁',
-    category: 'Bonus Credits',
-    categoryClass: 'promo-tag--purple',
-    description:
-      'Get 20% bonus on any deposit over $20. Stack up your credits for a great start to 2025!',
-    ends: 'Ends Jan 15',
-  },
-  {
-    id: 'nova-freeplay',
-    vendor: 'nova-game' as PromoFilter,
-    vendorInitials: 'NG',
-    vendorName: 'Nova Game Zone',
-    heroGradient: 'linear-gradient(135deg, #38bdf8 0%, #06b6d4 100%)',
-    badge: 'FREE',
-    headline: 'Free Play Sat & Sun',
-    title: 'VIP Weekend Freeplay',
-    categoryIcon: '⚡',
-    category: 'Freeplay',
-    categoryClass: 'promo-tag--blue',
-    description:
-      'All registered customers get 30 free play minutes every weekend in January. No minimum deposit.',
-    ends: 'Ends Jan 31',
-  },
-  {
-    id: 'lucky-strike-loyalty',
-    vendor: 'lucky-strike' as PromoFilter,
-    vendorInitials: 'LS',
-    vendorName: 'Lucky Strike Arcade',
-    heroGradient: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)',
-    badge: '$10',
-    headline: '$10 Free Credit',
-    title: 'Loyalty Reward Drop',
-    categoryIcon: '🏆',
-    category: 'Loyalty',
-    categoryClass: 'promo-tag--gold',
-    description: '$10 free credit added to your wallet on any single deposit of $100 or more.',
-    ends: 'Ends Jan 31',
-  },
-  {
-    id: 'galaxy-double-tokens',
-    vendor: 'golden' as PromoFilter,
-    vendorInitials: 'GT',
-    vendorName: 'Galaxy Tokens',
-    heroGradient: 'linear-gradient(135deg, #4ade80 0%, #16a34a 100%)',
-    badge: '2x',
-    headline: '2x Tokens All Weekend',
-    title: 'Double Points Event',
-    categoryIcon: '⚡',
-    category: 'Bonus Tokens',
-    categoryClass: 'promo-tag--green',
-    description:
-      'Earn double arcade tokens on every game Jan 6–7. Works on all machines across the venue.',
-    ends: 'Ends Jan 6–7',
-  },
-]
+async function fetchPromos(force = false): Promise<PlayerPromo[]> {
+  if (!isApiConfigured()) return []
+  const fresh = promosCache && Date.now() - promosCacheAt < CACHE_TTL_MS
+  if (!force && fresh && promosCache) return promosCache
+  if (!force && promosInflight) return promosInflight
 
-export default function PromosPage() {
-  const [activeFilter, setActiveFilter] = useState<PromoFilter>('all')
+  promosInflight = tapstackApi
+    .customerPromos()
+    .then((res) => {
+      promosCache = res.promos || []
+      promosCacheAt = Date.now()
+      return promosCache
+    })
+    .finally(() => {
+      promosInflight = null
+    })
 
-  const visiblePromos =
-    activeFilter === 'all'
-      ? PROMOTIONS
-      : PROMOTIONS.filter((promo) => promo.vendor === activeFilter)
+  return promosInflight
+}
+
+export default function PromosPage({ active = true }: { active?: boolean }) {
+  const [promos, setPromos] = useState<PlayerPromo[]>(() => promosCache ?? [])
+  const [loading, setLoading] = useState(() => isApiConfigured() && !promosCache)
+  const [filter, setFilter] = useState<string>('all')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const loadedOnce = useRef(Boolean(promosCache))
+
+  const load = useCallback(async (force = false) => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    const showSpinner = !promosCache && !loadedOnce.current
+    if (showSpinner) setLoading(true)
+    try {
+      const next = await fetchPromos(force)
+      setPromos(next)
+      loadedOnce.current = true
+    } catch {
+      if (!promosCache) setPromos([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!active) return
+    void load(false)
+  }, [active, load])
+
+  const vendors = useMemo(() => {
+    const map = new Map<string, { id: string; label: string; initials: string }>()
+    for (const promo of promos) {
+      if (!map.has(promo.vendorId)) {
+        map.set(promo.vendorId, {
+          id: promo.vendorId,
+          label: promo.vendorName,
+          initials: promo.vendorInitials || 'V',
+        })
+      }
+    }
+    return Array.from(map.values())
+  }, [promos])
+
+  const visible = filter === 'all' ? promos : promos.filter((p) => p.vendorId === filter)
+
+  async function handleAction(promo: PlayerPromo) {
+    if (!isApiConfigured() || busyId) return
+    setBusyId(promo.id)
+    setNote('')
+    try {
+      if (promo.claimStatus === 'available') {
+        const res = await tapstackApi.customerPromoActivate(promo.id)
+        setPromos((list) => {
+          const next = list.map((p) => (p.id === promo.id ? res.promo : p))
+          promosCache = next
+          promosCacheAt = Date.now()
+          return next
+        })
+        setNote('Promo activated — load to complete it.')
+      } else if (promo.claimStatus === 'completed') {
+        const res = await tapstackApi.customerPromoClaim(promo.id)
+        setPromos((list) => {
+          const next = list.map((p) => (p.id === promo.id ? res.promo : p))
+          promosCache = next
+          promosCacheAt = Date.now()
+          return next
+        })
+        setNote(`Claimed ${res.promo.rewardAmount ? `$${res.promo.rewardAmount.toFixed(2)}` : 'reward'}!`)
+      }
+    } catch (err) {
+      setNote(err instanceof ApiError ? err.message : 'Could not update promo.')
+    } finally {
+      setBusyId(null)
+      window.setTimeout(() => setNote(''), 2500)
+    }
+  }
+
+  function actionLabel(promo: PlayerPromo): string {
+    if (promo.claimStatus === 'available') return 'Activate'
+    if (promo.claimStatus === 'active') return 'In progress'
+    if (promo.claimStatus === 'completed') return 'Claim reward'
+    return 'Claimed'
+  }
 
   return (
     <div className="promos-page">
       <div className="promos-intro">
         <h1 className="promos-title">Promotions</h1>
-        <p className="promos-subtitle">From your saved vendors</p>
+        <p className="promos-subtitle">From your linked vendors — activate, complete a load, claim</p>
       </div>
 
       <div className="promo-filters" role="tablist" aria-label="Vendor filters">
-        {FILTERS.map((filter) => (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={filter === 'all'}
+          className={`promo-filter ${filter === 'all' ? 'promo-filter--active' : ''}`}
+          onClick={() => setFilter('all')}
+        >
+          All
+        </button>
+        {vendors.map((vendor) => (
           <button
-            key={filter.id}
+            key={vendor.id}
             type="button"
             role="tab"
-            aria-selected={activeFilter === filter.id}
-            className={`promo-filter ${activeFilter === filter.id ? 'promo-filter--active' : ''}`}
-            onClick={() => setActiveFilter(filter.id)}
+            aria-selected={filter === vendor.id}
+            className={`promo-filter ${filter === vendor.id ? 'promo-filter--active' : ''}`}
+            onClick={() => setFilter(vendor.id)}
           >
-            {filter.icon ? (
-              <span className="promo-filter-icon" style={{ background: filter.iconBg }}>
-                {filter.icon}
-              </span>
-            ) : null}
-            {filter.label}
+            <span className="promo-filter-icon" style={{ background: '#14532d' }}>
+              {vendor.initials.slice(0, 1)}
+            </span>
+            {vendor.label}
           </button>
         ))}
       </div>
 
-      <div className="promo-list">
-        {visiblePromos.map((promo) => (
-          <article key={promo.id} className="promo-card">
-            <div className="promo-card-hero" style={{ background: promo.heroGradient }}>
-              <span className="promo-card-badge">{promo.badge}</span>
-              <div className="promo-card-vendor">
-                <span className="promo-vendor-icon">{promo.vendorInitials}</span>
-                {promo.vendorName}
-              </div>
-              <h2 className="promo-card-headline">{promo.headline}</h2>
-            </div>
+      {note ? <p className="promo-toast">{note}</p> : null}
 
-            <div className="promo-card-body">
-              <div className="promo-card-title-row">
-                <h3 className="promo-card-title">{promo.title}</h3>
-                <span className={`promo-tag ${promo.categoryClass}`}>
-                  <span aria-hidden="true">{promo.categoryIcon}</span>
-                  {promo.category}
-                </span>
+      {loading ? <p className="promo-empty">Loading promotions…</p> : null}
+
+      {!loading && visible.length === 0 ? (
+        <p className="promo-empty">
+          No live promos yet. Link a vendor and ask them to publish a Bonus Credit or Deposit Bonus.
+        </p>
+      ) : null}
+
+      <div className="promo-list">
+        {visible.map((promo) => {
+          const pct =
+            promo.goal > 0 ? Math.min(100, Math.round((promo.progress / promo.goal) * 100)) : 0
+          const canAct =
+            promo.claimStatus === 'available' || promo.claimStatus === 'completed'
+          return (
+            <article key={promo.id} className="promo-card">
+              <div className="promo-card-hero" style={{ background: promo.heroGradient }}>
+                <span className="promo-card-badge">{promo.badge || 'PROMO'}</span>
+                <div className="promo-card-vendor">
+                  <span className="promo-vendor-icon">{promo.vendorInitials}</span>
+                  {promo.vendorName}
+                </div>
+                <h2 className="promo-card-headline">{promo.headline || promo.title}</h2>
               </div>
-              <p className="promo-card-desc">{promo.description}</p>
-              <div className="promo-card-footer">
-                <span className="promo-card-ends">
-                  <span aria-hidden="true">🕐</span> {promo.ends}
-                </span>
-                <button type="button" className="promo-play-btn">
-                  Play Now &gt;
-                </button>
+
+              <div className="promo-card-body">
+                <div className="promo-card-title-row">
+                  <h3 className="promo-card-title">{promo.title}</h3>
+                  <span className={`promo-tag ${promo.categoryClass}`}>
+                    <span aria-hidden="true">{promo.categoryIcon}</span>
+                    {promo.category}
+                  </span>
+                </div>
+                <p className="promo-card-desc">
+                  {promo.description ||
+                    (promo.type === 'deposit-bonus'
+                      ? `Load $${promo.minAmount}+ and get ${promo.rewardValue}% bonus credit.`
+                      : `Load $${promo.minAmount}+ and get $${promo.rewardValue.toFixed(2)} credit.`)}
+                </p>
+
+                {promo.claimStatus === 'active' || promo.claimStatus === 'completed' ? (
+                  <div className="promo-progress">
+                    <div className="promo-progress-track">
+                      <div className="promo-progress-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span>
+                      ${promo.progress.toFixed(0)} / ${promo.goal.toFixed(0)}
+                      {promo.claimStatus === 'completed' && promo.rewardAmount
+                        ? ` · reward $${promo.rewardAmount.toFixed(2)}`
+                        : ''}
+                    </span>
+                  </div>
+                ) : null}
+
+                <div className="promo-card-footer">
+                  <span className="promo-card-ends">
+                    <span aria-hidden="true">🕐</span> {promo.ends}
+                  </span>
+                  <button
+                    type="button"
+                    className={`promo-play-btn ${promo.claimStatus === 'completed' ? 'is-claim' : ''}`}
+                    disabled={busyId === promo.id || !canAct}
+                    onClick={() => void handleAction(promo)}
+                  >
+                    {busyId === promo.id ? '…' : actionLabel(promo)}
+                  </button>
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          )
+        })}
       </div>
     </div>
   )

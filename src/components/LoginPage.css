@@ -344,6 +344,16 @@
   text-decoration: underline;
 }
 
+.login-beta-notice {
+  margin: 16px 0 0;
+  padding: 0 8px;
+  color: #dc2626;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+  font-weight: 500;
+}
+
 /* Admin portal */
 
 .admin-screen {

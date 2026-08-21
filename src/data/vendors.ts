@@ -1,12 +1,15 @@
 import type { ApiVendor } from '../api/client'
 
 export type VendorGame = {
+  id?: string
   name: string
   icon: string
   iconBg: string
   active: boolean
   mode: 'auto' | 'manual'
   balance: string
+  platform?: string
+  connected?: boolean
 }
 
 export type Vendor = {
@@ -17,6 +20,10 @@ export type Vendor = {
   color: string
   text: string
   code?: string
+  bannerUrl?: string
+  accentColor?: string
+  accentSolid?: string
+  tagline?: string
   games: VendorGame[]
 }
 
@@ -75,6 +82,18 @@ export function createVendorFromName(name: string, id?: number | string): Vendor
     color: palette.color,
     text: palette.text,
     games: defaultGames(trimmed),
+  }
+}
+
+/** Offline/demo helper when the player enters an invite code. */
+export function createVendorFromInviteCode(code: string): Vendor {
+  const normalized = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const vendor = createVendorFromName(`Vendor ${normalized}`)
+  return {
+    ...vendor,
+    id: `local-${normalized.toLowerCase()}`,
+    code: normalized,
+    handle: normalized,
   }
 }
 
@@ -154,6 +173,10 @@ export function vendorFromApi(vendor: ApiVendor): Vendor {
     color: vendor.color || '#dbeafe',
     text: vendor.text || '#2563eb',
     code: vendor.code,
+    bannerUrl: vendor.bannerUrl || '',
+    accentColor: vendor.accentColor || 'purple',
+    accentSolid: vendor.accentSolid || '#7c3aed',
+    tagline: vendor.tagline || '',
     games: (vendor.games?.length ? vendor.games : defaultGames(vendor.name)).map((game) => ({
       ...game,
       icon: decodeIcon(game.icon, game.name),
@@ -214,7 +237,23 @@ export function saveLocalVendors(vendors: Vendor[], userId?: number | string | n
 /** Old plugin builds dump the full catalog when the player has no links. */
 export function looksLikeVendorCatalogDump(vendors: Vendor[]): boolean {
   if (vendors.length < 4) return false
-  const knownCodes = new Set(['lucky', 'ocean', 'pinball', 'neon', 'cash'])
+  const knownCodes = new Set([
+    'ls8k2p4q',
+    'oc4n7m2r',
+    'pb9t3r6w',
+    'ng6h4w8y',
+    'cc3y8d5k',
+    'ls8k2p',
+    'oc4n7m',
+    'pb9t3r',
+    'ng6h4w',
+    'cc3y8d',
+    'lucky',
+    'ocean',
+    'pinball',
+    'neon',
+    'cash',
+  ])
   const knownNames = new Set([
     'lucky strike arcade',
     'ocean sluggerz',

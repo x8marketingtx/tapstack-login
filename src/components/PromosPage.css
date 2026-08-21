@@ -212,6 +212,60 @@
   gap: 12px;
 }
 
+.promo-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.promo-progress-track {
+  height: 7px;
+  border-radius: 999px;
+  background: #e7e5e4;
+  overflow: hidden;
+}
+
+.promo-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #166534, #ca8a04);
+}
+
+.promo-progress > span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #57534e;
+}
+
+.promo-toast {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.promo-empty {
+  margin: 0;
+  padding: 18px 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.promo-play-btn.is-claim {
+  background: #166534;
+}
+
+.promo-play-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .promo-card-ends {
   display: inline-flex;
   align-items: center;

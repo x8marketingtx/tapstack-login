@@ -1,265 +1,28 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ApiError, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
+import { decodeIcon } from '../data/vendors'
+import VendorOrderDetailModal from './VendorOrderDetailModal'
 import './VendorOrdersPage.css'
 
 type OrdersTab = 'loads' | 'redeems' | 'history'
-
-type ManualLoad = {
-  id: string
-  name: string
-  game: string
-  method: string
-  time: string
-  amount: string
-  icon: string
-  iconBg: string
-}
-
-type AutomatedLoad = {
-  id: string
-  name: string
-  game: string
-  method: string
-  time: string
-  amount: string
-  icon: string
-  iconBg: string
-}
-
-type PendingRedeem = {
-  id: string
-  name: string
-  game: string
-  time: string
-  amount: string
-  icon: string
-  iconBg: string
-}
-
-const MANUAL_LOADS: ManualLoad[] = [
-  {
-    id: '1',
-    name: 'Marcus R.',
-    game: 'Lucky 7s',
-    method: 'Cash at counter',
-    time: '9:52 AM',
-    amount: '+$120',
-    icon: '🎰',
-    iconBg: '#fef3c7',
-  },
-  {
-    id: '2',
-    name: 'Tanya H.',
-    game: 'Golden Pick',
-    method: 'Venmo',
-    time: '9:51 AM',
-    amount: '+$60',
-    icon: '⛏️',
-    iconBg: '#fef9c3',
-  },
-  {
-    id: '3',
-    name: 'Marcus R.',
-    game: 'Lucky 7s',
-    method: 'Cash at counter',
-    time: '9:50 AM',
-    amount: '+$120',
-    icon: '🎰',
-    iconBg: '#fef3c7',
-  },
-  {
-    id: '4',
-    name: 'Marcus R.',
-    game: 'Lucky 7s',
-    method: 'Cash at counter',
-    time: '9:49 AM',
-    amount: '+$120',
-    icon: '🎰',
-    iconBg: '#fef3c7',
-  },
-]
-
-const AUTOMATED_LOADS: AutomatedLoad[] = [
-  {
-    id: '1',
-    name: 'Alex P.',
-    game: 'Gold Rush',
-    method: 'App deposit',
-    time: '9:48 AM',
-    amount: '+$200',
-    icon: '⛏️',
-    iconBg: '#fef9c3',
-  },
-  {
-    id: '2',
-    name: 'Riley K.',
-    game: 'SpinZone',
-    method: 'App deposit',
-    time: '9:45 AM',
-    amount: '+$85',
-    icon: '🎰',
-    iconBg: '#fef3c7',
-  },
-  {
-    id: '3',
-    name: 'Jordan M.',
-    game: 'Lucky 7s',
-    method: 'App deposit',
-    time: '9:41 AM',
-    amount: '+$120',
-    icon: '🌀',
-    iconBg: '#ede9fe',
-  },
-]
-
-const PENDING_REDEEMS: PendingRedeem[] = [
-  {
-    id: '1',
-    name: 'Marcus R.',
-    game: 'Lucky 7s',
-    time: '9:41 AM',
-    amount: '$250',
-    icon: '🎰',
-    iconBg: '#fef3c7',
-  },
-  {
-    id: '2',
-    name: 'Tanya H.',
-    game: 'Gold Rush',
-    time: '9:15 AM',
-    amount: '$80',
-    icon: '⛏️',
-    iconBg: '#fef9c3',
-  },
-  {
-    id: '3',
-    name: 'Leo P.',
-    game: 'Neon Spinner',
-    time: '8:02 AM',
-    amount: '$500',
-    icon: '🌀',
-    iconBg: '#ede9fe',
-  },
-  {
-    id: '4',
-    name: 'Chloe M.',
-    game: 'Lucky 7s',
-    time: '7:48 AM',
-    amount: '$120',
-    icon: '🎰',
-    iconBg: '#fef3c7',
-  },
-]
-
-const ORDERS_TABS: { id: OrdersTab; label: string; count?: number }[] = [
-  { id: 'loads', label: 'Loads', count: 4 },
-  { id: 'redeems', label: 'Redeems', count: 4 },
-  { id: 'history', label: 'History' },
-]
-
 type HistoryRange = 'today' | '7d' | '30d' | 'custom'
+type HistoryFilter = 'all' | 'loads' | 'redeems'
 
-type HistoryEntry = {
-  id: string
-  type: 'manual-load' | 'redeem' | 'auto-load'
-  label: string
-  name: string
-  date: string
-  amount: string
-  positive: boolean
-  icon: string
-  iconBg: string
+type OrdersState = {
+  manualLoads: VendorOrderItem[]
+  autoLoads: VendorOrderItem[]
+  redeems: VendorOrderItem[]
+  history: VendorOrderItem[]
+  pendingTotal: string
 }
 
-const HISTORY_ENTRIES: HistoryEntry[] = [
-  {
-    id: '1',
-    type: 'manual-load',
-    label: 'Manual Load',
-    name: 'Marcus R.',
-    date: 'Today · 9:50 AM',
-    amount: '+$100',
-    positive: true,
-    icon: '💵',
-    iconBg: '#dcfce7',
-  },
-  {
-    id: '2',
-    type: 'redeem',
-    label: 'Redeem',
-    name: 'Tanya H.',
-    date: 'Today · 9:30 AM',
-    amount: '-$250',
-    positive: false,
-    icon: '🏧',
-    iconBg: '#dbeafe',
-  },
-  {
-    id: '3',
-    type: 'auto-load',
-    label: 'Auto Load',
-    name: 'Leo P.',
-    date: 'Today · 8:12 AM',
-    amount: '+$200',
-    positive: true,
-    icon: '⚡',
-    iconBg: '#fef9c3',
-  },
-  {
-    id: '4',
-    type: 'redeem',
-    label: 'Redeem',
-    name: 'Chloe M.',
-    date: 'Jun 8 · Jun 8',
-    amount: '-$80',
-    positive: false,
-    icon: '🏧',
-    iconBg: '#dbeafe',
-  },
-  {
-    id: '5',
-    type: 'auto-load',
-    label: 'Auto Load',
-    name: 'Sam K.',
-    date: 'Jun 8 · Jun 8',
-    amount: '+$50',
-    positive: true,
-    icon: '⚡',
-    iconBg: '#fef9c3',
-  },
-  {
-    id: '6',
-    type: 'manual-load',
-    label: 'Manual Load',
-    name: 'Darius K.',
-    date: 'Jun 8 · Jun 8',
-    amount: '+$340',
-    positive: true,
-    icon: '💵',
-    iconBg: '#dcfce7',
-  },
-  {
-    id: '7',
-    type: 'auto-load',
-    label: 'Auto Load',
-    name: 'Nina W.',
-    date: 'Jun 7 · Jun 7',
-    amount: '+$75',
-    positive: true,
-    icon: '⚡',
-    iconBg: '#fef9c3',
-  },
-  {
-    id: '8',
-    type: 'manual-load',
-    label: 'Manual Load',
-    name: 'Dan T.',
-    date: 'Jun 7 · Jun 7',
-    amount: '+$150',
-    positive: true,
-    icon: '💵',
-    iconBg: '#dcfce7',
-  },
-]
+const EMPTY_ORDERS: OrdersState = {
+  manualLoads: [],
+  autoLoads: [],
+  redeems: [],
+  history: [],
+  pendingTotal: '$0.00',
+}
 
 const HISTORY_RANGES: { id: HistoryRange; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -268,13 +31,82 @@ const HISTORY_RANGES: { id: HistoryRange; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ]
 
-function LoadsTab() {
-  const [checked, setChecked] = useState<Record<string, boolean>>({})
+function formatSignedAmount(amount: string, positive: boolean): string {
+  const cleaned = String(amount || '').trim()
+  if (!cleaned) return positive ? '+$0.00' : '-$0.00'
+  if (cleaned.startsWith('+') || cleaned.startsWith('-')) return cleaned
+  return `${positive ? '+' : '-'}${cleaned.startsWith('$') ? cleaned : `$${cleaned}`}`
+}
 
-  function toggleCheck(id: string) {
-    setChecked((prev) => ({ ...prev, [id]: !prev[id] }))
+function orderStatusDisplay(item: Pick<VendorOrderItem, 'status' | 'type' | 'error'>): {
+  label: string
+  tone: 'pending' | 'completed' | 'attention' | 'rejected'
+} {
+  const status = String(item.status || '').toLowerCase()
+  const type = String(item.type || '').toLowerCase()
+
+  if (status === 'approved') {
+    return { label: 'Completed', tone: 'completed' }
   }
+  if (status === 'rejected') {
+    return { label: 'Rejected', tone: 'rejected' }
+  }
+  if (status === 'failed' || item.error) {
+    return { label: 'Attention needed', tone: 'attention' }
+  }
+  if (status === 'pending') {
+    if (type === 'manual-load' || type === 'redeem') {
+      return { label: 'Attention needed', tone: 'attention' }
+    }
+    return { label: 'Pending', tone: 'pending' }
+  }
+  if (status) {
+    return { label: status.charAt(0).toUpperCase() + status.slice(1), tone: 'pending' }
+  }
+  return { label: 'Pending', tone: 'pending' }
+}
 
+function OrderStatusBadge({ item }: { item: Pick<VendorOrderItem, 'status' | 'type' | 'error'> }) {
+  const { label, tone } = orderStatusDisplay(item)
+  return <span className={`vendor-order-status vendor-order-status--${tone}`}>{label}</span>
+}
+
+function parseOrderDate(item: VendorOrderItem): number {
+  if (item.createdAt) {
+    const iso = Date.parse(item.createdAt)
+    if (Number.isFinite(iso)) return iso
+  }
+  const raw = `${item.date || ''} ${item.time || ''}`.trim()
+  const ts = Date.parse(raw)
+  if (Number.isFinite(ts)) return ts
+  return Date.now()
+}
+
+function inHistoryRange(item: VendorOrderItem, range: HistoryRange): boolean {
+  if (range === 'custom') return true
+  const ts = parseOrderDate(item)
+  const now = Date.now()
+  const startOfToday = new Date()
+  startOfToday.setHours(0, 0, 0, 0)
+  if (range === 'today') return ts >= startOfToday.getTime()
+  if (range === '7d') return ts >= now - 7 * 24 * 60 * 60 * 1000
+  if (range === '30d') return ts >= now - 30 * 24 * 60 * 60 * 1000
+  return true
+}
+
+function LoadsTab({
+  manualLoads,
+  autoLoads,
+  busyId,
+  onApprove,
+  onOpenOrder,
+}: {
+  manualLoads: VendorOrderItem[]
+  autoLoads: VendorOrderItem[]
+  busyId: string | null
+  onApprove: (id: string) => void
+  onOpenOrder: (id: string) => void
+}) {
   return (
     <div className="vendor-orders-content">
       <div className="vendor-orders-notice">
@@ -294,40 +126,60 @@ function LoadsTab() {
             <span className="vendor-orders-section-name">Manual Loads</span>
             <span className="vendor-orders-priority-badge">PRIORITY</span>
           </div>
-          <span className="vendor-orders-section-count">4 to do</span>
+          <span className="vendor-orders-section-count">
+            {manualLoads.length} to do
+          </span>
         </div>
 
-        <ul className="vendor-orders-list">
-          {MANUAL_LOADS.map((load) => (
-            <li key={load.id} className="vendor-order-card">
-              <button
-                type="button"
-                className={`vendor-order-check ${checked[load.id] ? 'vendor-order-check--checked' : ''}`}
-                aria-label={`Mark ${load.name} load as checked`}
-                onClick={() => toggleCheck(load.id)}
-              >
-                {checked[load.id] && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 12l5 5L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                  </svg>
-                )}
-              </button>
+        {manualLoads.length === 0 ? (
+          <p className="vendor-orders-empty">No pending manual loads.</p>
+        ) : (
+          <ul className="vendor-orders-list">
+            {manualLoads.map((load) => (
+              <li key={load.id} className="vendor-order-card">
+                <button
+                  type="button"
+                  className="vendor-order-check"
+                  aria-label={`Approve ${load.name} load`}
+                  disabled={busyId === load.id}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onApprove(load.id)
+                  }}
+                >
+                  {busyId === load.id ? '…' : null}
+                </button>
 
-              <div className="vendor-order-game-icon" style={{ background: load.iconBg }}>
-                {load.icon}
-              </div>
+                <button
+                  type="button"
+                  className="vendor-order-open"
+                  onClick={() => onOpenOrder(load.id)}
+                >
+                  <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>
+                    {decodeIcon(load.icon || '🎮', load.game)}
+                  </div>
 
-              <div className="vendor-order-details">
-                <p className="vendor-order-name">{load.name}</p>
-                <p className="vendor-order-meta">
-                  {load.game} · {load.method} · {load.time}
-                </p>
-              </div>
+                  <div className="vendor-order-details">
+                    <p className="vendor-order-name">{load.name || 'Player'}</p>
+                    <p className="vendor-order-meta">
+                      {[load.game, load.mobileId, load.method, load.time]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                    {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
+                  </div>
 
-              <span className="vendor-order-amount">{load.amount}</span>
-            </li>
-          ))}
-        </ul>
+                  <div className="vendor-order-right">
+                    <span className="vendor-order-amount">
+                      {formatSignedAmount(load.amount, true)}
+                    </span>
+                    <OrderStatusBadge item={load} />
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="vendor-orders-section">
@@ -343,88 +195,159 @@ function LoadsTab() {
           </div>
         </div>
 
-        <ul className="vendor-orders-list">
-          {AUTOMATED_LOADS.map((load) => (
-            <li key={load.id} className="vendor-order-card vendor-order-card--auto">
-              <div className="vendor-order-game-icon" style={{ background: load.iconBg }}>
-                {load.icon}
-              </div>
+        {autoLoads.length === 0 ? (
+          <p className="vendor-orders-empty">No automated loads yet.</p>
+        ) : (
+          <ul className="vendor-orders-list">
+            {autoLoads.map((load) => (
+              <li key={load.id}>
+                <button
+                  type="button"
+                  className="vendor-order-card vendor-order-card--auto vendor-order-card--clickable"
+                  onClick={() => onOpenOrder(load.id)}
+                >
+                  <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>
+                    {decodeIcon(load.icon || '🎮', load.game)}
+                  </div>
 
-              <div className="vendor-order-details">
-                <p className="vendor-order-name">{load.name}</p>
-                <p className="vendor-order-meta">
-                  {load.game} · {load.method} · {load.time}
-                </p>
-              </div>
+                  <div className="vendor-order-details">
+                    <p className="vendor-order-name">{load.name || 'Player'}</p>
+                    <p className="vendor-order-meta">
+                      {[load.game, load.method || 'Auto', load.time].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
 
-              <div className="vendor-order-right">
-                <span className="vendor-order-amount">{load.amount}</span>
-                <span className="vendor-order-auto-badge">Auto</span>
-              </div>
-            </li>
-          ))}
-        </ul>
+                  <div className="vendor-order-right">
+                    <span className="vendor-order-amount">
+                      {formatSignedAmount(load.amount, true)}
+                    </span>
+                    <OrderStatusBadge item={load} />
+                    <span className="vendor-order-auto-badge">Auto</span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   )
 }
 
-function RedeemsTab() {
+function RedeemsTab({
+  redeems,
+  pendingTotal,
+  busyId,
+  onApprove,
+  onReject,
+  onOpenOrder,
+}: {
+  redeems: VendorOrderItem[]
+  pendingTotal: string
+  busyId: string | null
+  onApprove: (id: string) => void
+  onReject: (id: string) => void
+  onOpenOrder: (id: string) => void
+}) {
   return (
     <div className="vendor-orders-content">
       <div className="vendor-redeems-summary">
         <div>
           <h2 className="vendor-redeems-title">Pending Redeems</h2>
-          <p className="vendor-redeems-subtitle">4 awaiting review</p>
+          <p className="vendor-redeems-subtitle">
+            {redeems.length} awaiting review
+          </p>
         </div>
         <div className="vendor-redeems-total">
           <span className="vendor-redeems-total-label">Total pending</span>
-          <span className="vendor-redeems-total-amount">$950</span>
+          <span className="vendor-redeems-total-amount">{pendingTotal}</span>
         </div>
       </div>
 
-      <ul className="vendor-redeems-list">
-        {PENDING_REDEEMS.map((redeem) => (
-          <li key={redeem.id} className="vendor-redeem-card">
-            <div className="vendor-redeem-top">
-              <div className="vendor-order-game-icon" style={{ background: redeem.iconBg }}>
-                {redeem.icon}
-              </div>
+      {redeems.length === 0 ? (
+        <p className="vendor-orders-empty">No pending redeems.</p>
+      ) : (
+        <ul className="vendor-redeems-list">
+          {redeems.map((redeem) => (
+            <li key={redeem.id} className="vendor-redeem-card">
+              <button
+                type="button"
+                className="vendor-order-open vendor-redeem-open"
+                onClick={() => onOpenOrder(redeem.id)}
+              >
+                <div className="vendor-order-game-icon" style={{ background: redeem.iconBg || '#ede9fe' }}>
+                  {decodeIcon(redeem.icon || '🎮', redeem.game)}
+                </div>
 
-              <div className="vendor-order-details">
-                <p className="vendor-order-name">{redeem.name}</p>
-                <p className="vendor-order-meta">
-                  {redeem.game} · {redeem.time}
-                </p>
-              </div>
+                <div className="vendor-order-details">
+                  <p className="vendor-order-name">{redeem.name || 'Player'}</p>
+                  <p className="vendor-order-meta">
+                    {[redeem.game, redeem.time].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
 
-              <span className="vendor-redeem-amount">{redeem.amount}</span>
-            </div>
-
-            <div className="vendor-redeem-actions">
-              <button type="button" className="vendor-redeem-btn vendor-redeem-btn--reject">
-                Reject
+                <div className="vendor-order-right">
+                  <span className="vendor-redeem-amount">{redeem.amount}</span>
+                  <OrderStatusBadge item={redeem} />
+                </div>
               </button>
-              <button type="button" className="vendor-redeem-btn vendor-redeem-btn--approve">
-                Approve
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+
+              <div className="vendor-redeem-actions">
+                <button
+                  type="button"
+                  className="vendor-redeem-btn vendor-redeem-btn--reject"
+                  disabled={busyId === redeem.id}
+                  onClick={() => onReject(redeem.id)}
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  className="vendor-redeem-btn vendor-redeem-btn--approve"
+                  disabled={busyId === redeem.id}
+                  onClick={() => onApprove(redeem.id)}
+                >
+                  {busyId === redeem.id ? '…' : 'Approve'}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
 
-function HistoryTab() {
+function HistoryTab({
+  history,
+  onOpenOrder,
+}: {
+  history: VendorOrderItem[]
+  onOpenOrder: (id: string) => void
+}) {
   const [range, setRange] = useState<HistoryRange>('30d')
+  const [filter, setFilter] = useState<HistoryFilter>('all')
+
+  const filtered = useMemo(() => {
+    return history.filter((entry) => {
+      if (!inHistoryRange(entry, range)) return false
+      if (filter === 'loads') return entry.type.includes('load')
+      if (filter === 'redeems') return entry.type === 'redeem'
+      return true
+    })
+  }, [history, range, filter])
 
   return (
     <div className="vendor-orders-content">
       <h2 className="vendor-history-title">Order History</h2>
 
       <div className="vendor-history-select-wrap">
-        <select className="vendor-history-select" defaultValue="all" aria-label="Filter activity">
+        <select
+          className="vendor-history-select"
+          value={filter}
+          aria-label="Filter activity"
+          onChange={(event) => setFilter(event.target.value as HistoryFilter)}
+        >
           <option value="all">All Activity</option>
           <option value="loads">Loads</option>
           <option value="redeems">Redeems</option>
@@ -435,7 +358,9 @@ function HistoryTab() {
       </div>
 
       <div className="vendor-history-filters">
-        <span className="vendor-history-filters-label">Last 30 days</span>
+        <span className="vendor-history-filters-label">
+          {range === 'today' ? 'Today' : range === '7d' ? 'Last 7 days' : range === '30d' ? 'Last 30 days' : 'Custom'}
+        </span>
         <div className="vendor-history-filter-pills" role="tablist" aria-label="Time range">
           {HISTORY_RANGES.map((item) => (
             <button
@@ -452,37 +377,139 @@ function HistoryTab() {
         </div>
       </div>
 
-      <ul className="vendor-history-list">
-        {HISTORY_ENTRIES.map((entry) => (
-          <li key={entry.id} className="vendor-history-item">
-            <div className="vendor-history-icon" style={{ background: entry.iconBg }}>
-              {entry.icon}
-            </div>
-            <div className="vendor-order-details">
-              <p className="vendor-history-item-title">
-                {entry.label} · {entry.name}
-              </p>
-              <p className="vendor-order-meta">{entry.date}</p>
-            </div>
-            <span
-              className={`vendor-history-amount ${entry.positive ? 'vendor-history-amount--positive' : 'vendor-history-amount--negative'}`}
-            >
-              {entry.amount}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {filtered.length === 0 ? (
+        <p className="vendor-orders-empty">No history for this range.</p>
+      ) : (
+        <ul className="vendor-history-list">
+          {filtered.map((entry) => (
+            <li key={entry.id}>
+              <button
+                type="button"
+                className="vendor-history-item vendor-history-item--clickable"
+                onClick={() => onOpenOrder(entry.id)}
+              >
+                <div className="vendor-history-icon" style={{ background: entry.iconBg || '#ede9fe' }}>
+                  {decodeIcon(entry.icon || '🎮', entry.game)}
+                </div>
+                <div className="vendor-order-details">
+                  <p className="vendor-history-item-title">
+                    {entry.label || entry.type} · {entry.name || 'Player'}
+                  </p>
+                  <p className="vendor-order-meta">
+                    {[entry.date, entry.time].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <div className="vendor-order-right">
+                  <span
+                    className={`vendor-history-amount ${
+                      entry.positive ? 'vendor-history-amount--positive' : 'vendor-history-amount--negative'
+                    }`}
+                  >
+                    {formatSignedAmount(entry.amount, entry.positive)}
+                  </span>
+                  <OrderStatusBadge item={entry} />
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
 
 export default function VendorOrdersPage() {
   const [activeOrdersTab, setActiveOrdersTab] = useState<OrdersTab>('loads')
+  const [orders, setOrders] = useState<OrdersState>(EMPTY_ORDERS)
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [detailOrderId, setDetailOrderId] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorOrders()
+      setOrders({
+        manualLoads: res.manualLoads || [],
+        autoLoads: (res.autoLoads || []).filter((item) => {
+          const status = String(item.status || '').toLowerCase()
+          return status !== 'approved' && status !== 'rejected'
+        }),
+        redeems: res.redeems || [],
+        history: res.history || [],
+        pendingTotal: res.pendingTotal || '$0.00',
+      })
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not load orders.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  async function handleApprove(id: string) {
+    setBusyId(id)
+    setError('')
+    try {
+      await tapstackApi.vendorOrderApprove(id)
+      await refresh()
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not approve order.',
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleReject(id: string) {
+    setBusyId(id)
+    setError('')
+    try {
+      await tapstackApi.vendorOrderReject(id)
+      await refresh()
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Could not reject order.',
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const tabs: { id: OrdersTab; label: string; count?: number }[] = [
+    { id: 'loads', label: 'Loads', count: orders.manualLoads.length },
+    { id: 'redeems', label: 'Redeems', count: orders.redeems.length },
+    { id: 'history', label: 'History' },
+  ]
 
   return (
     <div className="vendor-orders-page">
       <div className="vendor-orders-tabs" role="tablist" aria-label="Order types">
-        {ORDERS_TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = activeOrdersTab === tab.id
           return (
             <button
@@ -494,17 +521,47 @@ export default function VendorOrdersPage() {
               onClick={() => setActiveOrdersTab(tab.id)}
             >
               {tab.label}
-              {tab.count !== undefined && (
+              {tab.count !== undefined ? (
                 <span className="vendor-orders-tab-badge">{tab.count}</span>
-              )}
+              ) : null}
             </button>
           )
         })}
       </div>
 
-      {activeOrdersTab === 'loads' && <LoadsTab />}
-      {activeOrdersTab === 'redeems' && <RedeemsTab />}
-      {activeOrdersTab === 'history' && <HistoryTab />}
+      {error ? <p className="vendor-orders-error">{error}</p> : null}
+      {loading ? <p className="vendor-orders-empty">Loading orders…</p> : null}
+
+      {!loading && activeOrdersTab === 'loads' ? (
+        <LoadsTab
+          manualLoads={orders.manualLoads}
+          autoLoads={orders.autoLoads}
+          busyId={busyId}
+          onApprove={handleApprove}
+          onOpenOrder={setDetailOrderId}
+        />
+      ) : null}
+      {!loading && activeOrdersTab === 'redeems' ? (
+        <RedeemsTab
+          redeems={orders.redeems}
+          pendingTotal={orders.pendingTotal}
+          busyId={busyId}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onOpenOrder={setDetailOrderId}
+        />
+      ) : null}
+      {!loading && activeOrdersTab === 'history' ? (
+        <HistoryTab history={orders.history} onOpenOrder={setDetailOrderId} />
+      ) : null}
+
+      <VendorOrderDetailModal
+        orderId={detailOrderId}
+        onClose={() => setDetailOrderId(null)}
+        onUpdated={() => {
+          void refresh()
+        }}
+      />
     </div>
   )
 }

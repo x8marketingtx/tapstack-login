@@ -1,5 +1,11 @@
-import { useMemo, useState } from 'react'
-import { TapStackLogo } from './TapStackLogo'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  ApiError,
+  isApiConfigured,
+  tapstackApi,
+  type AdminSignup,
+} from '../api/client'
+import { AdminHeader } from './AdminHeader'
 import './AdminSignupsPage.css'
 
 type ApplicationStatus = 'pending' | 'approved' | 'rejected'
@@ -18,61 +24,6 @@ type ApplicationItem = {
   icon: ApplicationIcon
 }
 
-const APPLICATIONS: ApplicationItem[] = [
-  {
-    id: 'neon-tokens',
-    name: 'Neon Tokens Arcade',
-    code: 'PAC-001',
-    applicant: 'Marcus Webb',
-    date: 'Jul 2, 2026',
-    time: '9:14 AM',
-    revenueRange: '$25,000 – $50,000 / mo',
-    status: 'pending',
-    icon: 'vendor',
-  },
-  {
-    id: 'galaxy-games',
-    name: 'Galaxy Games LLC',
-    applicant: 'Sarah Chen',
-    date: 'Jul 1, 2026',
-    time: '2:30 PM',
-    revenueRange: '$10,000 – $25,000 / mo',
-    status: 'pending',
-    icon: 'vendor',
-  },
-  {
-    id: 'river-city',
-    name: 'River City Arcade',
-    applicant: 'Tom Hart',
-    date: 'Jun 30, 2026',
-    time: '11:05 AM',
-    revenueRange: '$50,000+ / mo',
-    status: 'pending',
-    icon: 'vendor',
-  },
-  {
-    id: 'pinball-palace',
-    name: 'Pinball Palace Co.',
-    code: 'MID-014',
-    applicant: 'Priya Sharma',
-    date: 'Jun 28, 2026',
-    time: '4:42 PM',
-    revenueRange: '$25,000 – $50,000 / mo',
-    status: 'approved',
-    icon: 'vendor',
-  },
-  {
-    id: 'southwest-arcade',
-    name: 'Southwest Arcade Group',
-    applicant: 'James Ortiz',
-    date: 'Jun 25, 2026',
-    time: '10:18 AM',
-    revenueRange: '$10,000 – $25,000 / mo',
-    status: 'rejected',
-    icon: 'person',
-  },
-]
-
 const FILTERS: { id: ApplicationFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'pending', label: 'Pending' },
@@ -80,17 +31,23 @@ const FILTERS: { id: ApplicationFilter; label: string }[] = [
   { id: 'rejected', label: 'Rejected' },
 ]
 
-function AdminHeader() {
-  return (
-    <header className="admin-dash-header">
-      <div className="admin-dash-header-row">
-        <TapStackLogo height={40} />
-        <button type="button" className="admin-dash-avatar" aria-label="Admin profile">
-          AV
-        </button>
-      </div>
-    </header>
-  )
+function normalizeStatus(status: string): ApplicationStatus {
+  if (status === 'approved' || status === 'rejected') return status
+  return 'pending'
+}
+
+function mapApiSignup(item: AdminSignup): ApplicationItem {
+  return {
+    id: String(item.id),
+    name: item.name,
+    code: item.code,
+    applicant: item.applicant,
+    date: item.date,
+    time: item.time,
+    revenueRange: item.revenueRange,
+    status: normalizeStatus(item.status),
+    icon: item.icon === 'person' ? 'person' : 'vendor',
+  }
 }
 
 function ApplicationIcon({ type }: { type: ApplicationIcon }) {
@@ -124,7 +81,17 @@ function ApplicationIcon({ type }: { type: ApplicationIcon }) {
   )
 }
 
-function ApplicationCard({ application }: { application: ApplicationItem }) {
+function ApplicationCard({
+  application,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  application: ApplicationItem
+  busy: boolean
+  onApprove: (id: string) => void
+  onReject: (id: string) => void
+}) {
   return (
     <article className="admin-signup-card">
       <ApplicationIcon type={application.icon} />
@@ -137,6 +104,26 @@ function ApplicationCard({ application }: { application: ApplicationItem }) {
           {application.applicant} · {application.date} · {application.time}
         </p>
         <p className="admin-signup-revenue">{application.revenueRange}</p>
+        {application.status === 'pending' && isApiConfigured() ? (
+          <div className="admin-signup-decision-row">
+            <button
+              type="button"
+              className="admin-signup-decision-btn admin-signup-decision-btn--approve"
+              disabled={busy}
+              onClick={() => onApprove(application.id)}
+            >
+              Approve
+            </button>
+            <button
+              type="button"
+              className="admin-signup-decision-btn admin-signup-decision-btn--reject"
+              disabled={busy}
+              onClick={() => onReject(application.id)}
+            >
+              Reject
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className="admin-signup-actions">
         <span className={`admin-signup-status admin-signup-status--${application.status}`}>
@@ -158,15 +145,74 @@ function ApplicationCard({ application }: { application: ApplicationItem }) {
   )
 }
 
+function SignupsSkeleton() {
+  return (
+    <div className="admin-signups-list" aria-busy="true" aria-label="Loading applications">
+      {[1, 2, 3, 4].map((n) => (
+        <article key={n} className="admin-signup-card">
+          <div className="admin-skel admin-skel--icon" />
+          <div className="admin-signup-info">
+            <div className="admin-skel admin-skel--title" />
+            <div className="admin-skel admin-skel--sub" />
+            <div className="admin-skel admin-skel--line-sm" style={{ marginTop: 8 }} />
+          </div>
+          <div className="admin-skel admin-skel--pill" />
+        </article>
+      ))}
+    </div>
+  )
+}
+
 export default function AdminSignupsPage() {
   const [filter, setFilter] = useState<ApplicationFilter>('all')
+  const [applications, setApplications] = useState<ApplicationItem[]>([])
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [error, setError] = useState('')
+  const [actionId, setActionId] = useState<string | null>(null)
 
-  const pendingCount = APPLICATIONS.filter((application) => application.status === 'pending').length
+  const load = useCallback(async () => {
+    if (!isApiConfigured()) {
+      setApplications([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await tapstackApi.adminSignups('all')
+      setApplications((res.signups || []).map(mapApiSignup))
+    } catch (err) {
+      setApplications([])
+      setError(err instanceof ApiError ? err.message : 'Could not load applications.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const pendingCount = applications.filter((application) => application.status === 'pending').length
 
   const filteredApplications = useMemo(() => {
-    if (filter === 'all') return APPLICATIONS
-    return APPLICATIONS.filter((application) => application.status === filter)
-  }, [filter])
+    if (filter === 'all') return applications
+    return applications.filter((application) => application.status === filter)
+  }, [filter, applications])
+
+  async function updateStatus(id: string, status: 'approved' | 'rejected') {
+    if (!isApiConfigured() || actionId) return
+    setActionId(id)
+    setError('')
+    try {
+      await tapstackApi.adminSignupUpdate(id, status)
+      await load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update application.')
+    } finally {
+      setActionId(null)
+    }
+  }
 
   return (
     <div className="admin-signups-page">
@@ -174,8 +220,16 @@ export default function AdminSignupsPage() {
 
       <section className="admin-signups-intro">
         <h1 className="admin-signups-title">Applications</h1>
-        <p className="admin-signups-meta">{pendingCount} pending review</p>
+        <p className="admin-signups-meta">
+          {loading ? (
+            <span className="admin-skel admin-skel--line-sm" style={{ display: 'inline-block', width: 120 }} />
+          ) : (
+            <>{pendingCount} pending review</>
+          )}
+        </p>
       </section>
+
+      {error ? <p className="admin-api-error">{error}</p> : null}
 
       <div className="admin-signups-filters" role="tablist" aria-label="Application filters">
         {FILTERS.map((item) => {
@@ -188,6 +242,7 @@ export default function AdminSignupsPage() {
               aria-selected={active}
               className={`admin-signups-filter ${active ? 'admin-signups-filter--active' : ''}`}
               onClick={() => setFilter(item.id)}
+              disabled={loading}
             >
               {item.label}
             </button>
@@ -195,11 +250,25 @@ export default function AdminSignupsPage() {
         })}
       </div>
 
-      <div className="admin-signups-list">
-        {filteredApplications.map((application) => (
-          <ApplicationCard key={application.id} application={application} />
-        ))}
-      </div>
+      {loading ? (
+        <SignupsSkeleton />
+      ) : (
+        <div className="admin-signups-list">
+          {filteredApplications.length === 0 ? (
+            <p className="admin-empty-hint">No applications yet.</p>
+          ) : (
+            filteredApplications.map((application) => (
+              <ApplicationCard
+                key={application.id}
+                application={application}
+                busy={actionId === application.id}
+                onApprove={(id) => void updateStatus(id, 'approved')}
+                onReject={(id) => void updateStatus(id, 'rejected')}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

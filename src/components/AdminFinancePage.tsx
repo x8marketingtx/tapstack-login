@@ -1,6 +1,19 @@
-import { useMemo, useState } from 'react'
-import { TapStackLogo } from './TapStackLogo'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ApiError,
+  isApiConfigured,
+  tapstackApi,
+  type AdminCustomerDetail,
+  type AdminFees,
+  type AdminFinance,
+  type AdminFinanceCustomer,
+  type AdminFinanceVendor,
+  type AdminPeriodStats,
+} from '../api/client'
+import { AdminHeader } from './AdminHeader'
+import { VendorDetailView } from './AdminVendorsPage'
 import './AdminFinancePage.css'
+import './AdminVendorsPage.css'
 
 type FinanceSubTab = 'analytics' | 'customers' | 'vendors' | 'fees' | 'transfer'
 type FinanceRange = 'today' | '7d' | '30d' | 'custom'
@@ -20,11 +33,18 @@ const FINANCE_RANGES: { id: FinanceRange; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ]
 
+const RANGE_META_LABEL: Record<FinanceRange, string> = {
+  today: 'Today',
+  '7d': 'Last 7 Days',
+  '30d': 'Last 30 Days',
+  custom: 'Custom',
+}
+
 const METRIC_CARDS = [
   {
     id: 'deposits',
     label: 'Total Deposits',
-    value: '$284,720',
+    value: '$0',
     tone: 'green',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -36,7 +56,7 @@ const METRIC_CARDS = [
   {
     id: 'withdrawals',
     label: 'Total Withdrawals',
-    value: '$198,340',
+    value: '$0',
     tone: 'red',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -48,7 +68,7 @@ const METRIC_CARDS = [
   {
     id: 'net-balance',
     label: 'Net Balance',
-    value: '$86,380',
+    value: '$0',
     tone: 'purple',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -59,7 +79,7 @@ const METRIC_CARDS = [
   {
     id: 'transaction-fees',
     label: 'Transaction Fees',
-    value: '$19,195',
+    value: '$0',
     tone: 'blue',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -70,7 +90,7 @@ const METRIC_CARDS = [
   {
     id: 'subscriptions',
     label: 'Subscriptions',
-    value: '$15,946',
+    value: '$0',
     tone: 'navy',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -82,7 +102,7 @@ const METRIC_CARDS = [
   {
     id: 'google-ads',
     label: 'Google Ads',
-    value: '$10,200',
+    value: '$0',
     tone: 'orange',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -93,7 +113,7 @@ const METRIC_CARDS = [
   {
     id: 'loyalty-retention',
     label: 'Loyalty Retention Fees',
-    value: '$6,300',
+    value: '$0',
     tone: 'magenta',
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -103,14 +123,6 @@ const METRIC_CARDS = [
     ),
   },
 ]
-
-const TOP_VENDORS = [
-  { id: 'lucky-strike', name: 'Lucky Strike Arcade', amount: 921 },
-  { id: 'pixel-palace', name: 'Pixel Palace Arcade', amount: 640 },
-  { id: 'nova-game-zone', name: 'Nova Game Zone', amount: 512 },
-]
-
-const topVendorMax = Math.max(...TOP_VENDORS.map((vendor) => vendor.amount))
 
 type CustomerStatus = 'active' | 'suspended' | 'banned'
 type CustomerFilter = 'all' | CustomerStatus
@@ -126,67 +138,12 @@ type CustomerItem = {
   status: CustomerStatus
 }
 
-const CUSTOMERS: CustomerItem[] = [
-  {
-    id: 'player-jace',
-    username: 'player_jace',
-    initial: 'J',
-    avatarBg: '#dbeafe',
-    contact: 'jm••••@gmail.com · (***) 482-0193',
-    balance: '$120.50',
-    points: '4,200 pts',
-    status: 'active',
-  },
-  {
-    id: 'lucky-quinn',
-    username: 'lucky_quinn',
-    initial: 'L',
-    avatarBg: '#dcfce7',
-    contact: 'lq••••@yahoo.com · (***) 291-7741',
-    balance: '$55.00',
-    points: '1,850 pts',
-    status: 'active',
-  },
-  {
-    id: 'high-roller99',
-    username: 'high_roller99',
-    initial: 'H',
-    avatarBg: '#fef3c7',
-    contact: 'hr••••@outlook.com · (***) 903-2210',
-    balance: '$940.00',
-    points: '18,400 pts',
-    status: 'active',
-  },
-  {
-    id: 'arcade-pro',
-    username: 'arcade_pro',
-    initial: 'A',
-    avatarBg: '#fee2e2',
-    contact: 'ap••••@icloud.com · (***) 118-9022',
-    balance: '$0.00',
-    points: '320 pts',
-    status: 'suspended',
-  },
-  {
-    id: 'nova-fan',
-    username: 'nova_fan',
-    initial: 'N',
-    avatarBg: '#ede9fe',
-    contact: 'nf••••@gmail.com · (***) 640-3318',
-    balance: '$210.00',
-    points: '7,600 pts',
-    status: 'active',
-  },
-]
-
 const CUSTOMER_FILTERS: { id: CustomerFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'suspended', label: 'Suspended' },
   { id: 'banned', label: 'Banned' },
 ]
-
-const TOTAL_PLAYERS = 28410
 
 type VendorFinancePeriod = 'daily' | 'weekly' | 'monthly' | 'custom'
 type VendorFinanceSort = 'deposits' | 'redeems'
@@ -209,80 +166,166 @@ const VENDOR_FINANCE_PERIODS: { id: VendorFinancePeriod; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ]
 
-const VENDOR_FINANCE_LIST: VendorFinanceItem[] = [
-  {
-    id: 'lucky-strike',
-    initials: 'LS',
-    name: 'Lucky Strike Arcade',
-    customers: 247,
-    txns: 94,
-    deposits: 3218,
-    redeems: 2140,
-    status: 'active',
-  },
-  {
-    id: 'pixel-palace',
-    initials: 'PP',
-    name: 'Pixel Palace Arcade',
-    customers: 188,
-    txns: 78,
-    deposits: 2740,
-    redeems: 1980,
-    status: 'active',
-  },
-  {
-    id: 'nova-game-zone',
-    initials: 'NG',
-    name: 'Nova Game Zone',
-    customers: 156,
-    txns: 62,
-    deposits: 2020,
-    redeems: 1570,
-    status: 'active',
-  },
-  {
-    id: 'galaxy-tokens',
-    initials: 'GT',
-    name: 'Galaxy Tokens',
-    customers: 134,
-    txns: 52,
-    deposits: 1420,
-    redeems: 1180,
-    status: 'active',
-  },
-  {
-    id: 'sun-coast-gaming',
-    initials: 'SC',
-    name: 'Sun Coast Gaming',
-    customers: 98,
-    txns: 41,
-    deposits: 640,
-    redeems: 880,
-    status: 'suspended',
-  },
+const EMPTY_RESERVE_WALLET = '$0.00'
+
+const DETAIL_RANGES: { id: keyof AdminCustomerDetail['stats']; label: string }[] = [
+  { id: 'today', label: 'Today' },
+  { id: '7d', label: '7D' },
+  { id: '30d', label: '30D' },
+  { id: 'month', label: 'Month' },
+  { id: 'all', label: 'All' },
 ]
 
-const VENDOR_FINANCE_SUMMARY = {
-  deposits: 9978,
-  redeems: 7690,
-  net: 2288,
+const EMPTY_PERIOD_STATS: AdminPeriodStats = {
+  sales: '$0.00',
+  salesAmount: 0,
+  redeems: '$0.00',
+  redeemsAmount: 0,
+  net: '$0.00',
+  netAmount: 0,
+  salesTx: 0,
+  redeemTx: 0,
+  txCount: 0,
+  inAvg: '$0.00',
+  redeemAvg: '$0.00',
 }
 
-function AdminHeader() {
+function normalizeCustomerStatus(status: string): CustomerStatus {
+  if (status === 'suspended' || status === 'banned') return status
+  return 'active'
+}
+
+function statusLabel(status: CustomerStatus): string {
+  if (status === 'suspended') return 'Suspended'
+  if (status === 'banned') return 'Banned'
+  return 'Active'
+}
+
+function mapApiCustomer(customer: AdminFinanceCustomer): CustomerItem {
+  return {
+    id: customer.id,
+    username: customer.username,
+    initial: customer.initial || customer.username.charAt(0).toUpperCase() || '?',
+    avatarBg: customer.avatarBg || '#dbeafe',
+    contact: customer.contact,
+    balance: customer.balance,
+    points: `${Number(customer.points || 0).toLocaleString()} pts`,
+    status: normalizeCustomerStatus(customer.status),
+  }
+}
+
+function vendorInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '?'
+  return parts
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
+}
+
+function mapApiVendor(vendor: AdminFinanceVendor): VendorFinanceItem {
+  return {
+    id: vendor.id,
+    initials: vendorInitials(vendor.name),
+    name: vendor.name,
+    customers: vendor.customers ?? 0,
+    txns: vendor.volume ?? 0,
+    deposits: vendor.depositsAmount ?? 0,
+    redeems: vendor.redeemsAmount ?? 0,
+    status: vendor.status === 'suspended' ? 'suspended' : 'active',
+  }
+}
+
+const VENDOR_PERIOD_TO_RANGE: Record<VendorFinancePeriod, FinanceRange> = {
+  daily: 'today',
+  weekly: '7d',
+  monthly: '30d',
+  custom: 'custom',
+}
+
+const RANGE_TO_VENDOR_PERIOD: Record<FinanceRange, VendorFinancePeriod> = {
+  today: 'daily',
+  '7d': 'weekly',
+  '30d': 'monthly',
+  custom: 'custom',
+}
+
+function parseMoney(value: string): number {
+  const n = Number(String(value).replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+function formatUsd(amount: number): string {
+  return `$${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+}
+
+function FinanceAnalyticsSkeleton() {
   return (
-    <header className="admin-dash-header">
-      <div className="admin-dash-header-row">
-        <TapStackLogo height={40} />
-        <button type="button" className="admin-dash-avatar" aria-label="Admin profile">
-          AV
+    <div className="admin-finance-analytics" aria-busy="true" aria-label="Loading analytics">
+      <div className="admin-finance-toolbar">
+        <h1 className="admin-finance-title">Platform Analytics</h1>
+        <button type="button" className="admin-finance-csv-btn" disabled>
+          CSV
         </button>
       </div>
-    </header>
+      <div className="admin-skel admin-skel--block-lg" />
+      <div className="admin-finance-metrics">
+        {METRIC_CARDS.map((metric) => (
+          <div key={metric.id} className="admin-finance-metric-card">
+            <div className="admin-skel admin-skel--icon-sm" />
+            <div className="admin-skel admin-skel--stat" />
+            <div className="admin-skel admin-skel--caption" />
+          </div>
+        ))}
+      </div>
+      <div className="admin-skel admin-skel--block" />
+      <div className="admin-skel admin-skel--block" />
+      <div className="admin-skel admin-skel--block" />
+    </div>
   )
 }
 
-function FinanceAnalyticsTab() {
-  const [range, setRange] = useState<FinanceRange>('30d')
+function FinanceAnalyticsTab({
+  finance,
+  useApi,
+  loading,
+  range,
+  onRangeChange,
+}: {
+  finance: AdminFinance | null
+  useApi: boolean
+  loading: boolean
+  range: FinanceRange
+  onRangeChange: (range: FinanceRange) => void
+}) {
+  if (loading) return <FinanceAnalyticsSkeleton />
+
+  const analytics = useApi && finance ? finance.analytics : null
+
+  const metricCards = METRIC_CARDS.map((metric) => {
+    if (!analytics) return metric
+    const valueById: Record<string, string> = {
+      deposits: analytics.deposits,
+      withdrawals: analytics.withdrawals,
+      'net-balance': analytics.netBalance,
+      'transaction-fees': analytics.transactionFees,
+      subscriptions: analytics.subscriptions,
+      'google-ads': analytics.googleAds,
+      'loyalty-retention': analytics.loyaltyRetentionFees,
+    }
+    return { ...metric, value: valueById[metric.id] ?? '$0' }
+  })
+
+  const platformRevenue = analytics?.platformRevenue ?? '$0'
+
+  const topVendors = useApi
+    ? (finance?.topVendors || finance?.vendors || []).map((vendor) => ({
+        id: vendor.id,
+        name: vendor.name,
+        amount: vendor.netAmount ?? vendor.depositsAmount ?? 0,
+      }))
+    : []
+  const chartMax = Math.max(...topVendors.map((vendor) => vendor.amount), 1)
 
   return (
     <div className="admin-finance-analytics">
@@ -301,7 +344,7 @@ function FinanceAnalyticsTab() {
             role="tab"
             aria-selected={range === item.id}
             className={`admin-finance-range-btn ${range === item.id ? 'admin-finance-range-btn--active' : ''}`}
-            onClick={() => setRange(item.id)}
+            onClick={() => onRangeChange(item.id)}
           >
             {item.label}
           </button>
@@ -310,14 +353,14 @@ function FinanceAnalyticsTab() {
 
       <article className="admin-finance-revenue-card">
         <p className="admin-finance-revenue-label">PLATFORM REVENUE</p>
-        <p className="admin-finance-revenue-value">$51,640</p>
+        <p className="admin-finance-revenue-value">{platformRevenue}</p>
         <p className="admin-finance-revenue-meta">
-          Last 30 Days · fees + subscriptions + Google Ads + loyalty retention
+          {RANGE_META_LABEL[range]} · fees + subscriptions + Google Ads + loyalty retention
         </p>
       </article>
 
       <div className="admin-finance-metrics">
-        {METRIC_CARDS.map((metric) => (
+        {metricCards.map((metric) => (
           <button key={metric.id} type="button" className="admin-finance-metric-card">
             <div className="admin-finance-metric-top">
               <span className={`admin-finance-metric-icon admin-finance-metric-icon--${metric.tone}`}>
@@ -344,22 +387,26 @@ function FinanceAnalyticsTab() {
       <section className="admin-finance-top-vendors" aria-label="Top vendors by revenue">
         <h2 className="admin-finance-top-vendors-title">TOP VENDORS BY REVENUE</h2>
         <div className="admin-finance-top-vendors-list">
-          {TOP_VENDORS.map((vendor) => (
-            <article key={vendor.id} className="admin-finance-top-vendor-row">
-              <div className="admin-finance-top-vendor-head">
-                <span className="admin-finance-top-vendor-name">{vendor.name}</span>
-                <span className="admin-finance-top-vendor-amount">
-                  ${vendor.amount.toLocaleString()}
-                </span>
-              </div>
-              <div className="admin-finance-top-vendor-track" aria-hidden="true">
-                <span
-                  className="admin-finance-top-vendor-fill"
-                  style={{ width: `${(vendor.amount / topVendorMax) * 100}%` }}
-                />
-              </div>
-            </article>
-          ))}
+          {topVendors.length === 0 ? (
+            <p className="admin-empty-hint">No vendor revenue yet.</p>
+          ) : (
+            topVendors.map((vendor) => (
+              <article key={vendor.id} className="admin-finance-top-vendor-row">
+                <div className="admin-finance-top-vendor-head">
+                  <span className="admin-finance-top-vendor-name">{vendor.name}</span>
+                  <span className="admin-finance-top-vendor-amount">
+                    ${vendor.amount.toLocaleString()}
+                  </span>
+                </div>
+                <div className="admin-finance-top-vendor-track" aria-hidden="true">
+                  <span
+                    className="admin-finance-top-vendor-fill"
+                    style={{ width: `${(vendor.amount / chartMax) * 100}%` }}
+                  />
+                </div>
+              </article>
+            ))
+          )}
         </div>
       </section>
 
@@ -376,13 +423,240 @@ function FinanceAnalyticsTab() {
   )
 }
 
-function FinanceCustomersTab() {
+function CustomerDetailView({
+  customerId,
+  onBack,
+}: {
+  customerId: string
+  onBack: () => void
+}) {
+  const [range, setRange] = useState<keyof AdminCustomerDetail['stats']>('30d')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [detail, setDetail] = useState<AdminCustomerDetail | null>(null)
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      setError('API is not configured.')
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    tapstackApi
+      .adminCustomerDetail(customerId)
+      .then((res) => {
+        if (!cancelled) setDetail(res)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setDetail(null)
+          setError(err instanceof ApiError ? err.message : 'Could not load customer details.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [customerId])
+
+  const customer = detail?.customer
+  const stats = detail?.stats?.[range] ?? EMPTY_PERIOD_STATS
+  const status = normalizeCustomerStatus(customer?.status || 'active')
+
+  return (
+    <div className="admin-finance-customer-detail">
+      <button type="button" className="admin-finance-customer-detail-back" onClick={onBack}>
+        ← Back
+      </button>
+
+      {error ? <p className="admin-api-error">{error}</p> : null}
+
+      {loading || !customer ? (
+        <div aria-busy="true" aria-label="Loading customer details">
+          <div className="admin-skel admin-skel--block-lg" />
+          <div className="admin-skel admin-skel--block" style={{ marginTop: 12 }} />
+          <div className="admin-skel admin-skel--block" style={{ marginTop: 12 }} />
+        </div>
+      ) : (
+        <>
+          <section className="admin-finance-customer-detail-hero">
+            <span
+              className="admin-finance-customer-avatar admin-finance-customer-avatar--lg"
+              style={{ backgroundColor: customer.avatarBg || '#dbeafe' }}
+            >
+              {customer.initial}
+            </span>
+            <div className="admin-finance-customer-detail-hero-main">
+              <div className="admin-finance-customer-detail-hero-top">
+                <h1 className="admin-finance-customer-detail-title">{customer.username}</h1>
+                <span className={`admin-finance-customer-status admin-finance-customer-status--${status}`}>
+                  {statusLabel(status)}
+                </span>
+              </div>
+              <p className="admin-finance-customer-detail-meta">
+                {customer.displayName || customer.username}
+                {customer.vendors != null
+                  ? ` · ${customer.vendors} ${customer.vendors === 1 ? 'vendor' : 'vendors'}`
+                  : ''}
+              </p>
+            </div>
+          </section>
+
+          <div className="admin-finance-customer-detail-info-grid">
+            <article className="admin-finance-customer-detail-info-card">
+              <p className="admin-finance-customer-detail-info-label">Wallet</p>
+              <p className="admin-finance-customer-detail-info-value">
+                {detail.wallet?.balance || '$0.00'}{' '}
+                <span>{detail.wallet?.currency || 'USD'}</span>
+              </p>
+            </article>
+            <article className="admin-finance-customer-detail-info-card">
+              <p className="admin-finance-customer-detail-info-label">Points</p>
+              <p className="admin-finance-customer-detail-info-value">
+                {(detail.wallet?.points ?? customer.points ?? 0).toLocaleString()}
+              </p>
+            </article>
+            <article className="admin-finance-customer-detail-info-card">
+              <p className="admin-finance-customer-detail-info-label">Email</p>
+              <p className="admin-finance-customer-detail-info-value">{customer.email || '—'}</p>
+            </article>
+            <article className="admin-finance-customer-detail-info-card">
+              <p className="admin-finance-customer-detail-info-label">Phone</p>
+              <p className="admin-finance-customer-detail-info-value">
+                {customer.phone || customer.contact || '—'}
+              </p>
+            </article>
+          </div>
+
+          <div className="admin-finance-customer-detail-ranges" role="tablist" aria-label="Stats range">
+            {DETAIL_RANGES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={range === item.id}
+                className={`admin-finance-customer-detail-range ${
+                  range === item.id ? 'admin-finance-customer-detail-range--active' : ''
+                }`}
+                onClick={() => setRange(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="admin-finance-customer-detail-stats">
+            <article className="admin-finance-customer-detail-stat">
+              <p className="admin-finance-customer-detail-stat-value admin-finance-customer-detail-stat-value--green">
+                {stats.sales}
+              </p>
+              <p className="admin-finance-customer-detail-stat-label">Loads</p>
+              <p className="admin-finance-customer-detail-stat-meta">{stats.salesTx} txns</p>
+            </article>
+            <article className="admin-finance-customer-detail-stat">
+              <p className="admin-finance-customer-detail-stat-value admin-finance-customer-detail-stat-value--red">
+                {stats.redeems}
+              </p>
+              <p className="admin-finance-customer-detail-stat-label">Redeems</p>
+              <p className="admin-finance-customer-detail-stat-meta">{stats.redeemTx} txns</p>
+            </article>
+            <article className="admin-finance-customer-detail-stat">
+              <p className="admin-finance-customer-detail-stat-value">{stats.net}</p>
+              <p className="admin-finance-customer-detail-stat-label">Net</p>
+              <p className="admin-finance-customer-detail-stat-meta">{stats.txCount} total</p>
+            </article>
+          </div>
+
+          <div className="admin-finance-customer-detail-avgs">
+            <span>Avg load {stats.inAvg}</span>
+            <span>Avg redeem {stats.redeemAvg}</span>
+          </div>
+
+          <section>
+            <h2 className="admin-finance-customer-detail-section-title">Linked vendors</h2>
+            {(detail.vendors || []).length === 0 ? (
+              <p className="admin-empty-hint">No linked vendors.</p>
+            ) : (
+              <div className="admin-finance-customer-detail-vendors">
+                {detail.vendors.map((vendor) => (
+                  <article key={vendor.id} className="admin-finance-customer-detail-vendor">
+                    <p className="admin-finance-customer-detail-vendor-name">{vendor.name}</p>
+                    <p className="admin-finance-customer-detail-vendor-meta">{vendor.status}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="admin-finance-customer-detail-section-title">Recent orders</h2>
+            {(detail.recentOrders || []).length === 0 ? (
+              <p className="admin-empty-hint">No recent orders.</p>
+            ) : (
+              <div className="admin-finance-customer-detail-orders">
+                {detail.recentOrders.map((order) => (
+                  <article key={order.id} className="admin-finance-customer-detail-order">
+                    <div>
+                      <p className="admin-finance-customer-detail-order-title">
+                        {order.name || order.game || order.type}
+                      </p>
+                      <p className="admin-finance-customer-detail-order-meta">
+                        {order.type} · {order.status} · {order.date} {order.time}
+                      </p>
+                    </div>
+                    <p
+                      className={`admin-finance-customer-detail-order-amount ${
+                        order.positive === false ? 'admin-finance-customer-detail-order-amount--out' : ''
+                      }`}
+                    >
+                      {order.amount}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
+
+function FinanceCustomersTab({
+  finance,
+  useApi,
+  loading,
+}: {
+  finance: AdminFinance | null
+  useApi: boolean
+  loading: boolean
+}) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<CustomerFilter>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const customers = useApi && finance ? finance.customers.map(mapApiCustomer) : []
+  const totalPlayers = customers.length
+
+  const walletBalanceLabel = useMemo(() => {
+    if (!customers.length) return '$0'
+    const sum = customers.reduce((acc, customer) => acc + parseMoney(customer.balance), 0)
+    return formatUsd(sum)
+  }, [customers])
+
+  const pointsIssuedLabel = useMemo(() => {
+    if (!finance?.customers.length) return '0 pts'
+    const sum = finance.customers.reduce((acc, customer) => acc + Number(customer.points || 0), 0)
+    return `${sum.toLocaleString()} pts`
+  }, [finance])
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return CUSTOMERS.filter((customer) => {
+    return customers.filter((customer) => {
       const matchesFilter = filter === 'all' || customer.status === filter
       const matchesSearch =
         !query ||
@@ -390,24 +664,47 @@ function FinanceCustomersTab() {
         customer.contact.toLowerCase().includes(query)
       return matchesFilter && matchesSearch
     })
-  }, [search, filter])
+  }, [customers, search, filter])
+
+  if (selectedId) {
+    return <CustomerDetailView customerId={selectedId} onBack={() => setSelectedId(null)} />
+  }
+
+  if (loading) {
+    return (
+      <div className="admin-finance-customers" aria-busy="true" aria-label="Loading customers">
+        <div className="admin-finance-customer-stats">
+          {[1, 2, 3].map((n) => (
+            <article key={n} className="admin-finance-customer-stat-card">
+              <div className="admin-skel admin-skel--stat admin-skel--center" />
+              <div className="admin-skel admin-skel--caption admin-skel--center" />
+            </article>
+          ))}
+        </div>
+        <div className="admin-skel admin-skel--block" style={{ height: 46, borderRadius: 999 }} />
+        {[1, 2, 3, 4].map((n) => (
+          <div key={n} className="admin-skel admin-skel--block" style={{ marginTop: 10 }} />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="admin-finance-customers">
       <div className="admin-finance-customer-stats">
         <article className="admin-finance-customer-stat-card">
-          <p className="admin-finance-customer-stat-value">28,410</p>
+          <p className="admin-finance-customer-stat-value">{totalPlayers.toLocaleString()}</p>
           <p className="admin-finance-customer-stat-label">Total Players</p>
         </article>
         <article className="admin-finance-customer-stat-card">
           <p className="admin-finance-customer-stat-value admin-finance-customer-stat-value--purple">
-            $48,320
+            {walletBalanceLabel}
           </p>
           <p className="admin-finance-customer-stat-label">Wallet Bal. (Σ)</p>
         </article>
         <article className="admin-finance-customer-stat-card">
           <p className="admin-finance-customer-stat-value admin-finance-customer-stat-value--gold">
-            9.4M pts
+            {pointsIssuedLabel}
           </p>
           <p className="admin-finance-customer-stat-label">Points Issued</p>
         </article>
@@ -446,62 +743,126 @@ function FinanceCustomersTab() {
       </div>
 
       <p className="admin-finance-customer-count">
-        {filteredCustomers.length} of {TOTAL_PLAYERS.toLocaleString()} players
+        {filteredCustomers.length} of {totalPlayers.toLocaleString()} players
       </p>
 
       <div className="admin-finance-customer-list">
-        {filteredCustomers.map((customer) => (
-          <article key={customer.id} className="admin-finance-customer-card">
-            <span
-              className="admin-finance-customer-avatar"
-              style={{ backgroundColor: customer.avatarBg }}
+        {filteredCustomers.length === 0 ? (
+          <p className="admin-empty-hint">No customers yet.</p>
+        ) : (
+          filteredCustomers.map((customer) => (
+            <button
+              key={customer.id}
+              type="button"
+              className="admin-finance-customer-card"
+              onClick={() => setSelectedId(customer.id)}
             >
-              {customer.initial}
-            </span>
-            <div className="admin-finance-customer-info">
-              <p className="admin-finance-customer-username">{customer.username}</p>
-              <p className="admin-finance-customer-contact">{customer.contact}</p>
-            </div>
-            <div className="admin-finance-customer-balances">
-              <p className="admin-finance-customer-balance">{customer.balance}</p>
-              <p className="admin-finance-customer-points">{customer.points}</p>
-            </div>
-            <span className={`admin-finance-customer-status admin-finance-customer-status--${customer.status}`}>
-              {customer.status}
-            </span>
-            <button type="button" className="admin-finance-customer-chevron" aria-label={`Open ${customer.username}`}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M9 6l6 6-6 6"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <span
+                className="admin-finance-customer-avatar"
+                style={{ backgroundColor: customer.avatarBg }}
+              >
+                {customer.initial}
+              </span>
+              <div className="admin-finance-customer-info">
+                <p className="admin-finance-customer-username">{customer.username}</p>
+                <p className="admin-finance-customer-contact">{customer.contact}</p>
+              </div>
+              <div className="admin-finance-customer-balances">
+                <p className="admin-finance-customer-balance">{customer.balance}</p>
+                <p className="admin-finance-customer-points">{customer.points}</p>
+              </div>
+              <span className={`admin-finance-customer-status admin-finance-customer-status--${customer.status}`}>
+                {statusLabel(customer.status)}
+              </span>
+              <span className="admin-finance-customer-chevron" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M9 6l6 6-6 6"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
             </button>
-          </article>
-        ))}
+          ))
+        )}
       </div>
     </div>
   )
 }
 
-function FinanceVendorsTab() {
-  const [period, setPeriod] = useState<VendorFinancePeriod>('daily')
+function FinanceVendorsTab({
+  finance,
+  useApi,
+  loading,
+  range,
+  onRangeChange,
+}: {
+  finance: AdminFinance | null
+  useApi: boolean
+  loading: boolean
+  range: FinanceRange
+  onRangeChange: (range: FinanceRange) => void
+}) {
+  const period = RANGE_TO_VENDOR_PERIOD[range]
   const [sortBy, setSortBy] = useState<VendorFinanceSort>('deposits')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const vendorList = useMemo(() => {
+    if (!useApi || !finance) return []
+    const source = finance.vendors || finance.topVendors || []
+    return source.map(mapApiVendor)
+  }, [finance, useApi])
+
+  const summary = useMemo(() => {
+    if (!useApi || !finance) return { deposits: 0, redeems: 0, net: 0 }
+    const source = finance.vendors || finance.topVendors || []
+    const deposits = source.reduce((acc, vendor) => acc + (vendor.depositsAmount ?? 0), 0)
+    const redeems = source.reduce((acc, vendor) => acc + (vendor.redeemsAmount ?? 0), 0)
+    return { deposits, redeems, net: deposits - redeems }
+  }, [finance, useApi])
 
   const sortedVendors = useMemo(() => {
-    const vendors = [...VENDOR_FINANCE_LIST]
+    const vendors = [...vendorList]
     vendors.sort((a, b) => (sortBy === 'deposits' ? b.deposits - a.deposits : b.redeems - a.redeems))
     return vendors.map((vendor, index) => ({ ...vendor, rank: index + 1 }))
-  }, [sortBy])
+  }, [sortBy, vendorList])
+
+  if (selectedId) {
+    return <VendorDetailView vendorId={selectedId} onBack={() => setSelectedId(null)} />
+  }
+
+  if (loading) {
+    return (
+      <div className="admin-finance-vendors" aria-busy="true" aria-label="Loading vendor financials">
+        <div className="admin-finance-vendors-intro">
+          <h1 className="admin-finance-vendors-title">Vendor Financials</h1>
+          <p className="admin-finance-vendors-subtitle">Deposits &amp; redeems per vendor</p>
+        </div>
+        <div className="admin-finance-vendors-summary">
+          {[1, 2, 3].map((n) => (
+            <article key={n} className="admin-finance-vendors-summary-card">
+              <div className="admin-skel admin-skel--stat admin-skel--center" />
+              <div className="admin-skel admin-skel--caption admin-skel--center" />
+            </article>
+          ))}
+        </div>
+        {[1, 2, 3].map((n) => (
+          <div key={n} className="admin-skel admin-skel--block-lg" style={{ marginTop: 10 }} />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="admin-finance-vendors">
       <div className="admin-finance-vendors-intro">
         <h1 className="admin-finance-vendors-title">Vendor Financials</h1>
-        <p className="admin-finance-vendors-subtitle">Deposits &amp; redeems per vendor</p>
+        <p className="admin-finance-vendors-subtitle">
+          Deposits &amp; redeems per vendor · {RANGE_META_LABEL[range]}
+        </p>
       </div>
 
       <div className="admin-finance-vendors-periods" role="tablist" aria-label="Time period">
@@ -512,7 +873,7 @@ function FinanceVendorsTab() {
             role="tab"
             aria-selected={period === item.id}
             className={`admin-finance-vendors-period ${period === item.id ? 'admin-finance-vendors-period--active' : ''}`}
-            onClick={() => setPeriod(item.id)}
+            onClick={() => onRangeChange(VENDOR_PERIOD_TO_RANGE[item.id])}
           >
             {item.label}
           </button>
@@ -522,19 +883,19 @@ function FinanceVendorsTab() {
       <div className="admin-finance-vendors-summary">
         <article className="admin-finance-vendors-summary-card">
           <p className="admin-finance-vendors-summary-value admin-finance-vendors-summary-value--green">
-            ${VENDOR_FINANCE_SUMMARY.deposits.toLocaleString()}
+            ${summary.deposits.toLocaleString()}
           </p>
           <p className="admin-finance-vendors-summary-label">Deposits</p>
         </article>
         <article className="admin-finance-vendors-summary-card">
           <p className="admin-finance-vendors-summary-value admin-finance-vendors-summary-value--red">
-            ${VENDOR_FINANCE_SUMMARY.redeems.toLocaleString()}
+            ${summary.redeems.toLocaleString()}
           </p>
           <p className="admin-finance-vendors-summary-label">Redeems</p>
         </article>
         <article className="admin-finance-vendors-summary-card">
           <p className="admin-finance-vendors-summary-value admin-finance-vendors-summary-value--purple">
-            ${VENDOR_FINANCE_SUMMARY.net.toLocaleString()}
+            ${summary.net.toLocaleString()}
           </p>
           <p className="admin-finance-vendors-summary-label">Net</p>
         </article>
@@ -566,73 +927,82 @@ function FinanceVendorsTab() {
       </div>
 
       <div className="admin-finance-vendors-list">
-        {sortedVendors.map((vendor) => {
-          const net = vendor.deposits - vendor.redeems
-          const barMax = Math.max(vendor.deposits, vendor.redeems)
-          const statusLabel = vendor.status === 'active' ? 'Active' : 'Suspended'
+        {sortedVendors.length === 0 ? (
+          <p className="admin-empty-hint">No vendor financials yet.</p>
+        ) : (
+          sortedVendors.map((vendor) => {
+            const net = vendor.deposits - vendor.redeems
+            const barMax = Math.max(vendor.deposits, vendor.redeems, 1)
+            const statusText = vendor.status === 'active' ? 'Active' : 'Suspended'
 
-          return (
-            <article key={vendor.id} className="admin-finance-vendor-card">
-              <div className="admin-finance-vendor-card-head">
-                <div className="admin-finance-vendor-card-title-row">
-                  <span className="admin-finance-vendor-avatar">{vendor.initials}</span>
-                  <div>
-                    <h3 className="admin-finance-vendor-name">
-                      #{vendor.rank} {vendor.name}
-                    </h3>
-                    <p className="admin-finance-vendor-meta">
-                      {vendor.customers} customers · {vendor.txns} txns
-                    </p>
+            return (
+              <button
+                key={vendor.id}
+                type="button"
+                className="admin-finance-vendor-card"
+                onClick={() => setSelectedId(vendor.id)}
+              >
+                <div className="admin-finance-vendor-card-head">
+                  <div className="admin-finance-vendor-card-title-row">
+                    <span className="admin-finance-vendor-avatar">{vendor.initials}</span>
+                    <div>
+                      <h3 className="admin-finance-vendor-name">
+                        #{vendor.rank} {vendor.name}
+                      </h3>
+                      <p className="admin-finance-vendor-meta">
+                        {vendor.customers} customers · {vendor.txns} txns
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`admin-finance-vendor-status admin-finance-vendor-status--${vendor.status}`}>
+                    {statusText}
+                  </span>
+                </div>
+
+                <div className="admin-finance-vendor-metric">
+                  <div className="admin-finance-vendor-metric-head">
+                    <span>Deposits</span>
+                    <span className="admin-finance-vendor-metric-value admin-finance-vendor-metric-value--green">
+                      ${vendor.deposits.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="admin-finance-vendor-track" aria-hidden="true">
+                    <span
+                      className="admin-finance-vendor-fill admin-finance-vendor-fill--green"
+                      style={{ width: `${(vendor.deposits / barMax) * 100}%` }}
+                    />
                   </div>
                 </div>
-                <span className={`admin-finance-vendor-status admin-finance-vendor-status--${vendor.status}`}>
-                  {statusLabel}
-                </span>
-              </div>
 
-              <div className="admin-finance-vendor-metric">
-                <div className="admin-finance-vendor-metric-head">
-                  <span>Deposits</span>
-                  <span className="admin-finance-vendor-metric-value admin-finance-vendor-metric-value--green">
-                    ${vendor.deposits.toLocaleString()}
+                <div className="admin-finance-vendor-metric">
+                  <div className="admin-finance-vendor-metric-head">
+                    <span>Redeems</span>
+                    <span className="admin-finance-vendor-metric-value admin-finance-vendor-metric-value--red">
+                      ${vendor.redeems.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="admin-finance-vendor-track" aria-hidden="true">
+                    <span
+                      className="admin-finance-vendor-fill admin-finance-vendor-fill--red"
+                      style={{ width: `${(vendor.redeems / barMax) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="admin-finance-vendor-net">
+                  <span>Net (deposits – redeems)</span>
+                  <span
+                    className={`admin-finance-vendor-net-value ${
+                      net < 0 ? 'admin-finance-vendor-net-value--negative' : ''
+                    }`}
+                  >
+                    {net < 0 ? '-' : ''}${Math.abs(net).toLocaleString()}
                   </span>
                 </div>
-                <div className="admin-finance-vendor-track" aria-hidden="true">
-                  <span
-                    className="admin-finance-vendor-fill admin-finance-vendor-fill--green"
-                    style={{ width: `${(vendor.deposits / barMax) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="admin-finance-vendor-metric">
-                <div className="admin-finance-vendor-metric-head">
-                  <span>Redeems</span>
-                  <span className="admin-finance-vendor-metric-value admin-finance-vendor-metric-value--red">
-                    ${vendor.redeems.toLocaleString()}
-                  </span>
-                </div>
-                <div className="admin-finance-vendor-track" aria-hidden="true">
-                  <span
-                    className="admin-finance-vendor-fill admin-finance-vendor-fill--red"
-                    style={{ width: `${(vendor.redeems / barMax) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="admin-finance-vendor-net">
-                <span>Net (deposits – redeems)</span>
-                <span
-                  className={`admin-finance-vendor-net-value ${
-                    net < 0 ? 'admin-finance-vendor-net-value--negative' : ''
-                  }`}
-                >
-                  {net < 0 ? '-' : ''}${Math.abs(net).toLocaleString()}
-                </span>
-              </div>
-            </article>
-          )
-        })}
+              </button>
+            )
+          })
+        )}
       </div>
     </div>
   )
@@ -669,15 +1039,120 @@ function FeeSettingsToggle({
   )
 }
 
-function FinanceFeesTab() {
+function FinanceFeesTab({
+  finance,
+  useApi,
+  onFeesUpdated,
+  onRefresh,
+}: {
+  finance: AdminFinance | null
+  useApi: boolean
+  onFeesUpdated?: (fees: AdminFees) => void
+  onRefresh?: () => Promise<void>
+}) {
   const [withdrawalsEnabled, setWithdrawalsEnabled] = useState(true)
   const [depositsEnabled, setDepositsEnabled] = useState(true)
   const [emailBlastsEnabled, setEmailBlastsEnabled] = useState(false)
   const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [depositFee, setDepositFee] = useState('5.0')
-  const [redeemFee, setRedeemFee] = useState('2.5')
+  const [depositFee, setDepositFee] = useState('2')
+  const [redeemFee, setRedeemFee] = useState('2')
   const [playerRankUpgrade, setPlayerRankUpgrade] = useState('9.99')
-  const [vendorGameAutomation, setVendorGameAutomation] = useState('199')
+  const [vendorGameAutomation, setVendorGameAutomation] = useState('999')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (!useApi || !finance?.fees || dirty) return
+    const fees = finance.fees
+    setWithdrawalsEnabled(Boolean(fees.withdrawalsEnabled))
+    setDepositsEnabled(Boolean(fees.depositsEnabled))
+    setEmailBlastsEnabled(Boolean(fees.emailBlastsEnabled))
+    setMaintenanceMode(Boolean(fees.maintenanceMode))
+    setDepositFee(String(fees.depositFeePct ?? 2))
+    setRedeemFee(String(fees.redeemFeePct ?? 2))
+    setPlayerRankUpgrade(String(fees.playerRankUpgradeMo ?? 9.99))
+    setVendorGameAutomation(String(fees.vendorGameAutomationMo ?? 999))
+  }, [dirty, finance, useApi])
+
+  const feeEstimate = useMemo(() => {
+    const depositVolume = Number(finance?.feeEstimate?.depositVolume ?? 0)
+    const redeemVolume = Number(finance?.feeEstimate?.redeemVolume ?? 0)
+    const depositPct = Number(depositFee)
+    const redeemPct = Number(redeemFee)
+    const safeDepositPct = Number.isFinite(depositPct) ? Math.max(0, depositPct) : 0
+    const safeRedeemPct = Number.isFinite(redeemPct) ? Math.max(0, redeemPct) : 0
+
+    const deposits =
+      depositVolume > 0
+        ? (depositVolume * safeDepositPct) / 100
+        : Number(finance?.feeEstimate?.depositsAmount ?? 0)
+    const redeems =
+      redeemVolume > 0
+        ? (redeemVolume * safeRedeemPct) / 100
+        : Number(finance?.feeEstimate?.redeemsAmount ?? 0)
+
+    return {
+      deposits,
+      redeems,
+      total: deposits + redeems,
+      depositVolume,
+      redeemVolume,
+    }
+  }, [depositFee, finance?.feeEstimate, redeemFee])
+
+  function markDirty<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setDirty(true)
+      setSuccess('')
+      setter(value)
+    }
+  }
+
+  async function handleSave() {
+    if (!useApi) {
+      setError('API is not configured.')
+      return
+    }
+    const depositFeePct = Number(depositFee)
+    const redeemFeePct = Number(redeemFee)
+    const playerRankUpgradeMo = Number(playerRankUpgrade)
+    const vendorGameAutomationMo = Number(vendorGameAutomation)
+    if (
+      ![depositFeePct, redeemFeePct, playerRankUpgradeMo, vendorGameAutomationMo].every(
+        (n) => Number.isFinite(n) && n >= 0,
+      )
+    ) {
+      setError('Enter valid non-negative fee and pricing values.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    const payload: Partial<AdminFees> = {
+      withdrawalsEnabled,
+      depositsEnabled,
+      emailBlastsEnabled,
+      maintenanceMode,
+      depositFeePct,
+      redeemFeePct,
+      playerRankUpgradeMo,
+      vendorGameAutomationMo,
+    }
+    try {
+      const res = await tapstackApi.adminFinanceUpdateFees(payload)
+      onFeesUpdated?.(res.fees)
+      setDirty(false)
+      setSuccess('Fee configuration saved.')
+      await onRefresh?.()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save fee configuration.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="admin-finance-fees">
@@ -686,31 +1161,34 @@ function FinanceFeesTab() {
         <p className="admin-finance-fees-subtitle">All changes are audit-logged</p>
       </div>
 
+      {error ? <p className="admin-api-error">{error}</p> : null}
+      {success ? <p className="admin-api-success">{success}</p> : null}
+
       <section className="admin-finance-fees-card">
         <h2 className="admin-finance-fees-section-title">GLOBAL CONTROLS</h2>
         <FeeSettingsToggle
           label="Withdrawals Enabled"
           description="Platform-wide withdrawal toggle"
           checked={withdrawalsEnabled}
-          onChange={setWithdrawalsEnabled}
+          onChange={markDirty(setWithdrawalsEnabled)}
         />
         <FeeSettingsToggle
           label="Deposits Enabled"
           description="Platform-wide deposit toggle"
           checked={depositsEnabled}
-          onChange={setDepositsEnabled}
+          onChange={markDirty(setDepositsEnabled)}
         />
         <FeeSettingsToggle
           label="Email Blasts Enabled"
           description="Allow all vendor blasts"
           checked={emailBlastsEnabled}
-          onChange={setEmailBlastsEnabled}
+          onChange={markDirty(setEmailBlastsEnabled)}
         />
         <FeeSettingsToggle
           label="Maintenance Mode"
           description="Lock platform for all users"
           checked={maintenanceMode}
-          onChange={setMaintenanceMode}
+          onChange={markDirty(setMaintenanceMode)}
         />
       </section>
 
@@ -724,7 +1202,7 @@ function FinanceFeesTab() {
                 type="number"
                 className="admin-finance-fees-percent-input"
                 value={depositFee}
-                onChange={(event) => setDepositFee(event.target.value)}
+                onChange={(event) => markDirty(setDepositFee)(event.target.value)}
                 min="0"
                 step="0.1"
               />
@@ -742,7 +1220,7 @@ function FinanceFeesTab() {
                 type="number"
                 className="admin-finance-fees-percent-input"
                 value={redeemFee}
-                onChange={(event) => setRedeemFee(event.target.value)}
+                onChange={(event) => markDirty(setRedeemFee)(event.target.value)}
                 min="0"
                 step="0.1"
               />
@@ -755,9 +1233,19 @@ function FinanceFeesTab() {
         </div>
 
         <p className="admin-finance-fees-estimate">
-          Est. lifetime take: <strong>$19,195</strong> (
-          <span className="admin-finance-fees-estimate-green">$14,236 deposits</span> +{' '}
-          <span className="admin-finance-fees-estimate-red">$4,959 redeems</span>)
+          Est. lifetime take: <strong>{formatUsd(feeEstimate.total)}</strong> (
+          <span className="admin-finance-fees-estimate-green">
+            {formatUsd(feeEstimate.deposits)} deposits
+          </span>{' '}
+          +{' '}
+          <span className="admin-finance-fees-estimate-red">
+            {formatUsd(feeEstimate.redeems)} redeems
+          </span>
+          )
+        </p>
+        <p className="admin-finance-fees-estimate-meta">
+          Based on {formatUsd(feeEstimate.depositVolume)} deposit volume ·{' '}
+          {formatUsd(feeEstimate.redeemVolume)} redeem volume
         </p>
       </section>
 
@@ -781,7 +1269,7 @@ function FinanceFeesTab() {
               type="number"
               className="admin-finance-fees-money-input"
               value={playerRankUpgrade}
-              onChange={(event) => setPlayerRankUpgrade(event.target.value)}
+              onChange={(event) => markDirty(setPlayerRankUpgrade)(event.target.value)}
               min="0"
               step="0.01"
             />
@@ -804,7 +1292,7 @@ function FinanceFeesTab() {
               type="number"
               className="admin-finance-fees-money-input"
               value={vendorGameAutomation}
-              onChange={(event) => setVendorGameAutomation(event.target.value)}
+              onChange={(event) => markDirty(setVendorGameAutomation)(event.target.value)}
               min="0"
               step="1"
             />
@@ -812,38 +1300,126 @@ function FinanceFeesTab() {
         </label>
       </section>
 
-      <button type="button" className="admin-finance-fees-save-btn">
-        Save Fee Configuration
+      <button
+        type="button"
+        className="admin-finance-fees-save-btn"
+        onClick={() => void handleSave()}
+        disabled={busy || !useApi}
+      >
+        {busy ? 'Saving…' : 'Save Fee Configuration'}
       </button>
     </div>
   )
 }
 
-function FinanceTransferTab() {
+function FinanceTransferTab({
+  finance,
+  useApi,
+  reserveWallet,
+  onReserveWalletChange,
+  onRefresh,
+}: {
+  finance: AdminFinance | null
+  useApi: boolean
+  reserveWallet: string
+  onReserveWalletChange: (value: string) => void
+  onRefresh?: () => Promise<void>
+}) {
   const [username, setUsername] = useState('')
   const [amount, setAmount] = useState('')
-  const [recipientType, setRecipientType] = useState('vendor')
-  const [recipient, setRecipient] = useState('lucky-strike')
+  const [recipientType, setRecipientType] = useState<'vendor' | 'player' | 'distributor'>('vendor')
+  const [recipient, setRecipient] = useState('')
   const [structuredAmount, setStructuredAmount] = useState('')
   const [memo, setMemo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
-  const recipientOptions =
-    recipientType === 'vendor'
-      ? [
-          { id: 'lucky-strike', label: 'Lucky Strike Arcade' },
-          { id: 'galaxy-tokens', label: 'Galaxy Tokens' },
-          { id: 'sun-coast', label: 'Sun Coast Gaming' },
-        ]
-      : recipientType === 'player'
-        ? [
-            { id: 'marco-v', label: 'Marco V.' },
-            { id: 'priya-s', label: 'Priya S.' },
-            { id: 'tom-h', label: 'Tom H.' },
-          ]
-        : [
-            { id: 'west-region', label: 'West Region Partners' },
-            { id: 'east-region', label: 'East Region Partners' },
-          ]
+  const displayReserve =
+    reserveWallet ||
+    (useApi && finance?.reserveWallet ? finance.reserveWallet : EMPTY_RESERVE_WALLET)
+
+  const recipientOptions = useMemo(() => {
+    const recipients = finance?.transferRecipients
+    if (!recipients) return []
+    if (recipientType === 'vendor') return recipients.vendor ?? []
+    if (recipientType === 'player') return recipients.player ?? []
+    return recipients.distributor ?? []
+  }, [finance?.transferRecipients, recipientType])
+
+  useEffect(() => {
+    if (!recipientOptions.length) {
+      setRecipient('')
+      return
+    }
+    if (!recipientOptions.some((option) => option.id === recipient)) {
+      setRecipient(recipientOptions[0].id)
+    }
+  }, [recipient, recipientOptions])
+
+  async function runTransfer(payload: {
+    recipient: string
+    amount: number
+    memo: string
+    recipientType?: string
+  }) {
+    if (!useApi) return
+    setBusy(true)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await tapstackApi.adminFinanceTransfer(payload)
+      if (res.reserveWallet) onReserveWalletChange(res.reserveWallet)
+      setSuccess('Transfer completed.')
+      await onRefresh?.()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Transfer failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleUsernameSend() {
+    const trimmed = username.trim()
+    const value = Number(amount)
+    if (!trimmed) {
+      setError('Enter a username.')
+      return
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      setError('Enter a valid amount.')
+      return
+    }
+    await runTransfer({
+      recipient: trimmed,
+      amount: value,
+      memo: 'P2P transfer',
+      recipientType: 'player',
+    })
+  }
+
+  async function handleStructuredTransfer() {
+    const value = Number(structuredAmount)
+    const memoText = memo.trim()
+    if (!recipient) {
+      setError('Select a recipient.')
+      return
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      setError('Enter a valid amount.')
+      return
+    }
+    if (!memoText) {
+      setError('Memo is required.')
+      return
+    }
+    await runTransfer({
+      recipient,
+      amount: value,
+      memo: memoText,
+      recipientType,
+    })
+  }
 
   return (
     <div className="admin-finance-transfer">
@@ -854,9 +1430,12 @@ function FinanceTransferTab() {
         </p>
       </div>
 
+      {error ? <p className="admin-api-error">{error}</p> : null}
+      {success ? <p className="admin-api-success">{success}</p> : null}
+
       <section className="admin-finance-transfer-wallet">
         <p className="admin-finance-transfer-wallet-label">Platform Reserve Wallet</p>
-        <p className="admin-finance-transfer-wallet-balance">$142,800.00</p>
+        <p className="admin-finance-transfer-wallet-balance">{displayReserve}</p>
         <p className="admin-finance-transfer-wallet-currency">USDC available</p>
       </section>
 
@@ -914,8 +1493,13 @@ function FinanceTransferTab() {
               step="0.01"
             />
           </div>
-          <button type="button" className="admin-finance-transfer-send-btn">
-            Send
+          <button
+            type="button"
+            className="admin-finance-transfer-send-btn"
+            onClick={() => void handleUsernameSend()}
+            disabled={busy}
+          >
+            {busy ? 'Sending…' : 'Send'}
           </button>
         </div>
       </section>
@@ -932,14 +1516,7 @@ function FinanceTransferTab() {
               className="admin-finance-transfer-select"
               value={recipientType}
               onChange={(event) => {
-                setRecipientType(event.target.value)
-                setRecipient(
-                  event.target.value === 'vendor'
-                    ? 'lucky-strike'
-                    : event.target.value === 'player'
-                      ? 'marco-v'
-                      : 'west-region',
-                )
+                setRecipientType(event.target.value as 'vendor' | 'player' | 'distributor')
               }}
             >
               <option value="vendor">Vendor</option>
@@ -979,12 +1556,17 @@ function FinanceTransferTab() {
               className="admin-finance-transfer-select"
               value={recipient}
               onChange={(event) => setRecipient(event.target.value)}
+              disabled={!recipientOptions.length}
             >
-              {recipientOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
+              {recipientOptions.length === 0 ? (
+                <option value="">No recipients available</option>
+              ) : (
+                recipientOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))
+              )}
             </select>
             <svg
               className="admin-finance-transfer-select-icon"
@@ -1039,8 +1621,13 @@ function FinanceTransferTab() {
           />
         </label>
 
-        <button type="button" className="admin-finance-transfer-execute-btn">
-          Execute Transfer
+        <button
+          type="button"
+          className="admin-finance-transfer-execute-btn"
+          onClick={() => void handleStructuredTransfer()}
+          disabled={busy}
+        >
+          {busy ? 'Transferring…' : 'Execute Transfer'}
         </button>
       </section>
     </div>
@@ -1048,7 +1635,53 @@ function FinanceTransferTab() {
 }
 
 export default function AdminFinancePage() {
+  const useApi = isApiConfigured()
   const [subTab, setSubTab] = useState<FinanceSubTab>('analytics')
+  const [range, setRange] = useState<FinanceRange>('30d')
+  const [finance, setFinance] = useState<AdminFinance | null>(null)
+  const [loading, setLoading] = useState(useApi)
+  const [error, setError] = useState('')
+  const [reserveWallet, setReserveWallet] = useState(EMPTY_RESERVE_WALLET)
+
+  async function refreshFinance(nextRange = range) {
+    if (!useApi) return
+    const res = await tapstackApi.adminFinance(nextRange)
+    setFinance(res)
+    if (res.reserveWallet) setReserveWallet(res.reserveWallet)
+  }
+
+  useEffect(() => {
+    if (!useApi) {
+      setFinance(null)
+      setLoading(false)
+      setError('')
+      setReserveWallet(EMPTY_RESERVE_WALLET)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setError('')
+
+    tapstackApi
+      .adminFinance(range)
+      .then((res) => {
+        if (cancelled) return
+        setFinance(res)
+        if (res.reserveWallet) setReserveWallet(res.reserveWallet)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setError(err instanceof ApiError ? err.message : 'Could not load finance data.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [range, useApi])
 
   return (
     <div className="admin-finance-page">
@@ -1073,16 +1706,58 @@ export default function AdminFinancePage() {
         })}
       </nav>
 
+      {error ? <p className="admin-api-error">{error}</p> : null}
+
       {subTab === 'analytics' ? (
-        <FinanceAnalyticsTab />
+        <FinanceAnalyticsTab
+          finance={finance}
+          useApi={useApi}
+          loading={loading}
+          range={range}
+          onRangeChange={setRange}
+        />
       ) : subTab === 'customers' ? (
-        <FinanceCustomersTab />
+        <FinanceCustomersTab finance={finance} useApi={useApi} loading={loading} />
       ) : subTab === 'vendors' ? (
-        <FinanceVendorsTab />
+        <FinanceVendorsTab
+          finance={finance}
+          useApi={useApi}
+          loading={loading}
+          range={range}
+          onRangeChange={setRange}
+        />
       ) : subTab === 'fees' ? (
-        <FinanceFeesTab />
+        loading ? (
+          <div aria-busy="true" aria-label="Loading fee settings">
+            <div className="admin-skel admin-skel--block-lg" />
+            <div className="admin-skel admin-skel--block-lg" style={{ marginTop: 12 }} />
+          </div>
+        ) : (
+          <FinanceFeesTab
+            finance={finance}
+            useApi={useApi}
+            onFeesUpdated={(fees) =>
+              setFinance((prev) => (prev ? { ...prev, fees } : prev))
+            }
+            onRefresh={() => refreshFinance()}
+          />
+        )
       ) : subTab === 'transfer' ? (
-        <FinanceTransferTab />
+        loading ? (
+          <div aria-busy="true" aria-label="Loading transfer">
+            <div className="admin-skel admin-skel--block-lg" />
+            <div className="admin-skel admin-skel--block" style={{ marginTop: 12 }} />
+            <div className="admin-skel admin-skel--block" style={{ marginTop: 12 }} />
+          </div>
+        ) : (
+          <FinanceTransferTab
+            finance={finance}
+            useApi={useApi}
+            reserveWallet={reserveWallet}
+            onReserveWalletChange={setReserveWallet}
+            onRefresh={() => refreshFinance()}
+          />
+        )
       ) : (
         <div className="admin-finance-placeholder">
           <p>{FINANCE_SUB_TABS.find((tab) => tab.id === subTab)?.label} coming soon.</p>

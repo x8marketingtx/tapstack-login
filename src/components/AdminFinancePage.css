@@ -84,6 +84,7 @@
   color: #374151;
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .admin-finance-range-pills {
@@ -105,6 +106,7 @@
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .admin-finance-range-btn--active {
@@ -331,6 +333,7 @@
   font-size: 13px;
   font-weight: 600;
   box-shadow: 0 8px 20px rgba(124, 58, 237, 0.28);
+  cursor: pointer;
 }
 
 .admin-finance-placeholder {
@@ -466,10 +469,20 @@
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   gap: 8px;
   align-items: center;
+  width: 100%;
   padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.admin-finance-customer-card:hover {
+  border-color: #d1d5db;
+  background: #fafbfd;
 }
 
 .admin-finance-customer-avatar {
@@ -482,6 +495,12 @@
   color: #374151;
   font-size: 13px;
   font-weight: 700;
+}
+
+.admin-finance-customer-avatar--lg {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
 }
 
 .admin-finance-customer-info {
@@ -557,6 +576,226 @@
   border: none;
   background: transparent;
   color: #d1d5db;
+}
+
+.admin-finance-customer-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 12px;
+}
+
+.admin-finance-customer-detail-back {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-finance-customer-detail-hero {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-finance-customer-detail-hero-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-finance-customer-detail-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-finance-customer-detail-title {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.admin-finance-customer-detail-meta {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.admin-finance-customer-detail-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.admin-finance-customer-detail-info-card {
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-finance-customer-detail-info-label {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-finance-customer-detail-info-value {
+  margin: 6px 0 0;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.admin-finance-customer-detail-info-value span {
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-finance-customer-detail-ranges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-finance-customer-detail-range {
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-finance-customer-detail-range--active {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.admin-finance-customer-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.admin-finance-customer-detail-stat {
+  padding: 12px 8px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.admin-finance-customer-detail-stat-value {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.admin-finance-customer-detail-stat-value--green {
+  color: #16a34a;
+}
+
+.admin-finance-customer-detail-stat-value--red {
+  color: #dc2626;
+}
+
+.admin-finance-customer-detail-stat-label {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-finance-customer-detail-stat-meta {
+  margin: 2px 0 0;
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+.admin-finance-customer-detail-avgs {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-finance-customer-detail-section-title {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-finance-customer-detail-vendors,
+.admin-finance-customer-detail-orders {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-finance-customer-detail-vendor,
+.admin-finance-customer-detail-order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-finance-customer-detail-vendor-name,
+.admin-finance-customer-detail-order-title {
+  margin: 0;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-finance-customer-detail-vendor-meta,
+.admin-finance-customer-detail-order-meta {
+  margin: 2px 0 0;
+  color: #9ca3af;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.admin-finance-customer-detail-order-amount {
+  margin: 0;
+  color: #16a34a;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-finance-customer-detail-order-amount--out {
+  color: #dc2626;
 }
 
 .admin-finance-vendors {
@@ -687,6 +926,7 @@
   font: inherit;
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .admin-finance-vendors-sort-btn--active {
@@ -705,10 +945,20 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
   padding: 14px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.admin-finance-vendor-card:hover {
+  border-color: #d1d5db;
+  background: #fafbfd;
 }
 
 .admin-finance-vendor-card-head {
@@ -914,6 +1164,7 @@
   border-radius: 999px;
   background: #e5e7eb;
   transition: background 0.2s ease;
+  cursor: pointer;
 }
 
 .admin-finance-fees-toggle--on {
@@ -1021,6 +1272,13 @@
   font-weight: 600;
 }
 
+.admin-finance-fees-estimate-meta {
+  margin: 8px 0 0;
+  color: #9ca3af;
+  font-size: 11px;
+  text-align: center;
+}
+
 .admin-finance-fees-section-desc {
   margin: -6px 0 0;
   color: #9ca3af;
@@ -1088,6 +1346,7 @@
   color: #fff;
   font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .admin-finance-transfer {
@@ -1280,6 +1539,7 @@
   color: #fff;
   font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .admin-finance-transfer-divider {
@@ -1378,4 +1638,5 @@
   font-size: 14px;
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
 }

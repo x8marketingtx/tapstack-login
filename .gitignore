@@ -6,3 +6,4 @@ dist
 wordpress/
 .vercel
 tapstack-plugin-*.zip
+.env*

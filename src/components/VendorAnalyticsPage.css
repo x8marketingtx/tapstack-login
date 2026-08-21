@@ -4,6 +4,27 @@
   gap: 14px;
 }
 
+.vendor-analytics-empty {
+  margin: 10px 0 0;
+  padding: 20px 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.vendor-analytics-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .vendor-analytics-page:has(.vendor-ai-content) {
   flex: 1;
   min-height: 0;

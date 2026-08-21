@@ -1,5 +1,12 @@
 import { useRef, useState } from 'react'
-import { ApiError, isApiConfigured, setDemoSession, setSession, tapstackApi } from '../api/client'
+import {
+  ApiError,
+  applyAuthSession,
+  isApiConfigured,
+  normalizeSessionRole,
+  setDemoSession,
+  tapstackApi,
+} from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
 import './OtpPage.css'
 
@@ -11,7 +18,7 @@ type OtpPageProps = {
   onBack: () => void
 }
 
-export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
+export default function OtpPage({ phone, onVerify: _onVerify, onBack }: OtpPageProps) {
   const [digits, setDigits] = useState(['', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -57,8 +64,17 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
       try {
         setLoading(true)
         const res = await tapstackApi.verifyOtp(phone, code)
-        setSession({ token: res.token, role: 'player', user: res.user })
-        onVerify()
+        const role = normalizeSessionRole(res.user.role) ?? 'player'
+        if (role !== 'player') {
+          throw new ApiError(
+            'This phone is linked to a non-player account. Use Vendor/Admin login instead.',
+            403,
+            'tapstack_role_mismatch',
+          )
+        }
+        applyAuthSession(res.token, { ...res.user, role: 'player' })
+        // Full navigation so a poisoned in-memory vendor session cannot win a race.
+        window.location.replace('/customer')
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Verification failed.')
       } finally {
@@ -69,7 +85,7 @@ export default function OtpPage({ phone, onVerify, onBack }: OtpPageProps) {
 
     if (code === DEMO_OTP) {
       setDemoSession('player', { phone, displayName: 'Marcus Rivera', email: 'player@tapstack.demo' })
-      onVerify()
+      window.location.replace('/customer')
       return
     }
 

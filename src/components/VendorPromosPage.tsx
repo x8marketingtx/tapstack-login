@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { ApiError, isApiConfigured, tapstackApi, type VendorPromotion } from '../api/client'
 import './VendorPromosPage.css'
 
 type PromosTab = 'promotions' | 'codes' | 'email-blast'
@@ -11,73 +12,32 @@ const PROMOS_TABS: { id: PromosTab; label: string; icon: string }[] = [
 
 type PromoStatus = 'active' | 'draft' | 'expired'
 
-type PromotionListItem = {
-  id: string
-  icon: string
-  title: string
-  typeLabel: string
-  endsLabel: string
-  status: PromoStatus
-  entries: number
-  valueGiven: string
-}
-
-const PROMOTION_LIST: PromotionListItem[] = [
-  {
-    id: 'new-year-bonus',
-    icon: '🎁',
-    title: 'New Year Bonus',
-    typeLabel: 'Bonus Credit',
-    endsLabel: 'ends Jan 1',
-    status: 'active',
-    entries: 28,
-    valueGiven: '$420',
-  },
-  {
-    id: 'weekend-freeplay',
-    icon: '🏷️',
-    title: 'Weekend Freeplay',
-    typeLabel: 'Freeplay',
-    endsLabel: 'ends Jan 2',
-    status: 'active',
-    entries: 14,
-    valueGiven: '$140',
-  },
-  {
-    id: 'high-roller-draw',
-    icon: '🏆',
-    title: 'High Roller Draw',
-    typeLabel: 'Contest',
-    endsLabel: 'ends Jan 7',
-    status: 'draft',
-    entries: 0,
-    valueGiven: '$500',
-  },
-  {
-    id: 'christmas-boost',
-    icon: '🎁',
-    title: 'Christmas Boost',
-    typeLabel: 'Bonus Credit',
-    endsLabel: 'ends Dec 26',
-    status: 'expired',
-    entries: 62,
-    valueGiven: '$930',
-  },
-]
-
-function PromotionCard({ promo }: { promo: PromotionListItem }) {
+function PromotionCard({
+  promo,
+  busy,
+  onToggle,
+  onDelete,
+}: {
+  promo: VendorPromotion
+  busy: boolean
+  onToggle: (promo: VendorPromotion) => void
+  onDelete: (promo: VendorPromotion) => void
+}) {
+  const status = (promo.status || 'active') as PromoStatus
   const statusLabels: Record<PromoStatus, string> = {
     active: 'Active',
-    draft: 'Draft',
+    draft: 'Paused',
     expired: 'Expired',
   }
+  const isPaused = status === 'draft'
+  const canToggle = status === 'active' || status === 'draft'
 
   return (
     <article className="vendor-promo-list-card">
       <div className="vendor-promo-list-card-top">
         <div className="vendor-promo-list-card-info">
           <span className="vendor-promo-list-icon" aria-hidden="true">
-            {promo.icon}
+            {promo.icon || '🎁'}
           </span>
           <div>
             <h3 className="vendor-promo-list-title">{promo.title}</h3>
@@ -86,8 +46,8 @@ function PromotionCard({ promo }: { promo: PromotionListItem }) {
             </p>
           </div>
         </div>
-        <span className={`vendor-promo-list-status vendor-promo-list-status--${promo.status}`}>
-          {statusLabels[promo.status]}
+        <span className={`vendor-promo-list-status vendor-promo-list-status--${status}`}>
+          {statusLabels[status]}
         </span>
       </div>
 
@@ -104,55 +64,137 @@ function PromotionCard({ promo }: { promo: PromotionListItem }) {
             </span>
           </div>
         </div>
-        <button type="button" className="vendor-promo-list-edit-btn">
-          Edit
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M9 6l6 6-6 6"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        <div className="vendor-promo-list-actions">
+          {canToggle ? (
+            <button
+              type="button"
+              className="vendor-promo-list-action-btn"
+              disabled={busy}
+              onClick={() => onToggle(promo)}
+            >
+              {isPaused ? 'Enable' : 'Disable'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="vendor-promo-list-action-btn vendor-promo-list-action-btn--danger"
+            disabled={busy}
+            onClick={() => onDelete(promo)}
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </article>
   )
 }
 
-function PromotionsList() {
-  return (
-    <ul className="vendor-promo-list">
-      {PROMOTION_LIST.map((promo) => (
-        <li key={promo.id}>
-          <PromotionCard promo={promo} />
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 function PromotionsTab() {
+  const [list, setList] = useState<VendorPromotion[]>([])
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [saving, setSaving] = useState(false)
+  const [actionId, setActionId] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [promoType, setPromoType] = useState('bonus-credit')
-  const [startDate, setStartDate] = useState('2026-01-01')
-  const [startTime, setStartTime] = useState('09:00')
-  const [endDate, setEndDate] = useState('2026-01-07')
+  const [minAmount, setMinAmount] = useState('25')
+  const [rewardValue, setRewardValue] = useState('5')
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [startTime, setStartTime] = useState('00:00')
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 14)
+    return d.toISOString().slice(0, 10)
+  })
   const [endTime, setEndTime] = useState('23:59')
   const [summary, setSummary] = useState('')
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const rewardHint =
+    promoType === 'deposit-bonus'
+      ? 'Bonus % (e.g. 20 for +20%)'
+      : 'Reward $ (e.g. 5 for $5 credit)'
+
+  const load = useCallback(async () => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await tapstackApi.vendorPromos()
+      setList(res.promotions || [])
+    } catch {
+      setList([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!isApiConfigured() || saving) return
+    setError('')
+    setSaving(true)
+    try {
+      await tapstackApi.vendorPromoCreate({
+        title: title.trim(),
+        type: promoType,
+        summary: summary.trim(),
+        minAmount: Number(minAmount),
+        rewardValue: Number(rewardValue),
+        startDate,
+        startTime,
+        endDate,
+        endTime,
+      })
+      setTitle('')
+      setSummary('')
+      await load()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create promotion.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleToggle(promo: VendorPromotion) {
+    if (!isApiConfigured() || actionId) return
+    const next = promo.status === 'draft' ? 'active' : 'paused'
+    setActionId(promo.id)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorPromoSetStatus(promo.id, next)
+      setList((prev) => prev.map((item) => (item.id === promo.id ? res.promotion : item)))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update promotion.')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  async function handleDelete(promo: VendorPromotion) {
+    if (!isApiConfigured() || actionId) return
+    if (!window.confirm(`Delete “${promo.title}”? This cannot be undone.`)) return
+    setActionId(promo.id)
+    setError('')
+    try {
+      await tapstackApi.vendorPromoDelete(promo.id)
+      setList((prev) => prev.filter((item) => item.id !== promo.id))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete promotion.')
+    } finally {
+      setActionId(null)
+    }
   }
 
   return (
     <div className="vendor-promos-content">
       <div className="vendor-promos-toolbar">
         <h2 className="vendor-promos-heading">Promotions</h2>
-        <button type="button" className="vendor-promos-new-btn">
-          + New
-        </button>
       </div>
 
       <form className="vendor-promos-form-card" onSubmit={handleSubmit}>
@@ -164,6 +206,7 @@ function PromotionsTab() {
           placeholder="Title (e.g. Weekend Freeplay)"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
+          required
         />
 
         <div className="vendor-promos-select-wrap">
@@ -173,15 +216,44 @@ function PromotionsTab() {
             onChange={(event) => setPromoType(event.target.value)}
             aria-label="Promotion type"
           >
-            <option value="bonus-credit">Bonus Credit</option>
-            <option value="deposit-bonus">Deposit Bonus</option>
-            <option value="freeplay">Freeplay</option>
-            <option value="load-redeem">Load &amp; Redeem</option>
+            <option value="bonus-credit">Bonus Credit ($ flat)</option>
+            <option value="deposit-bonus">Deposit Bonus (% match)</option>
+            <option value="freeplay">Freeplay ($ credit)</option>
+            <option value="load-redeem">Load &amp; Redeem ($ flat)</option>
           </select>
           <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
+
+        <div className="vendor-promos-datetime-row">
+          <input
+            type="number"
+            className="vendor-promos-input"
+            min={1}
+            step="1"
+            placeholder="Min load $"
+            value={minAmount}
+            onChange={(event) => setMinAmount(event.target.value)}
+            required
+            aria-label="Minimum load amount"
+          />
+          <input
+            type="number"
+            className="vendor-promos-input"
+            min={0.01}
+            step="0.01"
+            placeholder={rewardHint}
+            value={rewardValue}
+            onChange={(event) => setRewardValue(event.target.value)}
+            required
+            aria-label="Reward value"
+          />
+        </div>
+        <p className="vendor-promos-hint">
+          Player activates → loads ≥ ${minAmount || '—'} at your shop → claims{' '}
+          {promoType === 'deposit-bonus' ? `${rewardValue || '—'}% match` : `$${rewardValue || '—'} credit`}.
+        </p>
 
         <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">STARTS</legend>
@@ -224,39 +296,39 @@ function PromotionsTab() {
         </fieldset>
 
         <fieldset className="vendor-promos-fieldset">
-          <legend className="vendor-promos-field-legend">IMAGE</legend>
-          <label className="vendor-promos-upload">
-            <input type="file" accept="image/*" className="vendor-promos-upload-input" />
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M12 16V4M12 4l-4 4M12 4l4 4M4 20h16"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>Tap to upload an image</span>
-          </label>
-        </fieldset>
-
-        <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">SUMMARY</legend>
           <textarea
             className="vendor-promos-textarea"
             placeholder="Write a 1-2 sentence summary of this promotion..."
             value={summary}
             onChange={(event) => setSummary(event.target.value)}
-            rows={4}
+            rows={3}
           />
         </fieldset>
 
-        <button type="submit" className="vendor-promos-submit-btn">
-          Create Promotion
+        {error ? <p className="vendor-promos-error">{error}</p> : null}
+
+        <button type="submit" className="vendor-promos-submit-btn" disabled={saving || !title.trim()}>
+          {saving ? 'Creating…' : 'Create Promotion'}
         </button>
       </form>
 
-      <PromotionsList />
+      {loading ? <p className="vendor-promos-hint">Loading…</p> : null}
+      <ul className="vendor-promo-list">
+        {list.map((promo) => (
+          <li key={promo.id}>
+            <PromotionCard
+              promo={promo}
+              busy={actionId === promo.id}
+              onToggle={handleToggle}
+              onDelete={handleDelete}
+            />
+          </li>
+        ))}
+      </ul>
+      {!loading && list.length === 0 ? (
+        <p className="vendor-promos-hint">No promotions yet — create one above.</p>
+      ) : null}
     </div>
   )
 }

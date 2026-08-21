@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import LoginPage, { type UserType } from './components/LoginPage'
 import OtpPage from './components/OtpPage'
 import PlayerSignupPage from './components/PlayerSignupPage'
@@ -9,16 +9,27 @@ import DistributorDashboard from './components/DistributorDashboard'
 import ApplyPage from './components/ApplyPage'
 import LegalPage, { type LegalDoc } from './components/LegalPage'
 import {
+  applyAuthSession,
   canAccessView,
   clearSession,
+  getSessionEpoch,
   getSessionRole,
   getToken,
   homeViewForRole,
   isApiConfigured,
-  setSession,
+  isMeForCurrentSession,
   tapstackApi,
   type SessionRole,
 } from './api/client'
+import { clearVendorGamesCache } from './components/VendorSettingsPage'
+import {
+  applyDocumentTitle,
+  migrateLegacyHash,
+  navigate,
+  parseLocation,
+  replaceUrl,
+  type RouteState,
+} from './lib/routing'
 import './components/LoginPage.css'
 
 type AppView =
@@ -44,30 +55,34 @@ function isLegalView(view: AppView): view is LegalDoc {
   return view === 'terms' || view === 'privacy' || view === 'returns'
 }
 
-function legalPathForDoc(doc: LegalDoc): string {
-  return doc === 'returns' ? '/returns' : `/${doc}`
+function viewFromRoute(route: RouteState): AppView {
+  if (route.portal === 'signup') return 'player-signup'
+  if (route.portal === 'otp') return 'otp'
+  if (route.portal === 'apply') return 'apply'
+  if (route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns') {
+    return route.portal
+  }
+  if (route.portal === 'customer') return 'customer'
+  if (route.portal === 'vendor') return 'vendor'
+  if (route.portal === 'admin') return 'admin'
+  if (route.portal === 'distributor') return 'distributor'
+  return 'login'
+}
+
+function routeForView(view: AppView): RouteState {
+  if (view === 'player-signup') return { portal: 'signup' }
+  if (view === 'otp') return { portal: 'otp' }
+  if (view === 'apply') return { portal: 'apply' }
+  if (view === 'terms' || view === 'privacy' || view === 'returns') return { portal: view }
+  if (view === 'customer') return { portal: 'customer', tab: 'games' }
+  if (view === 'vendor') return { portal: 'vendor', tab: 'home' }
+  if (view === 'admin') return { portal: 'admin', tab: 'overview' }
+  if (view === 'distributor') return { portal: 'distributor', tab: 'home' }
+  return { portal: 'login' }
 }
 
 function getViewFromLocation(): AppView {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/'
-
-  // Path-based legal pages: /privacy, /terms, /returns
-  if (path === '/terms') return 'terms'
-  if (path === '/privacy') return 'privacy'
-  if (path === '/returns' || path === '/return-policy') return 'returns'
-
-  const hash = window.location.hash.replace(/^#/, '')
-  if (hash === 'vendor') return 'vendor'
-  if (hash === 'customer') return 'customer'
-  if (hash === 'admin') return 'admin'
-  if (hash === 'distributor') return 'distributor'
-  if (hash === 'signup' || hash === 'player-signup') return 'player-signup'
-  if (hash === 'apply') return 'apply'
-  // Legacy hash legal links → treat as legal views (synced to path below)
-  if (hash === 'terms') return 'terms'
-  if (hash === 'privacy') return 'privacy'
-  if (hash === 'returns' || hash === 'return-policy') return 'returns'
-  return 'login'
+  return viewFromRoute(parseLocation())
 }
 
 function resolveView(requested: AppView, role: SessionRole | null): AppView {
@@ -77,7 +92,6 @@ function resolveView(requested: AppView, role: SessionRole | null): AppView {
     return requested
   }
 
-  // Already signed in — keep them in their portal instead of login/signup.
   if (role && (requested === 'login' || requested === 'otp' || requested === 'player-signup')) {
     return homeViewForRole(role)
   }
@@ -85,94 +99,119 @@ function resolveView(requested: AppView, role: SessionRole | null): AppView {
   return requested
 }
 
-function urlForView(view: AppView): string {
-  if (isLegalView(view)) return legalPathForDoc(view)
-  if (view === 'vendor') return '/#vendor'
-  if (view === 'customer') return '/#customer'
-  if (view === 'admin') return '/#admin'
-  if (view === 'distributor') return '/#distributor'
-  if (view === 'player-signup') return '/#signup'
-  if (view === 'apply') return '/#apply'
-  return '/'
-}
-
 function App() {
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(() => getSessionRole())
-  const [view, setView] = useState<AppView>(() => resolveView(getViewFromLocation(), getSessionRole()))
+  const [view, setView] = useState<AppView>(() => {
+    migrateLegacyHash()
+    return resolveView(getViewFromLocation(), getSessionRole())
+  })
   const [userType, setUserType] = useState<UserType>('players')
   const [phone, setPhone] = useState('')
 
   function enterSession(role: SessionRole, nextView?: DashboardView) {
     setSessionRole(role)
-    setView(nextView || homeViewForRole(role))
+    const target = nextView || homeViewForRole(role)
+    setView(target)
+    navigate(routeForView(target), 'replace')
   }
 
+  /** Token belongs to a different portal than the one currently mounted. */
+  const handleRoleMismatch = useCallback((role: SessionRole) => {
+    setSessionRole(role)
+    const home = homeViewForRole(role)
+    setView(home)
+    navigate(routeForView(home), 'replace')
+  }, [])
+
   function goToApply() {
-    window.history.pushState(null, '', '/#apply')
+    navigate({ portal: 'apply' })
     setView('apply')
   }
 
   function goToLegal(doc: LegalDoc) {
-    window.history.pushState(null, '', legalPathForDoc(doc))
+    navigate({ portal: doc })
     setView(doc)
   }
 
   function backFromLegal() {
-    window.history.pushState(null, '', '/')
+    navigate({ portal: 'login' }, 'replace')
     setView('login')
   }
 
   function goToPlayerSignup() {
     if (sessionRole) {
-      setView(homeViewForRole(sessionRole))
+      const home = homeViewForRole(sessionRole)
+      setView(home)
+      navigate(routeForView(home), 'replace')
       return
     }
-    window.history.pushState(null, '', '/#signup')
+    navigate({ portal: 'signup' })
     setView('player-signup')
   }
 
   function goToLogin() {
     clearSession()
+    clearVendorGamesCache()
     setSessionRole(null)
-    window.history.pushState(null, '', '/')
+    navigate({ portal: 'login' }, 'replace')
     setView('login')
   }
 
   useEffect(() => {
+    migrateLegacyHash()
+    applyDocumentTitle(parseLocation())
+
     function syncFromLocation() {
       const role = getSessionRole()
       setSessionRole(role)
-      setView(resolveView(getViewFromLocation(), role))
+      const requested = getViewFromLocation()
+      const resolved = resolveView(requested, role)
+      setView(resolved)
+
+      // If auth bounced them (e.g. /vendor while logged in as player), fix the URL.
+      if (resolved !== requested) {
+        replaceUrl(routeForView(resolved))
+      } else {
+        applyDocumentTitle(parseLocation())
+      }
     }
 
-    window.addEventListener('hashchange', syncFromLocation)
     window.addEventListener('popstate', syncFromLocation)
     return () => {
-      window.removeEventListener('hashchange', syncFromLocation)
       window.removeEventListener('popstate', syncFromLocation)
     }
   }, [])
 
-  // Restore role for older tokens that only stored tapstack_token.
+  // Always re-validate the Bearer token against /auth/me so localStorage role
+  // cannot drift from the account (e.g. vendor token labeled as player).
+  // Ignore stale responses if the user logged out / switched accounts mid-flight.
   useEffect(() => {
     const token = getToken()
-    const role = getSessionRole()
-    if (!token || role || !isApiConfigured() || token.startsWith('demo:')) return
+    if (!token || !isApiConfigured() || token.startsWith('demo:')) return
 
+    const epoch = getSessionEpoch()
     let cancelled = false
     ;(async () => {
       try {
         const me = await tapstackApi.me()
         if (cancelled) return
-        const nextRole = me.user.role as SessionRole
-        setSession({ token, role: nextRole, user: me.user })
+        // User may have logged out or logged into a different account while waiting.
+        if (getToken() !== token || getSessionEpoch() !== epoch) return
+        // Ignore proxy-cached /auth/me bodies that belong to someone else.
+        if (!isMeForCurrentSession(me.user)) return
+        const nextRole = applyAuthSession(token, me.user)
         setSessionRole(nextRole)
-        setView(resolveView(getViewFromLocation(), nextRole))
+        const resolved = resolveView(getViewFromLocation(), nextRole)
+        setView(resolved)
+        replaceUrl(routeForView(resolved))
       } catch {
         if (cancelled) return
+        // Don't wipe a newer login/OTP session if this request was for an old token.
+        if (getToken() !== token || getSessionEpoch() !== epoch) return
         clearSession()
         setSessionRole(null)
         setView('login')
+        replaceUrl({ portal: 'login' })
       }
     })()
 
@@ -181,12 +220,16 @@ function App() {
     }
   }, [])
 
+  // Keep top-level portal URL in sync when view changes from in-app actions.
   useEffect(() => {
-    const nextUrl = urlForView(view)
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    if (current !== nextUrl) {
-      window.history.replaceState(null, '', nextUrl)
-    }
+    const route = parseLocation()
+    const routeView = viewFromRoute(route)
+    if (routeView === view) return
+
+    // Don't clobber deep links like /customer/vendors/20 while staying on customer portal.
+    if (isDashboardView(view) && route.portal === view) return
+
+    replaceUrl(routeForView(view))
   }, [view])
 
   const isPortalLogin = userType === 'admin' || userType === 'vendor'
@@ -211,7 +254,9 @@ function App() {
               userType={userType}
               onUserTypeChange={setUserType}
               onPlayersPhoneSubmit={(submittedPhone) => {
+                setSessionRole(null)
                 setPhone(submittedPhone)
+                navigate({ portal: 'otp' })
                 setView('otp')
               }}
               onVendorLogin={() => enterSession('vendor')}
@@ -226,7 +271,10 @@ function App() {
             <OtpPage
               phone={phone}
               onVerify={() => enterSession('player')}
-              onBack={() => setView('login')}
+              onBack={() => {
+                navigate({ portal: 'login' }, 'replace')
+                setView('login')
+              }}
             />
           )}
 
@@ -238,10 +286,10 @@ function App() {
           )}
 
           {view === 'customer' && sessionRole === 'player' && (
-            <CustomerDashboard onLogout={goToLogin} />
+            <CustomerDashboard onLogout={goToLogin} onRoleMismatch={handleRoleMismatch} />
           )}
           {view === 'vendor' && sessionRole === 'vendor' && (
-            <VendorDashboard onLogout={goToLogin} />
+            <VendorDashboard onLogout={goToLogin} onRoleMismatch={handleRoleMismatch} />
           )}
           {view === 'admin' && sessionRole === 'admin' && (
             <AdminDashboard onLogout={goToLogin} />

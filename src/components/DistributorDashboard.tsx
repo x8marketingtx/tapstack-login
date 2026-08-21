@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TapStackLogo } from './TapStackLogo'
 import DistributorBottomNav, { type DistributorTab } from './DistributorBottomNav'
 import DistributorVendorsPage from './DistributorVendorsPage'
@@ -6,6 +6,7 @@ import DistributorAnalyticsPage from './DistributorAnalyticsPage'
 import DistributorInvoicesPage from './DistributorInvoicesPage'
 import DistributorSettingsPage from './DistributorSettingsPage'
 import TopUpModal from './TopUpModal'
+import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
 import './DistributorDashboard.css'
 
 type EarningsRange = 'today' | '7d' | '30d' | 'custom'
@@ -275,9 +276,31 @@ function DistributorHome({
 }
 
 export default function DistributorDashboard({ onLogout: _onLogout }: { onLogout?: () => void }) {
-  const [activeTab, setActiveTab] = useState<DistributorTab>('home')
+  const initialRoute = parseLocation()
+  const [activeTab, setActiveTab] = useState<DistributorTab>(() =>
+    initialRoute.portal === 'distributor' ? initialRoute.tab : 'home',
+  )
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [walletBalance, setWalletBalance] = useState('$8,640.00')
+
+  useEffect(() => {
+    function syncFromRoute() {
+      const route = parseLocation()
+      if (route.portal !== 'distributor') return
+      setActiveTab(route.tab)
+    }
+    window.addEventListener('popstate', syncFromRoute)
+    return () => window.removeEventListener('popstate', syncFromRoute)
+  }, [])
+
+  useEffect(() => {
+    applyDocumentTitle({ portal: 'distributor', tab: activeTab })
+  }, [activeTab])
+
+  function handleTabChange(tab: DistributorTab) {
+    setActiveTab(tab)
+    navigate({ portal: 'distributor', tab })
+  }
 
   return (
     <div className="distributor-dashboard">
@@ -297,7 +320,7 @@ export default function DistributorDashboard({ onLogout: _onLogout }: { onLogout
           <DistributorSettingsPage />
         )}
       </div>
-      <DistributorBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <DistributorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
 
       <TopUpModal
         open={topUpOpen}
