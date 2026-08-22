@@ -416,7 +416,7 @@ export default function GiveawayPage() {
         <div className="giveaway-hero-text">
           <h1 className="giveaway-title">
             <span className="giveaway-title-icon" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M3.5 9.5A2.5 2.5 0 0 0 6 7h12a2.5 2.5 0 0 0 2.5 2.5V11a1.5 1.5 0 1 1 0 3v1.5A2.5 2.5 0 0 0 18 18H6a2.5 2.5 0 0 0-2.5-2.5V14a1.5 1.5 0 1 1 0-3V9.5Z"
                   fill="#d4af37"
@@ -495,8 +495,48 @@ export default function GiveawayPage() {
                 }${completing ? ' chip-slot--sparkle' : ''}`}
                 style={completing ? { animationDelay: `${index * 60}ms` } : undefined}
               >
-                <span className="chip-face" aria-hidden="true">
-                  {filled ? '●' : '○'}
+                <span className="casino-chip" aria-hidden="true">
+                  <svg className="casino-chip-svg" viewBox="0 0 80 80" fill="none">
+                    <defs>
+                      <linearGradient id={`chip-body-${index}`} x1="14" y1="10" x2="66" y2="70" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#fb923c" />
+                        <stop offset="0.55" stopColor="#ea580c" />
+                        <stop offset="1" stopColor="#c2410c" />
+                      </linearGradient>
+                    </defs>
+                    {/* Chip body */}
+                    <circle cx="40" cy="40" r="37" fill={`url(#chip-body-${index})`} />
+                    {/* Edge stripe ring (classic casino inserts) */}
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="34.5"
+                      fill="none"
+                      stroke="#fff7ed"
+                      strokeWidth="5.5"
+                      strokeDasharray="8 8"
+                      strokeLinecap="butt"
+                    />
+                    {/* Outer dark trim */}
+                    <circle cx="40" cy="40" r="37" fill="none" stroke="#7c2d12" strokeWidth="2.2" />
+                    {/* Inner face ring */}
+                    <circle cx="40" cy="40" r="24" fill="#fff7ed" />
+                    <circle cx="40" cy="40" r="21.5" fill={`url(#chip-body-${index})`} />
+                    <circle cx="40" cy="40" r="21.5" fill="none" stroke="#9a3412" strokeWidth="1.2" opacity="0.55" />
+                    {/* Flat center label */}
+                    <text
+                      x="40"
+                      y="44.5"
+                      textAnchor="middle"
+                      fill="#fff7ed"
+                      fontSize="13"
+                      fontWeight="800"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                      letterSpacing="-0.5"
+                    >
+                      TS
+                    </text>
+                  </svg>
                 </span>
               </div>
             )
@@ -613,7 +653,19 @@ export default function GiveawayPage() {
 
       <div className="giveaway-info-box">
         <span className="giveaway-info-icon" aria-hidden="true">
-          🎟️
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M3.5 9.5A2.5 2.5 0 0 0 6 7h12a2.5 2.5 0 0 0 2.5 2.5V11a1.5 1.5 0 1 1 0 3v1.5A2.5 2.5 0 0 0 18 18H6a2.5 2.5 0 0 0-2.5-2.5V14a1.5 1.5 0 1 1 0-3V9.5Z"
+              fill="#d4af37"
+            />
+            <path
+              d="M9 8v8M15 8v8"
+              stroke="#fff7cc"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeDasharray="1.8 2.2"
+            />
+          </svg>
         </span>
         <ul className="giveaway-info-list">
           {state.howItWorks.map((line) => (

@@ -32,6 +32,13 @@ type GameLoadModalProps = {
   onSuccess?: (next: { cashBalance: string; gameBalance?: string }) => void
 }
 
+type SuccessState = {
+  amount: number
+  auto: boolean
+  cashBalance: string
+  gameBalance: string
+}
+
 export default function GameLoadModal({
   open,
   intent = 'load',
@@ -52,6 +59,7 @@ export default function GameLoadModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [success, setSuccess] = useState<SuccessState | null>(null)
 
   useEffect(() => {
     if (!open || !game) return
@@ -60,6 +68,7 @@ export default function GameLoadModal({
     setNote('')
     setError('')
     setStatus('')
+    setSuccess(null)
     setWalletFormatted(cashBalance)
     setGameBalance(game.gameBalance || '—')
 
@@ -87,7 +96,6 @@ export default function GameLoadModal({
             setAmount((current) => {
               const n = Number(current)
               if (!Number.isFinite(n) || n <= maxGame) return current
-              // Prefer a preset that fits; otherwise use the full available balance.
               const fit = [...PRESETS].reverse().find((p) => p <= maxGame)
               return String(fit ?? Math.max(1, Math.floor(maxGame)))
             })
@@ -197,17 +205,15 @@ export default function GameLoadModal({
         }
       }
 
-      setStatus(
-        isRedeem
-          ? res.auto
-            ? 'Credits redeemed to your TapStack wallet.'
-            : 'Redeem submitted. The vendor will process it shortly.'
-          : res.auto
-            ? 'Credits loaded to your game account.'
-            : 'Load submitted. The vendor will process it shortly.',
-      )
+      const auto = Boolean(res.auto)
+      setStatus('')
+      setSuccess({
+        amount: numericAmount,
+        auto,
+        cashBalance: nextCash,
+        gameBalance: nextGame,
+      })
       onSuccess?.({ cashBalance: nextCash, gameBalance: nextGame })
-      window.setTimeout(() => onClose(), 900)
     } catch (err) {
       setStatus('')
       setError(
@@ -225,7 +231,7 @@ export default function GameLoadModal({
   }
 
   return (
-    <div className="game-load-overlay" role="presentation" onClick={onClose}>
+    <div className="game-load-overlay" role="presentation" onClick={success ? undefined : onClose}>
       <div
         className="game-load-modal"
         role="dialog"
@@ -233,145 +239,197 @@ export default function GameLoadModal({
         aria-labelledby="game-load-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="game-load-header">
-          <div className="game-load-heading">
-            <div
-              className="game-load-icon"
-              style={{ background: game.iconBg || '#ede9fe' }}
-              aria-hidden="true"
-            >
-              {decodeIcon(game.icon || '🎰', game.name)}
+        {success ? (
+          <div className="game-load-success">
+            <div className="game-load-success-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" fill="#dcfce7" />
+                <path
+                  d="M8 12.5l2.5 2.5L16 9.5"
+                  stroke="#15803d"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
-            <div>
-              <h2 id="game-load-title">
-                {isRedeem ? 'Redeem' : 'Load'} {game.name}
-              </h2>
-              <p className="game-load-sub">{vendorName}</p>
+            <h2 id="game-load-title" className="game-load-success-title">
+              {isRedeem
+                ? success.auto
+                  ? 'Successfully redeemed'
+                  : 'Redeem submitted'
+                : success.auto
+                  ? 'Successfully topped up'
+                  : 'Load submitted'}
+            </h2>
+            <p className="game-load-success-copy">
+              {isRedeem
+                ? success.auto
+                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to your TapStack wallet.`
+                  : `$${success.amount.toFixed(0)} redeem request sent for ${game.name}. The vendor will process it shortly.`
+                : success.auto
+                  ? `$${success.amount.toFixed(0)} loaded to ${game.name}.`
+                  : `$${success.amount.toFixed(0)} load request sent for ${game.name}. The vendor will process it shortly.`}
+            </p>
+            <div className="game-load-success-balances">
+              <div>
+                <span>Your wallet</span>
+                <strong>{success.cashBalance}</strong>
+              </div>
+              {!isManual ? (
+                <div>
+                  <span>Game balance</span>
+                  <strong>{success.gameBalance}</strong>
+                </div>
+              ) : null}
             </div>
-          </div>
-          <button type="button" className="game-load-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </div>
-
-        <div className="game-load-balances">
-          <div className="game-load-balance-card">
-            <span className="game-load-balance-label">Your wallet</span>
-            <strong className="game-load-balance-value">
-              {loadingWallet ? '…' : walletFormatted}
-            </strong>
-          </div>
-          {isManual ? (
-            <div className="game-load-balance-card">
-              <span className="game-load-balance-label">Mode</span>
-              <strong className="game-load-balance-value game-load-balance-value--sm">Manual</strong>
-            </div>
-          ) : (
-            <div className="game-load-balance-card">
-              <span className="game-load-balance-label">Game balance</span>
-              <strong className="game-load-balance-value">
-                {loadingWallet ? '…' : gameBalance}
-              </strong>
-            </div>
-          )}
-        </div>
-
-        <p className="game-load-copy">
-          {isRedeem
-            ? isManual
-              ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
-              : 'Pull credits from your connected game account into your TapStack wallet.'
-            : isManual
-              ? 'Send a load request from your TapStack wallet. Include your game Mobile ID so the vendor can credit the right account.'
-              : 'Move funds from your TapStack wallet into the connected game account.'}
-        </p>
-
-        <div className="game-load-presets">
-          {PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className={`game-load-preset ${Number(amount) === preset ? 'is-active' : ''}`}
-              onClick={() => setAmount(String(preset))}
-            >
-              ${preset}
+            <button type="button" className="game-load-submit" onClick={onClose}>
+              Done
             </button>
-          ))}
-        </div>
-
-        <form className="game-load-form" onSubmit={handleSubmit}>
-          <label className="game-load-label" htmlFor="game-load-amount">
-            Amount (USD)
-          </label>
-          <div className="game-load-amount-wrap">
-            <span aria-hidden="true">$</span>
-            <input
-              id="game-load-amount"
-              type="number"
-              min={1}
-              step="1"
-              inputMode="decimal"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-            />
           </div>
+        ) : (
+          <>
+            <div className="game-load-header">
+              <div className="game-load-heading">
+                <div
+                  className="game-load-icon"
+                  style={{ background: game.iconBg || '#ede9fe' }}
+                  aria-hidden="true"
+                >
+                  {decodeIcon(game.icon || '🎰', game.name)}
+                </div>
+                <div>
+                  <h2 id="game-load-title">
+                    {isRedeem ? 'Redeem' : 'Load'} {game.name}
+                  </h2>
+                  <p className="game-load-sub">{vendorName}</p>
+                </div>
+              </div>
+              <button type="button" className="game-load-close" onClick={onClose} aria-label="Close">
+                ×
+              </button>
+            </div>
 
-          {isManual ? (
-            <>
-              <label className="game-load-label" htmlFor="game-load-mobile">
-                Mobile ID / username
+            <div className="game-load-balances">
+              <div className="game-load-balance-card">
+                <span className="game-load-balance-label">Your wallet</span>
+                <strong className="game-load-balance-value">
+                  {loadingWallet ? '…' : walletFormatted}
+                </strong>
+              </div>
+              {isManual ? (
+                <div className="game-load-balance-card">
+                  <span className="game-load-balance-label">Mode</span>
+                  <strong className="game-load-balance-value game-load-balance-value--sm">Manual</strong>
+                </div>
+              ) : (
+                <div className="game-load-balance-card">
+                  <span className="game-load-balance-label">Game balance</span>
+                  <strong className="game-load-balance-value">
+                    {loadingWallet ? '…' : gameBalance}
+                  </strong>
+                </div>
+              )}
+            </div>
+
+            <p className="game-load-copy">
+              {isRedeem
+                ? isManual
+                  ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
+                  : 'Pull credits from your connected game account into your TapStack wallet.'
+                : isManual
+                  ? 'Send a load request from your TapStack wallet. Include your game Mobile ID so the vendor can credit the right account.'
+                  : 'Move funds from your TapStack wallet into the connected game account.'}
+            </p>
+
+            <div className="game-load-presets">
+              {PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className={`game-load-preset ${Number(amount) === preset ? 'is-active' : ''}`}
+                  onClick={() => setAmount(String(preset))}
+                >
+                  ${preset}
+                </button>
+              ))}
+            </div>
+
+            <form className="game-load-form" onSubmit={handleSubmit}>
+              <label className="game-load-label" htmlFor="game-load-amount">
+                Amount (USD)
               </label>
-              <input
-                id="game-load-mobile"
-                className="game-load-text-input"
-                type="text"
-                autoComplete="username"
-                placeholder="Enter game Mobile ID or username"
-                value={mobileId}
-                onChange={(event) => setMobileId(event.target.value)}
-                required
-              />
+              <div className="game-load-amount-wrap">
+                <span aria-hidden="true">$</span>
+                <input
+                  id="game-load-amount"
+                  type="number"
+                  min={1}
+                  step="1"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </div>
 
-              <label className="game-load-label" htmlFor="game-load-note">
-                Note <span className="game-load-optional">(optional)</span>
-              </label>
-              <textarea
-                id="game-load-note"
-                className="game-load-textarea"
-                rows={3}
-                placeholder="Anything the vendor should know"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-              />
-            </>
-          ) : null}
+              {isManual ? (
+                <>
+                  <label className="game-load-label" htmlFor="game-load-mobile">
+                    Mobile ID / username
+                  </label>
+                  <input
+                    id="game-load-mobile"
+                    className="game-load-text-input"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="Enter game Mobile ID or username"
+                    value={mobileId}
+                    onChange={(event) => setMobileId(event.target.value)}
+                    required
+                  />
 
-          {exceedsWallet ? (
-            <p className="game-load-error">Amount exceeds your wallet balance.</p>
-          ) : null}
-          {exceedsGame ? (
-            <p className="game-load-error">Amount exceeds your game balance.</p>
-          ) : null}
-          {isManual && !mobileId.trim() ? (
-            <p className="game-load-error">Mobile ID / username is required.</p>
-          ) : null}
-          {status ? <p className="game-load-status">{status}</p> : null}
-          {error ? <p className="game-load-error">{error}</p> : null}
+                  <label className="game-load-label" htmlFor="game-load-note">
+                    Note <span className="game-load-optional">(optional)</span>
+                  </label>
+                  <textarea
+                    id="game-load-note"
+                    className="game-load-textarea"
+                    rows={3}
+                    placeholder="Anything the vendor should know"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </>
+              ) : null}
 
-          <button
-            type="submit"
-            className={`game-load-submit ${isRedeem ? 'game-load-submit--redeem' : ''}`}
-            disabled={!canSubmit}
-          >
-            {submitting
-              ? isRedeem
-                ? 'Redeeming…'
-                : 'Loading…'
-              : `${isRedeem ? 'Redeem' : 'Load'} $${
-                  Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'
-                }`}
-          </button>
-        </form>
+              {exceedsWallet ? (
+                <p className="game-load-error">Amount exceeds your wallet balance.</p>
+              ) : null}
+              {exceedsGame ? (
+                <p className="game-load-error">Amount exceeds your game balance.</p>
+              ) : null}
+              {isManual && !mobileId.trim() ? (
+                <p className="game-load-error">Mobile ID / username is required.</p>
+              ) : null}
+              {status ? <p className="game-load-status">{status}</p> : null}
+              {error ? <p className="game-load-error">{error}</p> : null}
+
+              <button
+                type="submit"
+                className={`game-load-submit ${isRedeem ? 'game-load-submit--redeem' : ''}`}
+                disabled={!canSubmit}
+              >
+                {submitting
+                  ? isRedeem
+                    ? 'Redeeming…'
+                    : 'Loading…'
+                  : `${isRedeem ? 'Redeem' : 'Load'} $${
+                      Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'
+                    }`}
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   )

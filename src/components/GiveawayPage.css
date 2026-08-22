@@ -52,8 +52,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
   color: #d4af37;
+}
+
+.giveaway-title-icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 .giveaway-subtitle {
@@ -188,8 +192,9 @@
 .chips-row {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 4px 2px;
 }
 
 .chip-slot {
@@ -198,27 +203,38 @@
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  transition:
-    transform 0.25s ease,
-    background 0.25s ease,
-    box-shadow 0.25s ease;
+  background: transparent;
+  border: none;
+  transition: transform 0.25s ease, filter 0.25s ease, opacity 0.25s ease;
 }
 
 .chip-slot--empty {
-  background: #e5e7eb;
-  border: 1.5px dashed #9ca3af;
-  color: #9ca3af;
-  opacity: 0.55;
-  filter: grayscale(1);
+  opacity: 0.34;
+  filter: grayscale(1) contrast(0.9);
 }
 
 .chip-slot--filled {
-  background: radial-gradient(circle at 30% 28%, #fef9c3, #fbbf24 48%, #d97706 78%, #92400e);
-  border: 1px solid #f59e0b;
-  color: #78350f;
-  box-shadow:
-    0 4px 12px rgba(180, 83, 9, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  opacity: 1;
+  filter: none;
+}
+
+.casino-chip {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 58px;
+  aspect-ratio: 1;
+}
+
+.casino-chip-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 5px rgba(124, 45, 18, 0.28));
+}
+
+.chip-slot--empty .casino-chip-svg {
+  filter: none;
 }
 
 .chip-slot--pulse {
@@ -234,7 +250,7 @@
     transform: scale(0.7);
   }
   60% {
-    transform: scale(1.15);
+    transform: scale(1.12);
   }
   100% {
     transform: scale(1);
@@ -245,28 +261,19 @@
   0% {
     transform: scale(1);
     filter: brightness(1);
-    box-shadow: 0 0 0 rgba(251, 191, 36, 0);
   }
   40% {
-    transform: scale(1.18);
-    filter: brightness(1.35);
-    box-shadow: 0 0 18px rgba(251, 191, 36, 0.9);
+    transform: scale(1.14);
+    filter: brightness(1.3) saturate(1.1);
   }
   100% {
-    transform: scale(1.05);
-    filter: brightness(1.2);
-    box-shadow: 0 0 22px rgba(245, 158, 11, 0.85);
+    transform: scale(1.04);
+    filter: brightness(1.15);
   }
 }
 
-.chips-row--completing .chip-slot--filled {
-  border-color: #fde68a;
-}
-
-.chip-face {
-  font-size: 18px;
-  line-height: 1;
-  font-weight: 700;
+.chips-row--completing .chip-slot--filled .casino-chip-svg {
+  filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.75));
 }
 
 .chips-needed {
@@ -275,6 +282,16 @@
   line-height: 1.45;
   color: #4b5563;
   text-align: center;
+}
+
+@media (max-width: 380px) {
+  .casino-chip {
+    max-width: 50px;
+  }
+
+  .chips-row {
+    gap: 6px;
+  }
 }
 
 .chips-actions {
@@ -484,16 +501,24 @@
 
 .giveaway-info-icon {
   flex-shrink: 0;
-  font-size: 16px;
-  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  color: #d4af37;
 }
 
 .giveaway-info-list {
   margin: 0;
-  padding-left: 16px;
+  padding-left: 18px;
   font-size: 12px;
   line-height: 1.5;
   color: #78350f;
+  list-style: disc;
+}
+
+.giveaway-info-list li::marker {
+  color: #d4af37;
 }
 
 .giveaway-error {
