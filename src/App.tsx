@@ -141,7 +141,7 @@ function App() {
   }
 
   const finishPlayerJoin = useCallback(() => {
-    navigate({ portal: 'customer' }, 'replace')
+    navigate({ portal: 'customer', tab: 'games' }, 'replace')
     setView('customer')
   }, [])
 
