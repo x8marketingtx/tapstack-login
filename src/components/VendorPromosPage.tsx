@@ -1319,7 +1319,11 @@ function EmailBlastTab() {
   )
 }
 
-export default function VendorPromosPage() {
+export default function VendorPromosPage({
+  portal: _portal = 'vendor',
+}: {
+  portal?: 'vendor' | 'distributor'
+}) {
   const [activeTab, setActiveTab] = useState<PromosTab>('promotions')
 
   return (

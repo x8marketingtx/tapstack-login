@@ -1272,7 +1272,15 @@ function BillingTab() {
   )
 }
 
-export default function VendorSettingsPage() {
+export default function VendorSettingsPage({
+  portal: _portal = 'vendor',
+}: {
+  portal?: 'vendor' | 'distributor'
+}) {
+  return <VendorStoreSettingsPage />
+}
+
+function VendorStoreSettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
 
   return (

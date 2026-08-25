@@ -1437,17 +1437,166 @@ export const tapstackApi = {
   adminSettingsUpdate: (payload: { account?: Partial<AdminSettings['account']> }) =>
     apiRequest<{ ok: boolean }>('/admin/settings', { method: 'PUT', body: payload }),
 
-  distributorDashboard: () => apiRequest<Record<string, unknown>>('/distributor/dashboard'),
-  distributorVendors: () => apiRequest<{ vendors: unknown[] }>('/distributor/vendors'),
-  distributorAnalytics: () => apiRequest<Record<string, unknown>>('/distributor/analytics'),
-  distributorInvoices: () => apiRequest<{ invoices: unknown[] }>('/distributor/invoices'),
+  distributorDashboard: (range = 'today') =>
+    apiRequest<{
+      name: string
+      initials?: string
+      vendorsTotal: number
+      vendorsActive: number
+      signupLink: string
+      signupLinkDisplay?: string
+      slug?: string
+      wallet: {
+        balance: number
+        balanceFormatted?: string
+        pending: number
+        pendingFormatted?: string
+        currency: string
+        commissions: number
+        commissionsFormatted?: string
+        invoicesPaid: number
+        invoicesPaidFormatted?: string
+      }
+      earningsPeriod: {
+        amount: number
+        amountFormatted?: string
+        txCount: number
+        range: string
+        vendorsCount?: number
+      }
+      volumeIncentive: {
+        current: number
+        target: number
+        progressPct: number
+        currentFormatted: string
+        targetFormatted: string
+        remainingFormatted: string
+        currentRate: string
+        nextRate: string
+        tiers: Array<{ label: string; rate: string; active: boolean }>
+      }
+      vendorEarnings: Array<{
+        id: string
+        name: string
+        amount: number
+        amountFormatted?: string
+        fill: number
+        badge?: string
+      }>
+      activity: Array<{ id: string; text: string; time: string; unread: boolean }>
+    }>(`/distributor/dashboard?range=${encodeURIComponent(range)}`),
+  distributorVendors: (range = '30d') =>
+    apiRequest<{
+      vendors: Array<{
+        id: string
+        name: string
+        tier: string
+        status: 'active' | 'restricted' | string
+        deposits: string
+        redeems: string
+        tags: string[]
+      }>
+      total?: number
+      active?: number
+      range?: string
+    }>(`/distributor/vendors?range=${encodeURIComponent(range)}`),
+  distributorAnalytics: (range = '30d') =>
+    apiRequest<{
+      totalEarned: string
+      thisMonth: string
+      distributorCut: string
+      addOnFees: string
+      monthlyEarnings: Array<{ month: string; amount: number }>
+      byVendor: Array<{
+        id: string
+        name: string
+        earnings: string
+        volume: string
+        redeemed: string
+        share: number
+      }>
+      range?: string
+    }>(`/distributor/analytics?range=${encodeURIComponent(range)}`),
+  distributorInvoices: () =>
+    apiRequest<{
+      invoices: Array<{
+        id: string
+        invoiceId: string
+        vendor: string
+        status: string
+        description: string
+        amount: string
+        dueDate: string
+        attachments?: number
+      }>
+    }>('/distributor/invoices'),
+  distributorCreateInvoice: (payload: {
+    vendor: string
+    amount: string
+    description?: string
+    dueDate?: string
+  }) =>
+    apiRequest<{ ok: boolean; id: number; invoiceId: string }>('/distributor/invoices', {
+      method: 'POST',
+      body: payload,
+    }),
+  distributorSettings: () =>
+    apiRequest<{
+      profile: {
+        affiliateLink?: string
+        affiliateLinkDisplay?: string
+        businessName?: string
+        contactPerson?: string
+        email?: string
+        phone?: string
+        serviceRegion?: string
+        network?: { total?: number; active?: number; pending?: number }
+      }
+      alerts: Record<string, boolean>
+      security?: {
+        twoFactorEnabled?: boolean
+        sessions?: Array<{ device: string; location: string; time: string }>
+      }
+    }>('/distributor/settings'),
+  distributorSaveSettings: (payload: Record<string, unknown>) =>
+    apiRequest<{ ok: boolean; settings: Record<string, unknown> }>('/distributor/settings', {
+      method: 'PUT',
+      body: payload,
+    }),
 
   apply: (payload: Record<string, unknown>) =>
-    apiRequest<{ ok: boolean; id: number }>('/apply', {
+    apiRequest<{
+      ok: boolean
+      id: number
+      status?: string
+      approved?: boolean
+      vendorId?: number
+      distributorName?: string
+      message?: string
+      email?: string
+    }>('/apply', {
       method: 'POST',
       body: payload,
       auth: false,
     }),
+  resolveJoin: (slug: string) =>
+    apiRequest<{
+      ok: boolean
+      slug: string
+      distributorName: string
+      distributorId: number
+    }>(`/join/${encodeURIComponent(slug)}`, { auth: false }),
+  joinDistributor: (slug: string) =>
+    apiRequest<{
+      ok: boolean
+      slug: string
+      distributorName: string
+      distributorId: number
+      added: number
+      vendors: ApiVendor[]
+      linkedCount?: number
+      message?: string
+    }>(`/customer/join/${encodeURIComponent(slug)}`, { method: 'POST' }),
 
   wertConfig: () => apiRequest('/payments/wert/config', { auth: false }),
   wertSession: (amount: number, ownerType?: string) =>

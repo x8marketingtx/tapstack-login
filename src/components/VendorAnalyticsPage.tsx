@@ -50,7 +50,7 @@ function downloadCustomersCsv(customers: CustomerRow[]) {
   URL.revokeObjectURL(url)
 }
 
-function CustomersTab() {
+function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor' }) {
   const [query, setQuery] = useState('')
   const [customers, setCustomers] = useState<CustomerRow[]>([])
   const [total, setTotal] = useState(0)
@@ -66,6 +66,15 @@ function CustomersTab() {
   const [accounts, setAccounts] = useState<VendorGameAccount[]>([])
   const [orders, setOrders] = useState<VendorOrderItem[]>([])
   const [revealPasswords, setRevealPasswords] = useState<Record<string, boolean>>({})
+
+  const emptyMessage =
+    portal === 'distributor'
+      ? 'No customers yet. Players at vendors in your network will appear here.'
+      : 'No customers yet. Players who join with your invite code will appear here.'
+
+  const noMatchMessage = query.trim()
+    ? 'No players match that search.'
+    : emptyMessage
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -428,10 +437,19 @@ function CustomersTab() {
           <path d="M20 20l-3.5-3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
         <input
-          type="search"
+          type="text"
+          name="tapstack-customer-filter"
+          id="tapstack-customer-filter"
           placeholder="Search by name or username..."
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="other"
         />
       </label>
 
@@ -447,9 +465,7 @@ function CustomersTab() {
       {loading ? (
         <p className="vendor-analytics-empty">Loading customers…</p>
       ) : filteredCustomers.length === 0 ? (
-        <p className="vendor-analytics-empty">
-          No customers yet. Players who join with your invite code will appear here.
-        </p>
+        <p className="vendor-analytics-empty">{noMatchMessage}</p>
       ) : (
         <ul className="vendor-analytics-list">
           {filteredCustomers.map((customer) => (
@@ -1138,7 +1154,11 @@ function FinancialTab() {
   )
 }
 
-export default function VendorAnalyticsPage() {
+export default function VendorAnalyticsPage({
+  portal = 'vendor',
+}: {
+  portal?: 'vendor' | 'distributor'
+}) {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('customers')
 
   return (
@@ -1164,7 +1184,7 @@ export default function VendorAnalyticsPage() {
         })}
       </div>
 
-      {activeTab === 'customers' && <CustomersTab />}
+      {activeTab === 'customers' && <CustomersTab portal={portal} />}
       {activeTab === 'financial' && <FinancialTab />}
       {activeTab === 'games' && <GamesTab />}
     </div>

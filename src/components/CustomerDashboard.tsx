@@ -821,7 +821,6 @@ export default function CustomerDashboard({
                 profile={headerProfile}
                 loading={loading}
                 transactions={walletTxns}
-                onTopUp={() => setTopUpOpen(true)}
                 onOpenProfile={openProfile}
                 onWalletUpdate={(wallet) => {
                   if (typeof wallet.points === 'number') setPointsBalance(wallet.points)

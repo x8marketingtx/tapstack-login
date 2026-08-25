@@ -60,7 +60,6 @@ export default function AccountPage({
   profile,
   loading = false,
   transactions,
-  onTopUp,
   onOpenProfile,
   onWalletUpdate,
 }: {
@@ -69,7 +68,6 @@ export default function AccountPage({
   profile: PlayerProfile
   loading?: boolean
   transactions?: WalletTxn[]
-  onTopUp?: () => void
   onOpenProfile?: () => void
   onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
 }) {
@@ -208,11 +206,6 @@ export default function AccountPage({
           </div>
         </div>
         <div className="account-balance-actions">
-          {onTopUp ? (
-            <button type="button" className="account-topup-btn" onClick={onTopUp} disabled={loading}>
-              + Top Up
-            </button>
-          ) : null}
           <button type="button" className="account-withdraw-btn" disabled={loading}>
             Withdraw
           </button>

@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from 'react'
-import { ApiError, tapstackApi } from '../api/client'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ApiError, isApiConfigured, tapstackApi } from '../api/client'
+import { clearAffiliateSlug, getAffiliateSlug } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -166,8 +167,31 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
   const [llcFileName, setLlcFileName] = useState('')
   const [screenshotFileName, setScreenshotFileName] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [approved, setApproved] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [affiliateSlug, setAffiliateSlugState] = useState(() => getAffiliateSlug())
+  const [distributorName, setDistributorName] = useState('')
+
+  useEffect(() => {
+    const slug = getAffiliateSlug()
+    setAffiliateSlugState(slug)
+    if (!slug || !isApiConfigured()) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await tapstackApi.resolveJoin(slug)
+        if (cancelled) return
+        setDistributorName(res.distributorName || '')
+      } catch {
+        if (!cancelled) setDistributorName('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const hasOnlinePresence =
     facebookPage.trim().length > 0 ||
@@ -191,7 +215,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
     setError('')
     setSubmitting(true)
     try {
-      await tapstackApi.apply({
+      const res = await tapstackApi.apply({
         fullName: fullName.trim(),
         gameroomName: gameroomName.trim(),
         phone: phone.trim(),
@@ -201,12 +225,21 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
         automatedSite: automatedSite.trim(),
         mainWebsite: mainWebsite.trim(),
         monthlyVolume,
-        referralCode: 'PAC-001',
+        referralCode: affiliateSlug || undefined,
+        affiliateSlug: affiliateSlug || undefined,
         documents: {
           llcOrLoi: llcFileName || null,
           backendScreenshots: screenshotFileName || null,
         },
       })
+      setApproved(Boolean(res.approved))
+      setSuccessMessage(
+        res.message ||
+          (res.approved
+            ? 'You are approved as a vendor. Check your email for login details.'
+            : 'Thanks — our team will review your application soon.'),
+      )
+      if (res.approved) clearAffiliateSlug()
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not submit application. Try again.')
@@ -227,15 +260,24 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
 
         <section className="apply-intro">
           <h1 className="apply-title">Apply for an Account</h1>
-          <p className="apply-subtitle">Fill out the form below and our team will be in touch.</p>
+          <p className="apply-subtitle">
+            {distributorName
+              ? `Join ${distributorName}'s vendor network — fill out the form below.`
+              : 'Fill out the form below and our team will be in touch.'}
+          </p>
         </section>
 
         {submitted ? (
           <div className="apply-success">
-            <p className="apply-success-title">Application submitted</p>
-            <p className="apply-success-text">Thanks, {fullName.trim()}. Our team will review your application soon.</p>
+            <p className="apply-success-title">
+              {approved ? 'You are a vendor' : 'Application submitted'}
+            </p>
+            <p className="apply-success-text">
+              {successMessage ||
+                `Thanks, ${fullName.trim()}. Our team will review your application soon.`}
+            </p>
             <button type="button" className="apply-submit-btn" onClick={onBack}>
-              Back to Login
+              {approved ? 'Go to vendor login' : 'Back to Login'}
             </button>
           </div>
         ) : (
@@ -422,7 +464,11 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
               </div>
             </section>
 
-            <p className="apply-referral-code">Referral code: PAC-001</p>
+            <p className="apply-referral-code">
+              {affiliateSlug
+                ? `Distributor signup: ${affiliateSlug}${distributorName ? ` · ${distributorName}` : ''}`
+                : 'Referral code: none'}
+            </p>
 
             {error ? <p className="apply-error">{error}</p> : null}
 

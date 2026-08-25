@@ -7,6 +7,7 @@ import VendorDashboard from './components/VendorDashboard'
 import AdminDashboard from './components/AdminDashboard'
 import DistributorDashboard from './components/DistributorDashboard'
 import ApplyPage from './components/ApplyPage'
+import JoinPage from './components/JoinPage'
 import LegalPage, { type LegalDoc } from './components/LegalPage'
 import {
   applyAuthSession,
@@ -22,6 +23,7 @@ import {
   type SessionRole,
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
+import { consumePendingPlayerJoin } from './lib/affiliate'
 import {
   applyDocumentTitle,
   migrateLegacyHash,
@@ -41,6 +43,7 @@ type AppView =
   | 'admin'
   | 'distributor'
   | 'apply'
+  | 'join'
   | 'terms'
   | 'privacy'
   | 'returns'
@@ -59,6 +62,7 @@ function viewFromRoute(route: RouteState): AppView {
   if (route.portal === 'signup') return 'player-signup'
   if (route.portal === 'otp') return 'otp'
   if (route.portal === 'apply') return 'apply'
+  if (route.portal === 'join') return 'join'
   if (route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns') {
     return route.portal
   }
@@ -73,6 +77,7 @@ function routeForView(view: AppView): RouteState {
   if (view === 'player-signup') return { portal: 'signup' }
   if (view === 'otp') return { portal: 'otp' }
   if (view === 'apply') return { portal: 'apply' }
+  if (view === 'join') return { portal: 'apply' }
   if (view === 'terms' || view === 'privacy' || view === 'returns') return { portal: view }
   if (view === 'customer') return { portal: 'customer', tab: 'games' }
   if (view === 'vendor') return { portal: 'vendor', tab: 'home' }
@@ -111,6 +116,13 @@ function App() {
   function enterSession(role: SessionRole, nextView?: DashboardView) {
     setSessionRole(role)
     const target = nextView || homeViewForRole(role)
+    if (role === 'player') {
+      void consumePendingPlayerJoin().finally(() => {
+        setView(target)
+        navigate(routeForView(target), 'replace')
+      })
+      return
+    }
     setView(target)
     navigate(routeForView(target), 'replace')
   }
@@ -127,6 +139,27 @@ function App() {
     navigate({ portal: 'apply' })
     setView('apply')
   }
+
+  const finishPlayerJoin = useCallback(() => {
+    navigate({ portal: 'customer' }, 'replace')
+    setView('customer')
+  }, [])
+
+  const finishVendorApplyJoin = useCallback(() => {
+    navigate({ portal: 'apply' }, 'replace')
+    setView('apply')
+  }, [])
+
+  const joinNeedLogin = useCallback(() => {
+    navigate({ portal: 'login' }, 'replace')
+    setView('login')
+    setUserType('players')
+  }, [])
+
+  const cancelJoin = useCallback(() => {
+    navigate({ portal: 'login' }, 'replace')
+    setView('login')
+  }, [])
 
   function goToLegal(doc: LegalDoc) {
     navigate({ portal: doc })
@@ -228,6 +261,8 @@ function App() {
 
     // Don't clobber deep links like /customer/vendors/20 while staying on customer portal.
     if (isDashboardView(view) && route.portal === view) return
+    // Keep /join/:slug while the join handoff screen is mounted.
+    if (view === 'join') return
 
     replaceUrl(routeForView(view))
   }, [view])
@@ -235,11 +270,16 @@ function App() {
   const screenClass =
     view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
       ? 'screen--dashboard'
-      : view === 'apply'
+      : view === 'apply' || view === 'join'
         ? 'screen--apply'
         : view === 'otp' || view === 'player-signup' || isLegalView(view)
           ? 'screen--otp'
           : ''
+
+  const joinSlug = (() => {
+    const route = parseLocation()
+    return route.portal === 'join' ? route.slug : ''
+  })()
 
   return (
     <div className="page">
@@ -260,6 +300,16 @@ function App() {
               onSignUp={goToPlayerSignup}
               onApply={goToApply}
               onOpenLegal={goToLegal}
+            />
+          )}
+
+          {view === 'join' && (
+            <JoinPage
+              slug={joinSlug}
+              onPlayerJoined={finishPlayerJoin}
+              onNeedLogin={joinNeedLogin}
+              onVendorApply={finishVendorApplyJoin}
+              onInvalid={cancelJoin}
             />
           )}
 
@@ -291,7 +341,7 @@ function App() {
             <AdminDashboard onLogout={goToLogin} />
           )}
           {view === 'distributor' && sessionRole === 'distributor' && (
-            <DistributorDashboard onLogout={goToLogin} />
+            <DistributorDashboard onLogout={goToLogin} onRoleMismatch={handleRoleMismatch} />
           )}
 
           {view === 'apply' && <ApplyPage onBack={goToLogin} />}

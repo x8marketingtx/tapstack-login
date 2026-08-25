@@ -311,7 +311,7 @@
   border: 1px solid rgba(251, 191, 36, 0.35);
 }
 
-.points-label {
+.points-badge .points-label {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;

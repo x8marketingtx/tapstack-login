@@ -5,11 +5,12 @@ import { LegalLinks, type LegalDoc } from './LegalPage'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
 
-type UserType = 'players' | 'vendor' | 'admin'
+type UserType = 'players' | 'vendor' | 'distributor' | 'admin'
 
 const ROLE_OPTIONS: { value: UserType; label: string }[] = [
   { value: 'players', label: 'Players' },
   { value: 'vendor', label: 'Vendor' },
+  { value: 'distributor', label: 'Distributor' },
   { value: 'admin', label: 'Admin' },
 ]
 
@@ -89,15 +90,31 @@ function RoleDropdown({
   )
 }
 
-const PORTAL_COPY: Record<'vendor' | 'admin', { subtitle: string; demoEmail: string }> = {
+const PORTAL_COPY: Record<'vendor' | 'distributor' | 'admin', { subtitle: string; demoEmail: string }> = {
   vendor: {
     subtitle: 'Sign in to your vendor console',
     demoEmail: 'vendor@tapstack.demo',
+  },
+  distributor: {
+    subtitle: 'Sign in to your distributor console',
+    demoEmail: 'distributor@tapstack.demo',
   },
   admin: {
     subtitle: 'Sign in to your admin console',
     demoEmail: 'admin@tapstack.demo',
   },
+}
+
+function portalHomePath(portalType: 'vendor' | 'distributor' | 'admin'): string {
+  if (portalType === 'admin') return '/admin'
+  if (portalType === 'distributor') return '/distributor'
+  return '/vendor'
+}
+
+function portalRoleError(portalType: 'vendor' | 'distributor' | 'admin'): string {
+  if (portalType === 'admin') return 'This account is not an admin.'
+  if (portalType === 'distributor') return 'This account is not a distributor.'
+  return 'This account is not a vendor.'
 }
 
 function PortalLogin({
@@ -107,7 +124,7 @@ function PortalLogin({
   onApply,
   onOpenLegal,
 }: {
-  portalType: 'vendor' | 'admin'
+  portalType: 'vendor' | 'distributor' | 'admin'
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onApply: () => void
@@ -132,14 +149,10 @@ function PortalLogin({
         clearSession()
         const res = await tapstackApi.portalLogin(email.trim(), password, portalType)
         if (res.user.role !== portalType) {
-          throw new ApiError(
-            portalType === 'admin' ? 'This account is not an admin.' : 'This account is not a vendor.',
-            403,
-            'tapstack_role_mismatch',
-          )
+          throw new ApiError(portalRoleError(portalType), 403, 'tapstack_role_mismatch')
         }
         applyAuthSession(res.token, res.user)
-        window.location.replace(portalType === 'admin' ? '/admin' : '/vendor')
+        window.location.replace(portalHomePath(portalType))
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Login failed.')
       } finally {
@@ -156,6 +169,17 @@ function PortalLogin({
         phone: '+15558124200',
       })
       window.location.replace('/vendor')
+      return
+    }
+
+    if (portalType === 'distributor') {
+      setDemoSession('distributor', {
+        displayName: 'Pacific Gaming',
+        email: 'distributor@tapstack.demo',
+        username: '@pacificgaming',
+        phone: '+17025550198',
+      })
+      window.location.replace('/distributor')
       return
     }
 
@@ -370,7 +394,7 @@ export default function LoginPage({
   onApply,
   onOpenLegal,
 }: LoginPageProps) {
-  if (userType === 'vendor' || userType === 'admin') {
+  if (userType === 'vendor' || userType === 'distributor' || userType === 'admin') {
     return (
       <PortalLogin
         key={userType}
