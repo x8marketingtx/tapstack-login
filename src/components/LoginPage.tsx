@@ -90,18 +90,15 @@ function RoleDropdown({
   )
 }
 
-const PORTAL_COPY: Record<'vendor' | 'distributor' | 'admin', { subtitle: string; demoEmail: string }> = {
+const PORTAL_COPY: Record<'vendor' | 'distributor' | 'admin', { subtitle: string }> = {
   vendor: {
     subtitle: 'Sign in to your vendor console',
-    demoEmail: 'vendor@tapstack.demo',
   },
   distributor: {
     subtitle: 'Sign in to your distributor console',
-    demoEmail: 'distributor@tapstack.demo',
   },
   admin: {
     subtitle: 'Sign in to your admin console',
-    demoEmail: 'admin@tapstack.demo',
   },
 }
 
@@ -131,8 +128,8 @@ function PortalLogin({
   onOpenLegal: (doc: LegalDoc) => void
 }) {
   const copy = PORTAL_COPY[portalType]
-  const [email, setEmail] = useState(isApiConfigured() ? copy.demoEmail : '')
-  const [password, setPassword] = useState(isApiConfigured() ? 'password' : '')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
