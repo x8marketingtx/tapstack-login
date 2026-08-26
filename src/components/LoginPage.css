@@ -73,18 +73,6 @@
   overflow: hidden;
 }
 
-.webview-badge {
-  display: inline-block;
-  margin-bottom: 36px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: #4a4f57;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
 .brand {
   display: flex;
   flex-direction: column;
@@ -470,10 +458,6 @@
     height: 100%;
   }
 
-  .login-shell .webview-badge {
-    display: none;
-  }
-
   .login-shell .brand {
     flex: 1.05;
     margin: 0;
@@ -662,10 +646,6 @@
   .screen--dashboard,
   .screen--apply {
     padding: 0;
-  }
-
-  .webview-badge {
-    margin-bottom: 20px;
   }
 
   .brand {

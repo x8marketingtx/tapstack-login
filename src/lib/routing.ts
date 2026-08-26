@@ -15,7 +15,7 @@ export type RouteState =
   | { portal: 'signup' }
   | { portal: 'apply' }
   | { portal: 'join'; slug: string }
-  | { portal: 'terms' | 'privacy' | 'returns' }
+  | { portal: 'terms' | 'privacy' | 'returns'; section?: string }
   | { portal: 'customer'; tab: CustomerTab; vendorId?: string; profile?: boolean }
   | { portal: 'vendor'; tab: VendorTab; profile?: boolean }
   | { portal: 'admin'; tab: AdminTab }
@@ -75,9 +75,13 @@ export function parseLocation(pathname = window.location.pathname, hash = window
   const parts = path.split('/').filter(Boolean)
   const root = parts[0] || ''
 
-  if (root === 'terms') return { portal: 'terms' }
-  if (root === 'privacy') return { portal: 'privacy' }
-  if (root === 'returns' || root === 'return-policy') return { portal: 'returns' }
+  if (root === 'terms' || root === 'privacy' || root === 'returns' || root === 'return-policy') {
+    const portal = root === 'return-policy' ? 'returns' : root
+    const section = parts[1] ? decodeURIComponent(parts[1]) : undefined
+    return section
+      ? { portal: portal as 'terms' | 'privacy' | 'returns', section }
+      : { portal: portal as 'terms' | 'privacy' | 'returns' }
+  }
   if (root === 'signup' || root === 'player-signup') return { portal: 'signup' }
   if (root === 'apply') return { portal: 'apply' }
   if (root === 'join' && parts[1]) {
@@ -136,7 +140,9 @@ export function pathForRoute(route: RouteState): string {
     case 'terms':
     case 'privacy':
     case 'returns':
-      return `/${route.portal}`
+      return route.section
+        ? `/${route.portal}/${encodeURIComponent(route.section)}`
+        : `/${route.portal}`
     case 'customer': {
       if (route.profile) return '/customer/profile'
       if (route.vendorId) return `/customer/vendors/${encodeURIComponent(route.vendorId)}`

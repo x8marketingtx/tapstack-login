@@ -125,7 +125,7 @@ function PortalLogin({
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onApply: () => void
-  onOpenLegal: (doc: LegalDoc) => void
+  onOpenLegal: (doc: LegalDoc, section?: string) => void
 }) {
   const copy = PORTAL_COPY[portalType]
   const [email, setEmail] = useState('')
@@ -186,8 +186,6 @@ function PortalLogin({
 
   return (
     <div className="login-shell">
-      <span className="webview-badge">webview</span>
-
       <div className="brand">
         <div className="login-brand-stack">
           <img src={tapstackIcon} alt="" className="tapstack-icon" aria-hidden="true" />
@@ -268,7 +266,7 @@ function PlayersLogin({
   onUserTypeChange: (type: UserType) => void
   onSubmitPhone: (phone: string) => void
   onSignUp: () => void
-  onOpenLegal: (doc: LegalDoc) => void
+  onOpenLegal: (doc: LegalDoc, section?: string) => void
 }) {
   const [phone, setPhone] = useState('')
   const [error, setError] = useState('')
@@ -316,8 +314,6 @@ function PlayersLogin({
 
   return (
     <div className="login-shell">
-      <span className="webview-badge">webview</span>
-
       <div className="brand">
         <div className="login-brand-stack">
           <img src={tapstackIcon} alt="" className="tapstack-icon" aria-hidden="true" />
@@ -380,7 +376,7 @@ type LoginPageProps = {
   onAdminLogin: () => void
   onSignUp: () => void
   onApply: () => void
-  onOpenLegal: (doc: LegalDoc) => void
+  onOpenLegal: (doc: LegalDoc, section?: string) => void
 }
 
 export default function LoginPage({

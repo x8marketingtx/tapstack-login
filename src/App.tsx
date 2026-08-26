@@ -110,6 +110,12 @@ function App() {
     migrateLegacyHash()
     return resolveView(getViewFromLocation(), getSessionRole())
   })
+  const [legalSection, setLegalSection] = useState<string | undefined>(() => {
+    const route = parseLocation()
+    return route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns'
+      ? route.section
+      : undefined
+  })
   const [userType, setUserType] = useState<UserType>('players')
   const [phone, setPhone] = useState('')
 
@@ -161,12 +167,14 @@ function App() {
     setView('login')
   }, [])
 
-  function goToLegal(doc: LegalDoc) {
-    navigate({ portal: doc })
+  function goToLegal(doc: LegalDoc, section?: string) {
+    setLegalSection(section)
+    navigate(section ? { portal: doc, section } : { portal: doc })
     setView(doc)
   }
 
   function backFromLegal() {
+    setLegalSection(undefined)
     navigate({ portal: 'login' }, 'replace')
     setView('login')
   }
@@ -197,15 +205,21 @@ function App() {
     function syncFromLocation() {
       const role = getSessionRole()
       setSessionRole(role)
-      const requested = getViewFromLocation()
+      const route = parseLocation()
+      const requested = viewFromRoute(route)
       const resolved = resolveView(requested, role)
       setView(resolved)
+      if (route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns') {
+        setLegalSection(route.section)
+      } else {
+        setLegalSection(undefined)
+      }
 
       // If auth bounced them (e.g. /vendor while logged in as player), fix the URL.
       if (resolved !== requested) {
         replaceUrl(routeForView(resolved))
       } else {
-        applyDocumentTitle(parseLocation())
+        applyDocumentTitle(route)
       }
     }
 
@@ -347,7 +361,12 @@ function App() {
           {view === 'apply' && <ApplyPage onBack={goToLogin} />}
 
           {isLegalView(view) && (
-            <LegalPage doc={view} onBack={backFromLegal} onOpenDoc={goToLegal} />
+            <LegalPage
+              doc={view}
+              section={legalSection}
+              onBack={backFromLegal}
+              onOpenDoc={goToLegal}
+            />
           )}
         </div>
       </div>
