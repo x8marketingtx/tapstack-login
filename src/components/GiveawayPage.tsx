@@ -153,7 +153,7 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     deadlineLabel: deadline.label,
     howItWorks: [
       `Watch up to ${ADS_PER_DAY} videos a day — each completed video fills 1 chip.`,
-      `${CHIPS_PER_TICKET} chips = 1 giveaway ticket with a random entry number.`,
+      `${CHIPS_PER_TICKET} chips = 1 TapStack Points ticket with a random entry number.`,
       `Purchases also earn tickets by your ${rate.label} tier: $${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}.`,
       'Purchases of $25+ also grant 1 bonus chip.',
     ],
@@ -430,10 +430,10 @@ export default function GiveawayPage() {
                 />
               </svg>
             </span>
-            Tickets
+            TapStack Entry
           </h1>
           <p className="giveaway-subtitle">
-            Collect chips · 6 chips = 1 giveaway entry · {state.tierLabel} tier
+            Collect chips · 6 chips = 1 TapStack Points entry · {state.tierLabel} tier
           </p>
         </div>
         <div className="giveaway-tickets-pill">
@@ -697,7 +697,7 @@ export default function GiveawayPage() {
               >
                 <span className="ticket-card-stub" aria-hidden="true" />
                 <span className="ticket-card-body">
-                  <span className="ticket-card-label">Giveaway entry</span>
+                  <span className="ticket-card-label">TapStack Points entry</span>
                   <span className="ticket-card-masked">••••••</span>
                   <span className="ticket-card-source">{sourceLabel(ticket.source)}</span>
                 </span>
