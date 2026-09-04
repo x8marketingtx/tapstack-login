@@ -142,12 +142,33 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
     state.identityVerified &&
     state.locationRequired &&
     state.locationStatus !== 'passed'
+  const identityDone = state.identityVerified
+  const locationDone = identityDone && (!state.locationRequired || state.locationStatus === 'passed')
+  const spendDone = state.canSpend
+  const identityCurrent = !identityDone && state.status !== 'block'
+  const locationCurrent = identityDone && !locationDone
+  const spendCurrent = locationDone && !spendDone
   const identityAction =
     state.status === 'pending' && state.verificationLink
       ? 'Continue ID scan'
       : state.status === 'error' || Boolean(state.verificationLink)
         ? 'Try again'
         : 'Begin verification'
+  const heroTitle = state.canSpend && state.required === false
+    ? 'Verification not required'
+    : state.canSpend
+      ? 'You are verified'
+      : locationNeeded
+        ? 'Confirm your location'
+        : state.status === 'manual_review'
+          ? 'Documents under review'
+          : state.status === 'block'
+            ? 'Account blocked'
+            : state.status === 'pending'
+              ? 'Finish your ID scan'
+              : state.status === 'error'
+                ? 'Try verification again'
+                : 'Verify your identity'
 
   return (
     <div className="verify-page">
@@ -167,38 +188,48 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
         <span className="verify-spacer" aria-hidden="true" />
       </header>
 
+      {state.required !== false ? (
+        <ol className="verify-progress" aria-label="Verification steps">
+          <li className={identityDone ? 'is-done' : identityCurrent ? 'is-current' : ''}>
+            <span>{identityDone ? '✓' : '1'}</span>
+            Identity
+          </li>
+          <li className={locationDone ? 'is-done' : locationCurrent ? 'is-current' : ''}>
+            <span>{locationDone ? '✓' : '2'}</span>
+            Location
+          </li>
+          <li className={spendDone ? 'is-done' : spendCurrent ? 'is-current' : ''}>
+            <span>{spendDone ? '✓' : '3'}</span>
+            Unlocked
+          </li>
+        </ol>
+      ) : null}
+
       {loading ? <p className="verify-loading">Checking verification…</p> : null}
 
       <section className={`verify-hero verify-hero--${tone}`}>
-        <div className={`verify-badge verify-badge--${tone}`}>{statusLabel(state.status)}</div>
-        <h2 className="verify-hero-title">
-          {state.canSpend && state.required === false
-            ? 'Verification not required'
-            : state.canSpend
-            ? 'You are verified'
-            : locationNeeded
-              ? 'Confirm your location'
-              : state.status === 'manual_review'
-                ? 'Under review'
-                : state.status === 'block'
-                  ? 'Account blocked'
-                  : 'Verify to play with money'}
-        </h2>
-        <p className="verify-hero-copy">
-          {state.message ||
-            'Sweepstakes rules require identity, age, and location checks before top-up, load, or redeem.'}
-        </p>
+        <div className="verify-hero-icon" aria-hidden="true">
+          <HeroIcon tone={tone} />
+        </div>
+        <div className="verify-hero-body">
+          <div className={`verify-badge verify-badge--${tone}`}>{statusLabel(state.status)}</div>
+          <h2 className="verify-hero-title">{heroTitle}</h2>
+          <p className="verify-hero-copy">
+            {state.message ||
+              'Sweepstakes rules require identity, age, and location checks before top-up, load, or redeem.'}
+          </p>
+        </div>
       </section>
 
       {error ? <p className="verify-error">{error}</p> : null}
 
       {!loading && state.pluginReady && state.required === false ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">Not required for this account</h3>
-          <p className="verify-card-copy">
-            Identity verification is turned on for other TapStack roles, but not yours. You can keep using money
-            actions without a KYC scan.
-          </p>
+          <CardHead
+            title="Not required for this account"
+            sub="Your role can use money actions without a KYC scan."
+            tone="ok"
+          />
           <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
             Back
           </button>
@@ -207,10 +238,12 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
 
       {!loading && !state.pluginReady ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">Not enabled yet</h3>
-          <p className="verify-card-copy">
-            Identity verification is not connected on this server. You can keep using the app until it is turned on.
-          </p>
+          <CardHead
+            title="Not enabled yet"
+            sub="Identity verification is not connected on this server yet."
+            tone="wait"
+          />
+          <p className="verify-card-copy">You can keep using the app until it is turned on.</p>
           <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
             Back
           </button>
@@ -224,11 +257,21 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
       state.status !== 'block' &&
       state.status !== 'manual_review' ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">Government ID</h3>
+          <CardHead
+            title="Government ID"
+            sub="Secure scan · about 2 minutes"
+            tone="wait"
+          />
           <p className="verify-card-copy">
             You will be sent to a secure scan page. Have your ID ready
             {state.selfieRequired ? ' and be prepared to take a live selfie' : ''}. You will return here automatically.
           </p>
+
+          <ul className="verify-checklist">
+            <li>Government photo ID</li>
+            {state.selfieRequired ? <li>Live selfie when prompted</li> : null}
+            <li>Return here when the scan finishes</li>
+          </ul>
 
           {state.documentTypes.length > 1 ? (
             <div className="verify-docs" role="group" aria-label="Document type">
@@ -273,19 +316,27 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
 
       {!loading && state.required !== false && state.status === 'manual_review' ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">We are reviewing your documents</h3>
+          <CardHead
+            title="We are reviewing your documents"
+            sub="This usually takes 24–48 hours."
+            tone="wait"
+          />
           <p className="verify-card-copy">
-            This usually takes 24–48 hours. You will be able to top up, load, and redeem once it is approved.
+            You will be able to top up, load, and redeem once it is approved.
           </p>
           <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
-            Back to games
+            Back
           </button>
         </section>
       ) : null}
 
       {!loading && state.required !== false && state.status === 'block' ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">This account cannot be verified</h3>
+          <CardHead
+            title="This account cannot be verified"
+            sub="Contact support if this looks wrong."
+            tone="bad"
+          />
           <p className="verify-card-copy">
             {state.blockedReason === 'duplicate_license'
               ? 'An account already exists with this ID. Sign in to that account, or contact support if this is a mistake.'
@@ -301,7 +352,11 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
 
       {!loading && locationNeeded ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">Location check</h3>
+          <CardHead
+            title="Location check"
+            sub="Confirms you are in an allowed area."
+            tone="wait"
+          />
           <p className="verify-card-copy">
             {state.locationStatus === 'stale'
               ? 'Your network changed since the last check. Confirm you are still in an allowed location.'
@@ -330,27 +385,86 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
 
       {!loading && state.canSpend && state.required !== false ? (
         <section className="verify-card">
-          <h3 className="verify-card-title">Ready to play</h3>
-          <p className="verify-card-copy">Top-up, load, and redeem are unlocked on this account.</p>
+          <CardHead
+            title="Ready to play"
+            sub="Top-up, load, and redeem are unlocked."
+            tone="ok"
+          />
           <button type="button" className="verify-btn verify-btn--primary" onClick={handleContinue}>
             Continue
           </button>
         </section>
       ) : null}
+    </div>
+  )
+}
 
-      {state.required !== false ? (
-      <ul className="verify-steps">
-        <li className={state.identityVerified ? 'is-done' : ''}>
-          <span>1</span> Identity &amp; age
-        </li>
-        <li className={!state.locationRequired || state.locationStatus === 'passed' ? 'is-done' : ''}>
-          <span>2</span> Location
-        </li>
-        <li className={state.canSpend ? 'is-done' : ''}>
-          <span>3</span> Load &amp; redeem
-        </li>
-      </ul>
-      ) : null}
+function HeroIcon({ tone }: { tone: 'ok' | 'wait' | 'warn' | 'bad' }) {
+  if (tone === 'bad') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M12 9v4.5M12 16.5h.01M10.3 4.7 2.8 17.2A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.8L13.7 4.7a2 2 0 0 0-3.4 0Z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
+  if (tone === 'ok') {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M12 3.5 5.5 6.2v5.3c0 4 2.7 7.6 6.5 8.8 3.8-1.2 6.5-4.8 6.5-8.8V6.2L12 3.5Z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M9.5 12.2 11.2 14l3.4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="5" y="3.5" width="14" height="17" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M9 8.5h6M9 12h6M9 15.5h3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function CardHead({
+  title,
+  sub,
+  tone,
+}: {
+  title: string
+  sub: string
+  tone: 'ok' | 'wait' | 'bad'
+}) {
+  return (
+    <div className={`verify-card-head verify-card-head--${tone}`}>
+      <span className="verify-card-icon" aria-hidden="true">
+        {tone === 'ok' ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M20 7.5 10.2 17 4 11.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : tone === 'bad' ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 8v5M12 16.5h.01M12 4 3.5 19h17L12 4Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="4" width="14" height="16" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M9 9h6M9 12.5h6M9 16h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        )}
+      </span>
+      <div>
+        <h3 className="verify-card-title">{title}</h3>
+        <p className="verify-card-sub">{sub}</p>
+      </div>
     </div>
   )
 }
