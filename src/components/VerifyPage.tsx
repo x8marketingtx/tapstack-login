@@ -7,6 +7,7 @@ import {
   isApiConfigured,
   tapstackApi,
   type TapstackUser,
+  type CustomerVerifyState,
 } from '../api/client'
 import {
   consumeVerifyReturn,
@@ -32,7 +33,7 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
   const [error, setError] = useState('')
   const [documentType, setDocumentType] = useState('DriversLicense')
 
-  function applyState(next: VerificationState) {
+  function applyState(next: CustomerVerifyState | VerificationState) {
     const mapped = emptyVerification({
       ...next,
       required: next.required !== false,
