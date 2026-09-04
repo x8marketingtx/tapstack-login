@@ -98,6 +98,12 @@
   box-shadow: 0 8px 20px rgba(59, 130, 246, 0.28);
 }
 
+.profile-hero-avatar--distributor {
+  background: #bbf7d0;
+  color: #166534;
+  box-shadow: 0 8px 20px rgba(22, 101, 52, 0.16);
+}
+
 .profile-hero-name {
   margin: 0 0 4px;
   font-size: 22px;
@@ -598,6 +604,23 @@
   width: 100%;
   height: 48px;
   margin-top: 4px;
+}
+
+.profile-verify-pill {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.profile-verify-pill--ok {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .profile-logout-btn {

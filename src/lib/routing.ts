@@ -6,8 +6,7 @@ export type DashboardPortal = 'customer' | 'vendor' | 'admin' | 'distributor'
 export type CustomerTab = 'games' | 'earn' | 'giveaway' | 'promos' | 'account'
 export type VendorTab = 'home' | 'orders' | 'analytics' | 'promos' | 'settings'
 export type AdminTab = 'overview' | 'vendors' | 'distributors' | 'signups' | 'finance' | 'settings'
-/** Distributors reuse the vendor portal tabs/UI. */
-export type DistributorTab = VendorTab
+export type DistributorTab = 'home' | 'vendors' | 'analytics' | 'invoices' | 'settings'
 
 export type RouteState =
   | { portal: 'login' }
@@ -16,15 +15,15 @@ export type RouteState =
   | { portal: 'apply' }
   | { portal: 'join'; slug: string }
   | { portal: 'terms' | 'privacy' | 'returns'; section?: string }
-  | { portal: 'customer'; tab: CustomerTab; vendorId?: string; profile?: boolean }
-  | { portal: 'vendor'; tab: VendorTab; profile?: boolean }
+  | { portal: 'customer'; tab: CustomerTab; vendorId?: string; profile?: boolean; verify?: boolean }
+  | { portal: 'vendor'; tab: VendorTab; profile?: boolean; verify?: boolean }
   | { portal: 'admin'; tab: AdminTab }
-  | { portal: 'distributor'; tab: DistributorTab; profile?: boolean }
+  | { portal: 'distributor'; tab: DistributorTab; profile?: boolean; verify?: boolean }
 
 const CUSTOMER_TABS = new Set<CustomerTab>(['games', 'earn', 'giveaway', 'promos', 'account'])
 const VENDOR_TABS = new Set<VendorTab>(['home', 'orders', 'analytics', 'promos', 'settings'])
 const ADMIN_TABS = new Set<AdminTab>(['overview', 'vendors', 'distributors', 'signups', 'finance', 'settings'])
-const DISTRIBUTOR_TABS = VENDOR_TABS
+const DISTRIBUTOR_TABS = new Set<DistributorTab>(['home', 'vendors', 'analytics', 'invoices', 'settings'])
 
 function cleanPath(pathname: string): string {
   const path = pathname.replace(/\/+$/, '') || '/'
@@ -91,6 +90,7 @@ export function parseLocation(pathname = window.location.pathname, hash = window
 
   if (root === 'customer') {
     if (parts[1] === 'profile') return { portal: 'customer', tab: 'games', profile: true }
+    if (parts[1] === 'verify') return { portal: 'customer', tab: 'games', verify: true }
     if (parts[1] === 'vendors' && parts[2]) {
       return { portal: 'customer', tab: 'games', vendorId: decodeURIComponent(parts[2]) }
     }
@@ -101,6 +101,7 @@ export function parseLocation(pathname = window.location.pathname, hash = window
 
   if (root === 'vendor') {
     if (parts[1] === 'profile') return { portal: 'vendor', tab: 'home', profile: true }
+    if (parts[1] === 'verify') return { portal: 'vendor', tab: 'home', verify: true }
     const tab = (parts[1] || 'home') as VendorTab
     return { portal: 'vendor', tab: VENDOR_TABS.has(tab) ? tab : 'home' }
   }
@@ -112,11 +113,12 @@ export function parseLocation(pathname = window.location.pathname, hash = window
 
   if (root === 'distributor') {
     if (parts[1] === 'profile') return { portal: 'distributor', tab: 'home', profile: true }
+    if (parts[1] === 'verify') return { portal: 'distributor', tab: 'home', verify: true }
     const raw = parts[1] || 'home'
-    // Legacy distributor-only tabs → vendor equivalents
+    // Legacy vendor-shell tabs → distributor equivalents
     const legacy: Record<string, DistributorTab> = {
-      vendors: 'orders',
-      invoices: 'promos',
+      orders: 'vendors',
+      promos: 'invoices',
     }
     const tab = (legacy[raw] || raw) as DistributorTab
     return { portal: 'distributor', tab: DISTRIBUTOR_TABS.has(tab) ? tab : 'home' }
@@ -145,12 +147,14 @@ export function pathForRoute(route: RouteState): string {
         : `/${route.portal}`
     case 'customer': {
       if (route.profile) return '/customer/profile'
+      if (route.verify) return '/customer/verify'
       if (route.vendorId) return `/customer/vendors/${encodeURIComponent(route.vendorId)}`
       if (route.tab === 'games') return '/customer'
       return `/customer/${route.tab}`
     }
     case 'vendor': {
       if (route.profile) return '/vendor/profile'
+      if (route.verify) return '/vendor/verify'
       if (route.tab === 'home') return '/vendor'
       return `/vendor/${route.tab}`
     }
@@ -160,6 +164,7 @@ export function pathForRoute(route: RouteState): string {
     }
     case 'distributor': {
       if (route.profile) return '/distributor/profile'
+      if (route.verify) return '/distributor/verify'
       if (route.tab === 'home') return '/distributor'
       return `/distributor/${route.tab}`
     }
@@ -195,6 +200,7 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
       return `Return Policy · ${TITLE_BRAND}`
     case 'customer': {
       if (route.profile) return `Profile · Player · ${TITLE_BRAND}`
+      if (route.verify) return `Verify identity · Player · ${TITLE_BRAND}`
       if (route.vendorId) {
         const name = opts.vendorName?.trim()
         return name ? `${name} · Player · ${TITLE_BRAND}` : `Vendor · Player · ${TITLE_BRAND}`
@@ -216,6 +222,7 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
     }
     case 'vendor': {
       if (route.profile) return `Profile · Vendor · ${TITLE_BRAND}`
+      if (route.verify) return `Verify identity · Vendor · ${TITLE_BRAND}`
       switch (route.tab) {
         case 'home':
           return `Home · Vendor · ${TITLE_BRAND}`
@@ -251,15 +258,16 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
     }
     case 'distributor': {
       if (route.profile) return `Profile · Distributor · ${TITLE_BRAND}`
+      if (route.verify) return `Verify identity · Distributor · ${TITLE_BRAND}`
       switch (route.tab) {
         case 'home':
           return `Home · Distributor · ${TITLE_BRAND}`
-        case 'orders':
-          return `Orders · Distributor · ${TITLE_BRAND}`
+        case 'vendors':
+          return `Vendors · Distributor · ${TITLE_BRAND}`
         case 'analytics':
           return `Analytics · Distributor · ${TITLE_BRAND}`
-        case 'promos':
-          return `Promos · Distributor · ${TITLE_BRAND}`
+        case 'invoices':
+          return `Invoices · Distributor · ${TITLE_BRAND}`
         case 'settings':
           return `Settings · Distributor · ${TITLE_BRAND}`
         default:

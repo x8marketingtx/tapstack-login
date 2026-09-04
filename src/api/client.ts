@@ -792,6 +792,21 @@ export const tapstackApi = {
       body: profile,
     }),
 
+  customerVerifyStatus: () =>
+    apiRequest<CustomerVerifyState>('/customer/verify', { method: 'POST', body: {} }),
+
+  customerVerifyStart: (input: { documentType?: string; regenerate?: boolean } = {}) =>
+    apiRequest<CustomerVerifyState>('/customer/verify/start', {
+      method: 'POST',
+      body: input,
+    }),
+
+  customerVerifyLocation: () =>
+    apiRequest<CustomerVerifyState>('/customer/verify/location', {
+      method: 'POST',
+      body: {},
+    }),
+
   changePassword: (currentPassword: string, newPassword: string) =>
     apiRequest<{ ok: boolean; token: string; user: TapstackUser }>('/auth/password', {
       method: 'POST',
@@ -1595,8 +1610,19 @@ export const tapstackApi = {
       added: number
       vendors: ApiVendor[]
       linkedCount?: number
+      playerNoop?: boolean
       message?: string
     }>(`/customer/join/${encodeURIComponent(slug)}`, { method: 'POST' }),
+  vendorJoinDistributor: (slug: string) =>
+    apiRequest<{
+      ok: boolean
+      slug: string
+      distributorName: string
+      distributorId: number
+      vendorId: number
+      alreadyJoined?: boolean
+      message?: string
+    }>(`/vendor/join/${encodeURIComponent(slug)}`, { method: 'POST' }),
 
   wertConfig: () => apiRequest('/payments/wert/config', { auth: false }),
   wertSession: (amount: number, ownerType?: string) =>
@@ -1646,6 +1672,16 @@ export type TapstackUser = {
   tier?: TicketTier
   vendorId?: number | null
   distributorId?: number | null
+  verification?: {
+    status: 'disabled' | 'unverified' | 'pending' | 'verified' | 'manual_review' | 'error' | 'block'
+    identityVerified: boolean
+    locationRequired: boolean
+    locationStatus: 'unknown' | 'pending' | 'passed' | 'failed' | 'stale'
+    canSpend: boolean
+    pluginReady: boolean
+    required?: boolean
+    message?: string
+  }
 }
 
 export type ApiVendor = {
@@ -1680,6 +1716,28 @@ export type CustomerDashboard = {
   recentTx?: WalletTxn[]
   level: number
   levelProgressPct: number
+}
+
+export type CustomerVerifyState = {
+  status: NonNullable<TapstackUser['verification']>['status']
+  identityVerified: boolean
+  locationRequired: boolean
+  locationStatus: NonNullable<TapstackUser['verification']>['locationStatus']
+  locationLink?: string | null
+  canSpend: boolean
+  pluginReady: boolean
+  blockedReason?: string | null
+  geoBlocked?: boolean
+  geoReason?: string | null
+  verificationLink?: string | null
+  documentTypes: Array<{ id: string; label: string }>
+  defaultDocumentType: string
+  selfieRequired: boolean
+  attemptsLeft?: number
+  canRetry: boolean
+  rateLimitReason?: string
+  required?: boolean
+  message: string
 }
 
 export function isApiConfigured(): boolean {

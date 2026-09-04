@@ -332,6 +332,21 @@
   text-decoration: underline;
 }
 
+.login-sms-consent {
+  margin: 14px 0 0;
+  padding: 0 4px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.login-sms-consent .footer-link {
+  font-size: inherit;
+  font-weight: 600;
+  vertical-align: baseline;
+}
+
 .login-beta-notice {
   margin: 16px 0 0;
   padding: 0 8px;

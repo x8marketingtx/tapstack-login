@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ApiError, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
+import { ApiError, getSessionUser, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
+import { isVerifyApiError, needsVerification, verificationFromUser } from '../lib/verify'
 import type { PlayerProfile } from './ProfilePage'
 import './AccountPage.css'
 
@@ -62,6 +63,7 @@ export default function AccountPage({
   transactions,
   onOpenProfile,
   onWalletUpdate,
+  onVerifyRequired,
 }: {
   cashBalance?: string
   pointsBalance?: number
@@ -70,6 +72,7 @@ export default function AccountPage({
   transactions?: WalletTxn[]
   onOpenProfile?: () => void
   onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
+  onVerifyRequired?: () => void
 }) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d')
   const [ledgerRows, setLedgerRows] = useState<TxRow[]>(() =>
@@ -129,6 +132,11 @@ export default function AccountPage({
       setRedeemError('Not enough points.')
       return
     }
+    if (needsVerification(verificationFromUser(getSessionUser()))) {
+      onVerifyRequired?.()
+      setRedeemError('Verify your identity to redeem points.')
+      return
+    }
 
     setRedeemError('')
     setRedeemMsg('')
@@ -162,7 +170,12 @@ export default function AccountPage({
         setSelectedQuickPoints(null)
       }
     } catch (err) {
-      setRedeemError(err instanceof ApiError ? err.message : 'Redeem failed')
+      if (isVerifyApiError(err)) {
+        onVerifyRequired?.()
+        setRedeemError(err instanceof ApiError ? err.message : 'Verify your identity to redeem points.')
+      } else {
+        setRedeemError(err instanceof ApiError ? err.message : 'Redeem failed')
+      }
     } finally {
       setRedeeming(false)
     }

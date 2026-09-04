@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError } from '../api/client'
+import { isVerifyApiError } from '../lib/verify'
 import { openWertTopUp, type TopUpOwnerType } from '../api/wert'
 import './TopUpModal.css'
 
@@ -10,6 +11,7 @@ type TopUpModalProps = {
   title?: string
   presets?: number[]
   onSuccess?: (wallet?: { balance: number; points: number; currency: string }) => void
+  onVerifyRequired?: () => void
 }
 
 export default function TopUpModal({
@@ -19,6 +21,7 @@ export default function TopUpModal({
   title = 'Top up wallet',
   presets = [25, 50, 100, 250],
   onSuccess,
+  onVerifyRequired,
 }: TopUpModalProps) {
   const [amount, setAmount] = useState(String(presets[1] ?? 50))
   const [loading, setLoading] = useState(false)
@@ -62,6 +65,9 @@ export default function TopUpModal({
         },
       })
     } catch (err) {
+      if (isVerifyApiError(err)) {
+        onVerifyRequired?.()
+      }
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not start payment.')
       setLoading(false)
       setStatus('')

@@ -80,6 +80,15 @@ function mintDemoTicket(source: string): GiveawayTicket {
   }
 }
 
+/** Normalize legacy cash prize labels to points copy. */
+function normalizePrize(prize: string | undefined): string {
+  const raw = (prize || '').trim()
+  if (!raw || /\$?\s*25[,.]?000/i.test(raw)) {
+    return '25,000 points'
+  }
+  return raw
+}
+
 function applyChips(store: DemoStore, count: number, source: string) {
   let chips = store.chips + count
   const newTickets: GiveawayTicket[] = []
@@ -146,14 +155,14 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     purchaseSpendTowardNext: store.purchaseSpend,
     purchaseSpendNeeded: Math.max(0, rate.dollars - store.purchaseSpend),
     title: 'MONTHLY MEGA DRAW',
-    prize: '$25,000',
+    prize: '25,000 points',
     drawDate: formatDrawDate(drawAtDate),
     drawAt,
     deadlineDays: deadline.days,
     deadlineLabel: deadline.label,
     howItWorks: [
       `Watch up to ${ADS_PER_DAY} videos a day — each completed video fills 1 chip.`,
-      `${CHIPS_PER_TICKET} chips = 1 TapStack Points ticket with a random entry number.`,
+      `${CHIPS_PER_TICKET} chips = 1 TapStack Points entry with a random entry number.`,
       `Purchases also earn tickets by your ${rate.label} tier: $${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}.`,
       'Purchases of $25+ also grant 1 bonus chip.',
     ],
@@ -237,7 +246,14 @@ export default function GiveawayPage() {
     void tapstackApi
       .customerGiveaway()
       .then((res) => {
-        if (!cancelled) setState(res)
+        if (cancelled) return
+        setState({
+          ...res,
+          prize: normalizePrize(res.prize),
+          howItWorks: (res.howItWorks || []).map((line) =>
+            line.replace(/giveaway ticket/gi, 'TapStack Points entry'),
+          ),
+        })
       })
       .catch((err) => {
         if (!cancelled) {
@@ -547,8 +563,8 @@ export default function GiveawayPage() {
           {state.chipsNeeded === 0
             ? 'Ready to convert into a ticket…'
             : state.chipsNeeded === 1
-              ? '1 more chip needed for your next Giveaway Ticket Entry.'
-              : `${state.chipsNeeded} more chips needed for your next Giveaway Ticket Entry.`}
+              ? '1 more chip needed for your next TapStack Entry.'
+              : `${state.chipsNeeded} more chips needed for your next TapStack Entry.`}
         </p>
 
         <div className="chips-actions">

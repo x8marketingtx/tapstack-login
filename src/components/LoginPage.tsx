@@ -349,6 +349,21 @@ function PlayersLogin({
           <button type="submit" className="login-button" disabled={!canSubmit}>
             {loading ? 'Sending…' : 'Log In'}
           </button>
+
+          <p className="login-sms-consent" role="note">
+            By providing your phone number, you agree to receive automated security verification and
+            one-time password (OTP) text messages from TapStack Inc to verify your identity. Message
+            and data rates may apply. Message frequency depends on user login activity. You can reply
+            STOP at any time to opt-out of these security texts. View our{' '}
+            <button type="button" className="footer-link" onClick={() => onOpenLegal('privacy')}>
+              Privacy Policy
+            </button>{' '}
+            and{' '}
+            <button type="button" className="footer-link" onClick={() => onOpenLegal('terms')}>
+              Terms of Service
+            </button>
+            .
+          </p>
         </form>
 
         <p className="footer">

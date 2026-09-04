@@ -12,6 +12,12 @@ import {
   type TicketTier,
 } from '../api/client'
 import { normalizeTicketTier, tierBadgeClass, tierLabel } from '../data/tiers'
+import {
+  needsVerification,
+  statusLabel,
+  verificationApplies,
+  type VerificationState,
+} from '../lib/verify'
 import './ProfilePage.css'
 
 export type PlayerProfile = {
@@ -111,7 +117,9 @@ type ProfilePageProps = {
   expectedRole?: SessionRole
   onRoleMismatch?: (role: SessionRole) => void
   /** Match portal header avatar styling (e.g. vendor purple). */
-  avatarTone?: 'player' | 'vendor' | 'admin'
+  avatarTone?: 'player' | 'vendor' | 'admin' | 'distributor'
+  onOpenVerify?: () => void
+  verification?: VerificationState
 }
 
 export default function ProfilePage({
@@ -123,6 +131,8 @@ export default function ProfilePage({
   expectedRole,
   onRoleMismatch,
   avatarTone = 'player',
+  onOpenVerify,
+  verification,
 }: ProfilePageProps) {
   const [loggingOut, setLoggingOut] = useState(false)
   const [loading, setLoading] = useState(isApiConfigured())
@@ -511,6 +521,33 @@ export default function ProfilePage({
           </ul>
         </section>
       )}
+
+      {verification && verificationApplies(verification) && onOpenVerify ? (
+        <section className="profile-card">
+          <div className="profile-card-head">
+            <div>
+              <h3 className="profile-card-title">Identity verification</h3>
+              <p className="profile-card-sub">
+                {verification.message || 'Required before top-up, load, or redeem'}
+              </p>
+            </div>
+            <span className={`profile-verify-pill profile-verify-pill--${verification.canSpend ? 'ok' : 'wait'}`}>
+              {statusLabel(verification.status)}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="profile-btn profile-btn--primary profile-btn--block"
+            onClick={onOpenVerify}
+          >
+            {verification.canSpend
+              ? 'View verification'
+              : needsVerification(verification)
+                ? 'Verify now'
+                : 'Continue verification'}
+          </button>
+        </section>
+      ) : null}
 
       {phoneStep === 'idle' ? (
         <section className="profile-secure profile-secure--phone">

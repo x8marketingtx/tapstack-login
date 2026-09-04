@@ -32,6 +32,14 @@ import ProfilePage, {
   profileFromUser,
   type PlayerProfile,
 } from './ProfilePage'
+import VerifyPage, { VerifyBanner } from './VerifyPage'
+import {
+  needsVerification,
+  rememberVerifyReturn,
+  consumeVerifyReturn,
+  verificationFromUser,
+  type VerificationState,
+} from '../lib/verify'
 import {
   applyDocumentTitle,
   matchVendorFromList,
@@ -390,6 +398,12 @@ export default function CustomerDashboard({
   const [showProfile, setShowProfile] = useState(
     () => initialRoute.portal === 'customer' && Boolean(initialRoute.profile),
   )
+  const [showVerify, setShowVerify] = useState(
+    () => initialRoute.portal === 'customer' && Boolean(initialRoute.verify),
+  )
+  const [verification, setVerification] = useState<VerificationState>(() =>
+    verificationFromUser(cachedUser),
+  )
   const [pendingVendorId, setPendingVendorId] = useState<string | null>(() =>
     initialRoute.portal === 'customer' && initialRoute.vendorId ? initialRoute.vendorId : null,
   )
@@ -408,6 +422,7 @@ export default function CustomerDashboard({
     if (route.portal !== 'customer') return
     setActiveTab(route.tab)
     setShowProfile(Boolean(route.profile))
+    setShowVerify(Boolean(route.verify))
     if (route.vendorId) {
       setPendingVendorId(route.vendorId)
     } else {
@@ -432,6 +447,10 @@ export default function CustomerDashboard({
   }, [vendors, pendingVendorId])
 
   useEffect(() => {
+    if (showVerify) {
+      applyDocumentTitle({ portal: 'customer', tab: activeTab, verify: true })
+      return
+    }
     if (showProfile) {
       applyDocumentTitle({ portal: 'customer', tab: activeTab, profile: true })
       return
@@ -444,7 +463,7 @@ export default function CustomerDashboard({
       return
     }
     applyDocumentTitle({ portal: 'customer', tab: activeTab })
-  }, [activeTab, showProfile, selectedVendor])
+  }, [activeTab, showProfile, showVerify, selectedVendor])
 
   function openVendor(vendor: Vendor) {
     setSelectedVendor(vendor)
@@ -516,6 +535,7 @@ export default function CustomerDashboard({
   function handleTabChange(tab: DashboardTab) {
     setSelectedVendor(null)
     setShowProfile(false)
+    setShowVerify(false)
     setPendingVendorId(null)
     setActiveTab(tab)
     navigate({ portal: 'customer', tab })
@@ -524,6 +544,7 @@ export default function CustomerDashboard({
   function openProfile() {
     setSelectedVendor(null)
     setPendingVendorId(null)
+    setShowVerify(false)
     setShowProfile(true)
     navigate({ portal: 'customer', tab: activeTab, profile: true })
   }
@@ -531,6 +552,42 @@ export default function CustomerDashboard({
   function closeProfile() {
     setShowProfile(false)
     navigate({ portal: 'customer', tab: activeTab })
+  }
+
+  function openVerify() {
+    rememberVerifyReturn()
+    setSelectedVendor(null)
+    setShowProfile(false)
+    setTopUpOpen(false)
+    setShowVerify(true)
+    navigate({ portal: 'customer', tab: activeTab, verify: true })
+  }
+
+  function closeVerify() {
+    setShowVerify(false)
+    const back = consumeVerifyReturn()
+    if (back) {
+      const route = parseLocation(back)
+      if (route.portal === 'customer' && route.vendorId) {
+        setPendingVendorId(route.vendorId)
+        navigate({ portal: 'customer', tab: 'games', vendorId: route.vendorId })
+        return
+      }
+      if (route.portal === 'customer' && route.profile) {
+        setShowProfile(true)
+        navigate({ portal: 'customer', tab: activeTab, profile: true })
+        return
+      }
+    }
+    navigate({ portal: 'customer', tab: activeTab })
+  }
+
+  function requireVerified(): boolean {
+    const current = verificationFromUser(getSessionUser())
+    setVerification(current)
+    if (!needsVerification(current)) return true
+    openVerify()
+    return false
   }
 
   useEffect(() => {
@@ -580,6 +637,7 @@ export default function CustomerDashboard({
           setWalletTxns(dash.recentTx)
         }
         setProfile(nextProfile)
+        setVerification(verificationFromUser(user))
 
         const saved = loadLocalVendors(userId)
         const apiVendors = (vendorRes.vendors ?? []).map(vendorFromApi)
@@ -687,6 +745,28 @@ export default function CustomerDashboard({
     }
   }
 
+  if (showVerify) {
+    return (
+      <div className="dashboard">
+        <div className="dashboard-scroll">
+          <VerifyPage
+            onBack={closeVerify}
+            onVerified={closeVerify}
+            onLogout={onLogout}
+            onUserUpdate={(user) => {
+              setVerification(verificationFromUser(user))
+              setProfile((current) =>
+                current
+                  ? profileFromUser(user, current.level, current.levelProgressPct)
+                  : profileFromUser(user),
+              )
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (selectedVendor) {
     return (
       <>
@@ -699,7 +779,13 @@ export default function CustomerDashboard({
           onTabChange={handleTabChange}
           onRemoveVendor={() => void removeVendor(selectedVendor)}
           onProfileClick={openProfile}
-          onTopUp={() => setTopUpOpen(true)}
+          onTopUp={() => {
+            if (!requireVerified()) return
+            setTopUpOpen(true)
+          }}
+          onRequireVerified={requireVerified}
+          verification={verification}
+          onOpenVerify={openVerify}
           onCashBalanceChange={(next) => {
             setCashBalance(next)
             if (shouldLoadFromApi) {
@@ -719,6 +805,7 @@ export default function CustomerDashboard({
           onClose={() => setTopUpOpen(false)}
           ownerType="player"
           title="Top up Tapstack balance"
+          onVerifyRequired={openVerify}
           onSuccess={(wallet) => {
             if (wallet) {
               setCashBalance(`$${wallet.balance.toFixed(2)}`)
@@ -758,6 +845,8 @@ export default function CustomerDashboard({
             onLogout={onLogout}
             onRoleMismatch={onRoleMismatch}
             onProfileChange={setProfile}
+            onOpenVerify={openVerify}
+            verification={verification}
           />
         ) : (
           <>
@@ -769,6 +858,8 @@ export default function CustomerDashboard({
               initials={headerProfile?.initials}
               onProfileClick={openProfile}
             />
+
+            <VerifyBanner state={verification} onVerify={openVerify} />
 
             {activeTab === 'games' && (
               <GamesHome
@@ -796,7 +887,10 @@ export default function CustomerDashboard({
 
             {activeTab === 'earn' && (
               <EarnPage
-                onTopUp={() => setTopUpOpen(true)}
+                onTopUp={() => {
+                  if (!requireVerified()) return
+                  setTopUpOpen(true)
+                }}
                 pointsBalance={pointsBalance}
                 onWalletUpdate={(wallet) => {
                   if (typeof wallet.points === 'number') setPointsBalance(wallet.points)
@@ -822,6 +916,7 @@ export default function CustomerDashboard({
                 loading={loading}
                 transactions={walletTxns}
                 onOpenProfile={openProfile}
+                onVerifyRequired={openVerify}
                 onWalletUpdate={(wallet) => {
                   if (typeof wallet.points === 'number') setPointsBalance(wallet.points)
                   if (wallet.formatted) setCashBalance(wallet.formatted)
@@ -852,13 +947,14 @@ export default function CustomerDashboard({
         )}
       </div>
 
-      {!showProfile ? <BottomNav activeTab={activeTab} onTabChange={handleTabChange} /> : null}
+      {!showProfile && !showVerify ? <BottomNav activeTab={activeTab} onTabChange={handleTabChange} /> : null}
 
       <TopUpModal
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
         ownerType="player"
         title="Top up Tapstack balance"
+        onVerifyRequired={openVerify}
         onSuccess={(wallet) => {
           if (wallet) {
             setCashBalance(`$${wallet.balance.toFixed(2)}`)

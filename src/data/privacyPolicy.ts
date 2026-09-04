@@ -99,6 +99,12 @@ export const PRIVACY_POLICY_SECTIONS: { heading: string; body: string[] }[] = [
     ],
   },
   {
+    heading: '7.1 Mobile Information Sharing',
+    body: [
+      'No mobile information or SMS opt-in data will be shared with third parties/affiliates for marketing or promotional purposes. All the above categories exclude text messaging originator opt-in data and consent; this information will not be shared with any third parties.',
+    ],
+  },
+  {
     heading: '8. Aggregated and De-Identified Data',
     body: [
       'We may create and use aggregated or de-identified data that can no longer reasonably be linked to you for any lawful purpose. We maintain such data without attempting re-identification and contractually prohibit recipients from re-identifying it.',

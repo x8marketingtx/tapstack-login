@@ -23,7 +23,7 @@ import {
   type SessionRole,
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
-import { consumePendingPlayerJoin } from './lib/affiliate'
+import { consumePendingVendorJoin } from './lib/affiliate'
 import {
   applyDocumentTitle,
   migrateLegacyHash,
@@ -122,8 +122,8 @@ function App() {
   function enterSession(role: SessionRole, nextView?: DashboardView) {
     setSessionRole(role)
     const target = nextView || homeViewForRole(role)
-    if (role === 'player') {
-      void consumePendingPlayerJoin().finally(() => {
+    if (role === 'vendor') {
+      void consumePendingVendorJoin().finally(() => {
         setView(target)
         navigate(routeForView(target), 'replace')
       })
@@ -146,9 +146,28 @@ function App() {
     setView('apply')
   }
 
-  const finishPlayerJoin = useCallback(() => {
+  const dismissJoin = useCallback(() => {
+    const role = getSessionRole()
+    if (role === 'distributor') {
+      setSessionRole(role)
+      navigate({ portal: 'distributor', tab: 'home' }, 'replace')
+      setView('distributor')
+      return
+    }
+    if (role === 'vendor') {
+      setSessionRole(role)
+      navigate({ portal: 'vendor', tab: 'home' }, 'replace')
+      setView('vendor')
+      return
+    }
     navigate({ portal: 'customer', tab: 'games' }, 'replace')
     setView('customer')
+  }, [])
+
+  const finishVendorJoined = useCallback(() => {
+    setSessionRole('vendor')
+    navigate({ portal: 'vendor', tab: 'home' }, 'replace')
+    setView('vendor')
   }, [])
 
   const finishVendorApplyJoin = useCallback(() => {
@@ -159,7 +178,7 @@ function App() {
   const joinNeedLogin = useCallback(() => {
     navigate({ portal: 'login' }, 'replace')
     setView('login')
-    setUserType('players')
+    setUserType('vendor')
   }, [])
 
   const cancelJoin = useCallback(() => {
@@ -248,9 +267,12 @@ function App() {
         if (!isMeForCurrentSession(me.user)) return
         const nextRole = applyAuthSession(token, me.user)
         setSessionRole(nextRole)
-        const resolved = resolveView(getViewFromLocation(), nextRole)
+        const current = parseLocation()
+        const resolved = resolveView(viewFromRoute(current), nextRole)
         setView(resolved)
-        replaceUrl(routeForView(resolved))
+        if (viewFromRoute(current) !== resolved) {
+          replaceUrl(routeForView(resolved))
+        }
       } catch {
         if (cancelled) return
         // Don't wipe a newer login/OTP session if this request was for an old token.
@@ -320,8 +342,9 @@ function App() {
           {view === 'join' && (
             <JoinPage
               slug={joinSlug}
-              onPlayerJoined={finishPlayerJoin}
-              onNeedLogin={joinNeedLogin}
+              onPlayerNoop={dismissJoin}
+              onNeedVendorLogin={joinNeedLogin}
+              onVendorJoined={finishVendorJoined}
               onVendorApply={finishVendorApplyJoin}
               onInvalid={cancelJoin}
             />

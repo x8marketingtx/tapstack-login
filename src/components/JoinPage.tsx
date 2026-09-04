@@ -6,20 +6,26 @@ import {
   isApiConfigured,
   tapstackApi,
 } from '../api/client'
-import { setAffiliateSlug, setPendingPlayerJoin } from '../lib/affiliate'
+import { setAffiliateSlug, setPendingVendorJoin } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
 export default function JoinPage({
   slug,
-  onPlayerJoined,
-  onNeedLogin,
+  onPlayerNoop,
+  onNeedVendorLogin,
+  onVendorJoined,
   onVendorApply,
   onInvalid,
 }: {
   slug: string
-  onPlayerJoined: () => void
-  onNeedLogin: () => void
+  /** Logged-in player: affiliate links do nothing on the player side. */
+  onPlayerNoop: () => void
+  /** Logged out: continue as vendor login / apply. */
+  onNeedVendorLogin: () => void
+  /** Logged-in vendor joined the distributor network. */
+  onVendorJoined: () => void
+  /** No vendor store yet → open apply under this affiliate. */
   onVendorApply: () => void
   onInvalid: () => void
 }) {
@@ -48,41 +54,67 @@ export default function JoinPage({
 
         const token = getToken()
         const role = getSessionRole()
-        const isPlayer = Boolean(token) && role === 'player'
 
-        if (isPlayer) {
+        // Players: nothing happens — this invite is for vendors only.
+        if (token && role === 'player') {
           setMessage(
             distributorName
-              ? `Adding ${distributorName} to your vendors…`
-              : 'Adding distributor to your vendors…',
+              ? `This invite is for vendors joining ${distributorName}. Nothing was added to your player account.`
+              : 'This invite is for vendors. Nothing was added to your player account.',
           )
-          if (isApiConfigured() && token && !token.startsWith('demo:')) {
-            await tapstackApi.joinDistributor(clean)
+          window.setTimeout(() => {
+            if (!cancelled) onPlayerNoop()
+          }, 1600)
+          return
+        }
+
+        // Logged-in vendor → attach store to distributor network.
+        if (token && role === 'vendor') {
+          setMessage(
+            distributorName
+              ? `Joining ${distributorName}'s network…`
+              : 'Joining distributor network…',
+          )
+          if (isApiConfigured() && !token.startsWith('demo:')) {
+            try {
+              await tapstackApi.vendorJoinDistributor(clean)
+            } catch (err) {
+              // No store yet → send them through apply with affiliate preserved.
+              if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+                if (cancelled) return
+                onVendorApply()
+                return
+              }
+              throw err
+            }
           }
           if (cancelled) return
-          onPlayerJoined()
+          onVendorJoined()
           return
         }
 
-        if (!token || !role) {
-          // Logged-out visitors who are players: after login, auto-link this distributor.
-          setPendingPlayerJoin(clean)
+        // Distributor opening their own (or another) link — stay in portal.
+        if (token && role === 'distributor') {
           setMessage(
             distributorName
-              ? `Sign in to add ${distributorName} to your vendors…`
-              : 'Sign in to add this distributor…',
+              ? `This is a vendor invite for ${distributorName}.`
+              : 'This is a vendor invite link.',
           )
-          if (cancelled) return
-          onNeedLogin()
+          window.setTimeout(() => {
+            if (!cancelled) onPlayerNoop()
+          }, 1400)
           return
         }
 
-        // Vendor / distributor / admin already signed in → vendor apply under this affiliate.
+        // Logged out (or admin): continue as vendor signup/login under this affiliate.
+        setPendingVendorJoin(clean)
         setMessage(
-          distributorName ? `Opening vendor signup for ${distributorName}…` : 'Opening vendor signup…',
+          distributorName
+            ? `Sign in or apply as a vendor to join ${distributorName}…`
+            : 'Sign in or apply as a vendor to join this network…',
         )
         if (cancelled) return
-        onVendorApply()
+        onNeedVendorLogin()
       } catch (err) {
         if (cancelled) return
         setError(err instanceof ApiError ? err.message : 'This invite link is invalid.')
@@ -93,7 +125,7 @@ export default function JoinPage({
     return () => {
       cancelled = true
     }
-  }, [slug, onPlayerJoined, onNeedLogin, onVendorApply, onInvalid])
+  }, [slug, onPlayerNoop, onNeedVendorLogin, onVendorJoined, onVendorApply, onInvalid])
 
   return (
     <div className="apply-page">
@@ -104,7 +136,7 @@ export default function JoinPage({
           </div>
         </header>
         <section className="apply-intro">
-          <h1 className="apply-title">Join TapStack</h1>
+          <h1 className="apply-title">Vendor invite</h1>
           <p className="apply-subtitle">{error || message}</p>
         </section>
       </div>

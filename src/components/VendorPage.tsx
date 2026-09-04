@@ -7,6 +7,8 @@ import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import type { PlayerProfile } from './ProfilePage'
 import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './GameLoadModal'
+import { VerifyBanner } from './VerifyPage'
+import type { VerificationState } from '../lib/verify'
 import './CustomerDashboard.css'
 import './VendorPage.css'
 
@@ -128,6 +130,9 @@ type VendorPageProps = {
   onProfileClick?: () => void
   onTopUp?: () => void
   onCashBalanceChange?: (balance: string) => void
+  onRequireVerified?: () => boolean
+  verification?: VerificationState
+  onOpenVerify?: () => void
 }
 
 export default function VendorPage({
@@ -141,6 +146,9 @@ export default function VendorPage({
   onProfileClick,
   onTopUp,
   onCashBalanceChange,
+  onRequireVerified,
+  verification,
+  onOpenVerify,
 }: VendorPageProps) {
   const [vendor, setVendor] = useState(initialVendor)
   const [walletBalance, setWalletBalance] = useState(cashBalance)
@@ -450,6 +458,7 @@ export default function VendorPage({
     },
     intent: GameTransferIntent,
   ) {
+    if (onRequireVerified && !onRequireVerified()) return
     const gameKey =
       game.id ||
       game.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -697,6 +706,10 @@ export default function VendorPage({
           initials={profile?.initials}
           onProfileClick={onProfileClick}
         />
+
+        {verification && onOpenVerify ? (
+          <VerifyBanner state={verification} onVerify={onOpenVerify} />
+        ) : null}
 
         <div className="vendor-page-body">
           <section className="vendor-storefront">
@@ -1503,6 +1516,7 @@ export default function VendorPage({
           }
           if (vendor.id) void refreshPendingOrders(vendor.id)
         }}
+        onVerifyRequired={onOpenVerify}
       />
 
       {pendingOpen ? (

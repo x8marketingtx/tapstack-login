@@ -31,6 +31,8 @@ export function slugFromJoinUrl(url: string): string {
 }
 
 const AFFILIATE_KEY = 'tapstack_affiliate_slug'
+const PENDING_VENDOR_JOIN_KEY = 'tapstack_pending_vendor_join'
+/** @deprecated Cleared for legacy player-join behavior. */
 const PENDING_PLAYER_JOIN_KEY = 'tapstack_pending_player_join'
 
 export function setAffiliateSlug(slug: string): void {
@@ -61,29 +63,61 @@ export function clearAffiliateSlug(): void {
   }
 }
 
-/** After login as a player, auto-link vendors from this distributor join slug. */
-export function setPendingPlayerJoin(slug: string): void {
+/** After login as a vendor, attach this store to the distributor network. */
+export function setPendingVendorJoin(slug: string): void {
   const clean = slug.trim().toLowerCase()
   if (!clean) return
   try {
-    sessionStorage.setItem(PENDING_PLAYER_JOIN_KEY, clean)
-    localStorage.setItem(PENDING_PLAYER_JOIN_KEY, clean)
+    sessionStorage.setItem(PENDING_VENDOR_JOIN_KEY, clean)
+    localStorage.setItem(PENDING_VENDOR_JOIN_KEY, clean)
+    // Clear any legacy player-join pending state.
+    sessionStorage.removeItem(PENDING_PLAYER_JOIN_KEY)
+    localStorage.removeItem(PENDING_PLAYER_JOIN_KEY)
   } catch {
     // ignore
   }
   setAffiliateSlug(clean)
 }
 
-export function getPendingPlayerJoin(): string {
+export function getPendingVendorJoin(): string {
   try {
     return (
-      sessionStorage.getItem(PENDING_PLAYER_JOIN_KEY) ||
-      localStorage.getItem(PENDING_PLAYER_JOIN_KEY) ||
+      sessionStorage.getItem(PENDING_VENDOR_JOIN_KEY) ||
+      localStorage.getItem(PENDING_VENDOR_JOIN_KEY) ||
       ''
     ).trim()
   } catch {
     return ''
   }
+}
+
+export function clearPendingVendorJoin(): void {
+  try {
+    sessionStorage.removeItem(PENDING_VENDOR_JOIN_KEY)
+    localStorage.removeItem(PENDING_VENDOR_JOIN_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+export async function consumePendingVendorJoin(): Promise<boolean> {
+  const slug = getPendingVendorJoin()
+  if (!slug) return false
+  clearPendingVendorJoin()
+  try {
+    if (!isApiConfigured()) return false
+    const token = getToken()
+    if (!token || token.startsWith('demo:')) return false
+    await tapstackApi.vendorJoinDistributor(slug)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** @deprecated Player join links are a no-op; kept so old imports compile during transition. */
+export function setPendingPlayerJoin(slug: string): void {
+  setPendingVendorJoin(slug)
 }
 
 export function clearPendingPlayerJoin(): void {
@@ -93,19 +127,10 @@ export function clearPendingPlayerJoin(): void {
   } catch {
     // ignore
   }
+  clearPendingVendorJoin()
 }
 
 export async function consumePendingPlayerJoin(): Promise<boolean> {
-  const slug = getPendingPlayerJoin()
-  if (!slug) return false
   clearPendingPlayerJoin()
-  try {
-    if (!isApiConfigured()) return false
-    const token = getToken()
-    if (!token || token.startsWith('demo:')) return false
-    await tapstackApi.joinDistributor(slug)
-    return true
-  } catch {
-    return false
-  }
+  return false
 }

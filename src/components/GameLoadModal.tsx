@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, isApiConfigured, tapstackApi } from '../api/client'
+import { isVerifyApiError } from '../lib/verify'
 import { decodeIcon } from '../data/vendors'
 import './GameLoadModal.css'
 
@@ -30,6 +31,7 @@ type GameLoadModalProps = {
   cashBalance: string
   onClose: () => void
   onSuccess?: (next: { cashBalance: string; gameBalance?: string }) => void
+  onVerifyRequired?: () => void
 }
 
 type SuccessState = {
@@ -48,6 +50,7 @@ export default function GameLoadModal({
   cashBalance,
   onClose,
   onSuccess,
+  onVerifyRequired,
 }: GameLoadModalProps) {
   const isRedeem = intent === 'redeem'
   const [amount, setAmount] = useState('25')
@@ -216,6 +219,9 @@ export default function GameLoadModal({
       onSuccess?.({ cashBalance: nextCash, gameBalance: nextGame })
     } catch (err) {
       setStatus('')
+      if (isVerifyApiError(err)) {
+        onVerifyRequired?.()
+      }
       setError(
         err instanceof ApiError
           ? err.message

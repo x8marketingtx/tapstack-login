@@ -18,8 +18,15 @@ import VendorPromosPage from './VendorPromosPage'
 import VendorSettingsPage, { prefetchVendorGames } from './VendorSettingsPage'
 import TopUpModal from './TopUpModal'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
+import VerifyPage, { VerifyBanner } from './VerifyPage'
+import {
+  consumeVerifyReturn,
+  needsVerification,
+  rememberVerifyReturn,
+  verificationFromUser,
+  type VerificationState,
+} from '../lib/verify'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
-import { joinLinkForSlug, slugFromJoinUrl } from '../lib/affiliate'
 import './VendorDashboard.css'
 
 const DEMO_VENDOR_PROFILE: PlayerProfile = {
@@ -28,17 +35,6 @@ const DEMO_VENDOR_PROFILE: PlayerProfile = {
   email: 'vendor@tapstack.demo',
   phone: '+1 555 812 4200',
   initials: 'LS',
-  level: 1,
-  levelProgressPct: 0,
-  tier: 'bronze',
-}
-
-const DEMO_DISTRIBUTOR_PROFILE: PlayerProfile = {
-  displayName: 'Pacific Gaming',
-  username: '@pacificgaming',
-  email: 'distributor@tapstack.demo',
-  phone: '+1 555 700 1000',
-  initials: 'PG',
   level: 1,
   levelProgressPct: 0,
   tier: 'bronze',
@@ -503,29 +499,30 @@ function VendorHome({
 export default function VendorDashboard({
   onLogout,
   onRoleMismatch,
-  portal = 'vendor',
 }: {
   onLogout?: () => void
   onRoleMismatch?: (role: SessionRole) => void
-  portal?: 'vendor' | 'distributor'
 }) {
-  const isDistributor = portal === 'distributor'
-  const expectedRole: SessionRole = isDistributor ? 'distributor' : 'vendor'
+  const expectedRole: SessionRole = 'vendor'
   const shouldLoadFromApi = isApiConfigured() && Boolean(getToken())
   const cachedUser = getSessionUser()
   const initialRoute = parseLocation()
   const [activeTab, setActiveTab] = useState<VendorTab>(() =>
-    initialRoute.portal === portal ? initialRoute.tab : 'home',
+    initialRoute.portal === 'vendor' ? initialRoute.tab : 'home',
   )
   const [showProfile, setShowProfile] = useState(
-    () => initialRoute.portal === portal && Boolean(initialRoute.profile),
+    () => initialRoute.portal === 'vendor' && Boolean(initialRoute.profile),
+  )
+  const [showVerify, setShowVerify] = useState(
+    () => initialRoute.portal === 'vendor' && Boolean(initialRoute.verify),
+  )
+  const [verification, setVerification] = useState<VerificationState>(() =>
+    verificationFromUser(cachedUser),
   )
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [walletBalance, setWalletBalance] = useState('$0.00')
   const [inviteCode, setInviteCode] = useState('')
-  const [homeExtras, setHomeExtras] = useState<VendorHomeExtras | undefined>(
-    isDistributor ? { roleLabel: 'Distributor' } : undefined,
-  )
+  const [homeExtras] = useState<VendorHomeExtras | undefined>(undefined)
   const [recentTx, setRecentTx] = useState<
     Array<{ id?: number; name: string; meta: string; amount: string; tone?: string }>
   >([])
@@ -550,7 +547,7 @@ export default function VendorDashboard({
   })
   const [profile, setProfile] = useState<PlayerProfile>(() => {
     if (cachedUser?.role === expectedRole) return profileFromUser(cachedUser)
-    return isDistributor ? DEMO_DISTRIBUTOR_PROFILE : DEMO_VENDOR_PROFILE
+    return DEMO_VENDOR_PROFILE
   })
   const [pendingOrderCount, setPendingOrderCount] = useState(0)
   const [pendingNotifications, setPendingNotifications] = useState<VendorNotification[]>([])
@@ -559,38 +556,75 @@ export default function VendorDashboard({
 
   function syncFromRoute() {
     const route = parseLocation()
-    if (route.portal !== portal) return
+    if (route.portal !== 'vendor') return
     setActiveTab(route.tab)
     setShowProfile(Boolean(route.profile))
+    setShowVerify(Boolean(route.verify))
   }
 
   useEffect(() => {
     window.addEventListener('popstate', syncFromRoute)
     return () => window.removeEventListener('popstate', syncFromRoute)
-  }, [portal])
+  }, [])
 
   useEffect(() => {
-    if (showProfile) {
-      applyDocumentTitle({ portal, tab: activeTab, profile: true })
+    if (showVerify) {
+      applyDocumentTitle({ portal: 'vendor', tab: activeTab, verify: true })
       return
     }
-    applyDocumentTitle({ portal, tab: activeTab })
-  }, [activeTab, showProfile, portal])
+    if (showProfile) {
+      applyDocumentTitle({ portal: 'vendor', tab: activeTab, profile: true })
+      return
+    }
+    applyDocumentTitle({ portal: 'vendor', tab: activeTab })
+  }, [activeTab, showProfile, showVerify])
 
   function handleTabChange(tab: VendorTab) {
     setShowProfile(false)
+    setShowVerify(false)
     setActiveTab(tab)
-    navigate({ portal, tab })
+    navigate({ portal: 'vendor', tab })
   }
 
   function openProfile() {
+    setShowVerify(false)
     setShowProfile(true)
-    navigate({ portal, tab: activeTab, profile: true })
+    navigate({ portal: 'vendor', tab: activeTab, profile: true })
   }
 
   function closeProfile() {
     setShowProfile(false)
-    navigate({ portal, tab: activeTab })
+    navigate({ portal: 'vendor', tab: activeTab })
+  }
+
+  function openVerify() {
+    rememberVerifyReturn()
+    setShowProfile(false)
+    setTopUpOpen(false)
+    setShowVerify(true)
+    navigate({ portal: 'vendor', tab: activeTab, verify: true })
+  }
+
+  function closeVerify() {
+    setShowVerify(false)
+    const back = consumeVerifyReturn()
+    if (back) {
+      const route = parseLocation(back)
+      if (route.portal === 'vendor' && route.profile) {
+        setShowProfile(true)
+        navigate({ portal: 'vendor', tab: activeTab, profile: true })
+        return
+      }
+    }
+    navigate({ portal: 'vendor', tab: activeTab })
+  }
+
+  function requireVerified(): boolean {
+    const current = verificationFromUser(getSessionUser())
+    setVerification(current)
+    if (!needsVerification(current)) return true
+    openVerify()
+    return false
   }
 
   useEffect(() => {
@@ -601,10 +635,9 @@ export default function VendorDashboard({
     let cancelled = false
     ;(async () => {
       try {
-        const [me, vendorDash, distributorDash] = await Promise.all([
+        const [me, vendorDash] = await Promise.all([
           tapstackApi.me().catch(() => null),
           tapstackApi.vendorDashboard().catch(() => null),
-          isDistributor ? tapstackApi.distributorDashboard('today').catch(() => null) : Promise.resolve(null),
         ])
         if (cancelled) return
 
@@ -619,6 +652,7 @@ export default function VendorDashboard({
           if (role === expectedRole && isMeForCurrentSession(me.user)) {
             const next = profileFromUser(me.user, me.level, me.levelProgressPct)
             setProfile(next)
+            setVerification(verificationFromUser(me.user))
             const token = getToken()
             if (token) {
               applyAuthSession(token, me.user)
@@ -627,85 +661,7 @@ export default function VendorDashboard({
         } else if (getSessionUser()?.role === expectedRole) {
           setProfile(profileFromUser(getSessionUser()!))
         } else {
-          setProfile(isDistributor ? DEMO_DISTRIBUTOR_PROFILE : DEMO_VENDOR_PROFILE)
-        }
-
-        // Distributor home prefers distributor API extras + wallet; vendor dash still used for store ops.
-        if (isDistributor && distributorDash) {
-          const name = distributorDash.name || getSessionUser()?.displayName || DEMO_DISTRIBUTOR_PROFILE.displayName
-          setProfile((prev) => ({
-            ...prev,
-            displayName: name,
-            initials: distributorDash.initials || initialsFromName(name),
-          }))
-          if (distributorDash.wallet?.balanceFormatted) {
-            setWalletBalance(distributorDash.wallet.balanceFormatted)
-          } else if (typeof distributorDash.wallet?.balance === 'number') {
-            setWalletBalance(
-              distributorDash.wallet.balance.toLocaleString('en-US', {
-                style: 'currency',
-                currency: 'USD',
-              }),
-            )
-          }
-          setInviteCode('')
-          {
-            const slug =
-              distributorDash.slug ||
-              slugFromJoinUrl(distributorDash.signupLink || '') ||
-              'pacific-gaming'
-            const link = joinLinkForSlug(slug)
-            setHomeExtras({
-              roleLabel: 'Distributor',
-              signupLink: link.url,
-              signupLinkDisplay: link.display,
-              volumeLabel: 'Volume incentives',
-              volumeCurrentRate: distributorDash.volumeIncentive?.currentRate,
-              volumeNextRate: distributorDash.volumeIncentive?.nextRate,
-              volumeTiers: distributorDash.volumeIncentive?.tiers,
-            })
-          }
-          const vol = distributorDash.volumeIncentive
-          if (vol) {
-            const current = vol.current ?? 0
-            const target = vol.target ?? 100000
-            const remaining = Math.max(0, target - current)
-            setMonthlyVolume({
-              current,
-              target,
-              remaining,
-              progressPct: vol.progressPct ?? (target > 0 ? Math.min(100, (current / target) * 100) : 0),
-              currentFormatted: vol.currentFormatted || `$${current.toFixed(2)}`,
-              targetFormatted: vol.targetFormatted || `$${target.toFixed(2)}`,
-              remainingFormatted: vol.remainingFormatted || `$${remaining.toFixed(2)}`,
-            })
-          }
-          const earn = distributorDash.earningsPeriod
-          if (earn) {
-            const amount = earn.amount ?? 0
-            setTodayStats({
-              depositsFormatted: earn.amountFormatted || `$${amount.toFixed(2)}`,
-              depositsChangePct: 0,
-              redeemsFormatted: distributorDash.wallet?.commissionsFormatted || '$0.00',
-              redeemsChangePct: 0,
-              netFormatted: earn.amountFormatted || `$${amount.toFixed(2)}`,
-              net: amount,
-              customers: distributorDash.vendorsTotal ?? 0,
-              customersNewWeek: distributorDash.vendorsActive ?? 0,
-            })
-          }
-          if (Array.isArray(distributorDash.activity)) {
-            setRecentTx(
-              distributorDash.activity.map((item, index) => ({
-                id: index,
-                name: item.text,
-                meta: item.time,
-                amount: '',
-                tone: item.unread ? 'green' : undefined,
-              })),
-            )
-          }
-          return
+          setProfile(DEMO_VENDOR_PROFILE)
         }
 
         const dash = vendorDash
@@ -774,7 +730,7 @@ export default function VendorDashboard({
     return () => {
       cancelled = true
     }
-  }, [shouldLoadFromApi, onRoleMismatch, isDistributor, expectedRole])
+  }, [shouldLoadFromApi, onRoleMismatch, expectedRole])
 
   useEffect(() => {
     if (!shouldLoadFromApi) return
@@ -849,6 +805,24 @@ export default function VendorDashboard({
 
   const initials = profile.initials || initialsFromName(profile.displayName)
 
+  if (showVerify) {
+    return (
+      <div className="vendor-dashboard">
+        <main className="vendor-main vendor-main--profile">
+          <VerifyPage
+            onBack={closeVerify}
+            onVerified={closeVerify}
+            onLogout={handleLogout}
+            onUserUpdate={(user) => {
+              setVerification(verificationFromUser(user))
+              setProfile(profileFromUser(user))
+            }}
+          />
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="vendor-dashboard">
       {!showProfile ? (
@@ -871,9 +845,12 @@ export default function VendorDashboard({
             onLogout={handleLogout}
             onRoleMismatch={onRoleMismatch}
             onProfileChange={setProfile}
+            onOpenVerify={openVerify}
+            verification={verification}
           />
         ) : (
           <>
+            <VerifyBanner state={verification} onVerify={openVerify} />
             {activeTab === 'home' && (
               <VendorHome
                 walletBalance={walletBalance}
@@ -884,15 +861,18 @@ export default function VendorDashboard({
                 today={todayStats}
                 monthlyVolume={monthlyVolume}
                 extras={homeExtras}
-                onTopUp={() => setTopUpOpen(true)}
+                onTopUp={() => {
+                  if (!requireVerified()) return
+                  setTopUpOpen(true)
+                }}
                 onProfileClick={openProfile}
               />
             )}
             {activeTab === 'orders' && <VendorOrdersPage />}
-            {activeTab === 'analytics' && <VendorAnalyticsPage portal={portal} />}
-            {activeTab === 'promos' && <VendorPromosPage portal={portal} />}
+            {activeTab === 'analytics' && <VendorAnalyticsPage />}
+            {activeTab === 'promos' && <VendorPromosPage />}
             <div hidden={activeTab !== 'settings'}>
-              <VendorSettingsPage portal={portal} />
+              <VendorSettingsPage />
             </div>
           </>
         )}
@@ -916,8 +896,9 @@ export default function VendorDashboard({
       <TopUpModal
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
-        ownerType={isDistributor ? 'distributor' : 'vendor'}
+        ownerType="vendor"
         title="Top up USDC wallet"
+        onVerifyRequired={openVerify}
         onSuccess={(wallet) => {
           if (wallet) setWalletBalance(`$${wallet.balance.toFixed(2)}`)
         }}
