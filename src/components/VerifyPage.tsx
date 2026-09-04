@@ -396,18 +396,63 @@ export function VerifyBanner({
       ? 'bad'
       : state.status === 'pending' || state.status === 'manual_review'
         ? 'wait'
-        : 'wait'
+        : 'warn'
+  const action =
+    state.status === 'pending'
+      ? 'Continue'
+      : state.status === 'manual_review'
+        ? 'View'
+        : state.status === 'block' || state.status === 'error'
+          ? 'Details'
+          : 'Verify'
   return (
-    <div className={`verify-banner verify-banner--${tone}`}>
-      <div className="verify-banner-copy">
-        <p className="verify-banner-kicker">{statusLabel(state.status)}</p>
-        <p className="verify-banner-text">
+    <button type="button" className={`verify-banner verify-banner--${tone}`} onClick={onVerify}>
+      <span className="verify-banner-icon" aria-hidden="true">
+        {tone === 'bad' ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 9v4.5M12 16.5h.01M10.3 4.7 2.8 17.2A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-2.8L13.7 4.7a2 2 0 0 0-3.4 0Z"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : tone === 'wait' ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="3.5" width="14" height="17" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M9 8.5h6M9 12h6M9 15.5h3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 3.5 5.5 6.2v5.3c0 4 2.7 7.6 6.5 8.8 3.8-1.2 6.5-4.8 6.5-8.8V6.2L12 3.5Z"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+            <path d="M9.5 12.2 11.2 14l3.4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      <span className="verify-banner-copy">
+        <span className="verify-banner-kicker">{statusLabel(state.status)}</span>
+        <span className="verify-banner-text">
           {state.message || 'Verify your identity to top up, load, or redeem.'}
-        </p>
-      </div>
-      <button type="button" className="verify-banner-go" onClick={onVerify}>
-        {state.status === 'pending' ? 'Continue' : 'Verify'}
-      </button>
-    </div>
+        </span>
+      </span>
+      <span className="verify-banner-go">
+        {action}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M6 3.5 11 8 6 12.5"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+    </button>
   )
 }
