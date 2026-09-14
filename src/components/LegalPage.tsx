@@ -171,7 +171,9 @@ export default function LegalPage({ doc, section, onBack, onOpenDoc }: LegalPage
             <section
               key={item.heading}
               id={`legal-section-${id}`}
-              className={`legal-section${section === id ? ' legal-section--target' : ''}`}
+              className={`legal-section${section === id ? ' legal-section--target' : ''}${
+                id === 'mobile-information-sharing' ? ' legal-section--featured' : ''
+              }`}
             >
               <h2 className="legal-section-title">{item.heading}</h2>
               <SectionBody body={item.body} />

@@ -465,7 +465,21 @@ export default function CustomerDashboard({
     applyDocumentTitle({ portal: 'customer', tab: activeTab })
   }, [activeTab, showProfile, showVerify, selectedVendor])
 
+  useEffect(() => {
+    if (!needsVerification(verification)) return
+    setSelectedVendor(null)
+    setShowProfile(false)
+    setTopUpOpen(false)
+    if (!showVerify) setShowVerify(true)
+    navigate({ portal: 'customer', tab: activeTab, verify: true }, 'replace')
+  }, [verification, showVerify, activeTab])
+
   function openVendor(vendor: Vendor) {
+    if (needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'customer', tab: activeTab, verify: true }, 'replace')
+      return
+    }
     setSelectedVendor(vendor)
     setShowProfile(false)
     setActiveTab('games')
@@ -533,6 +547,12 @@ export default function CustomerDashboard({
   }
 
   function handleTabChange(tab: DashboardTab) {
+    if (needsVerification(verification)) {
+      setActiveTab(tab)
+      setShowVerify(true)
+      navigate({ portal: 'customer', tab, verify: true }, 'replace')
+      return
+    }
     setSelectedVendor(null)
     setShowProfile(false)
     setShowVerify(false)
@@ -542,6 +562,11 @@ export default function CustomerDashboard({
   }
 
   function openProfile() {
+    if (needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'customer', tab: activeTab, verify: true }, 'replace')
+      return
+    }
     setSelectedVendor(null)
     setPendingVendorId(null)
     setShowVerify(false)
@@ -564,6 +589,13 @@ export default function CustomerDashboard({
   }
 
   function closeVerify() {
+    const current = verificationFromUser(getSessionUser())
+    setVerification(current)
+    if (needsVerification(current) || needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'customer', tab: activeTab, verify: true }, 'replace')
+      return
+    }
     setShowVerify(false)
     const back = consumeVerifyReturn()
     if (back) {
@@ -745,7 +777,9 @@ export default function CustomerDashboard({
     }
   }
 
-  if (showVerify) {
+  const verifyLocked = needsVerification(verification)
+
+  if (showVerify || verifyLocked) {
     return (
       <div className="dashboard">
         <div className="dashboard-scroll">
@@ -753,6 +787,7 @@ export default function CustomerDashboard({
             onBack={closeVerify}
             onVerified={closeVerify}
             onLogout={onLogout}
+            lockExit={verifyLocked}
             onUserUpdate={(user) => {
               setVerification(verificationFromUser(user))
               setProfile((current) =>

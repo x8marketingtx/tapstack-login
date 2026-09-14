@@ -1,0 +1,205 @@
+.geo-block {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 18px 28px 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.geo-block-brand {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.geo-block-brand .tapstack-logo,
+.geo-block-brand .logo {
+  display: block;
+  margin: 0;
+}
+
+.geo-block-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.geo-block-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin: auto 0;
+  padding: 4px 0;
+  text-align: center;
+}
+
+.geo-block-mark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  min-height: 68px;
+  margin: 0 0 14px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.95), transparent 52%),
+    linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%);
+  color: #e11d48;
+  box-shadow:
+    0 14px 28px rgba(190, 18, 60, 0.12),
+    inset 0 0 0 1px rgba(225, 29, 72, 0.08);
+}
+
+.geo-block-mark svg {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+
+.geo-block-kicker {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #e11d48;
+}
+
+.geo-block-title {
+  margin: 0 0 8px;
+  max-width: 280px;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.045em;
+  line-height: 1.15;
+  color: #111827;
+}
+
+.geo-block-copy {
+  margin: 0;
+  max-width: 280px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #6b7280;
+}
+
+.geo-block-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px 10px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.05);
+  color: #111827;
+}
+
+.geo-block-flag {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.geo-block-chip-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.geo-block-chip strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.geo-block-chip-code {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.geo-block-reason {
+  margin: 0 0 12px;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #9ca3af;
+}
+
+.geo-block-retry,
+.geo-block-logout {
+  width: 100%;
+  max-width: 280px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.geo-block-retry {
+  margin: 0 0 10px;
+  border: none;
+  background: #111827;
+  color: #fff;
+}
+
+.geo-block-retry:hover:not(:disabled) {
+  background: #1f2937;
+}
+
+.geo-block-retry:disabled {
+  opacity: 0.65;
+}
+
+.geo-block-footer {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-top: 12px;
+}
+
+.geo-block-support {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.geo-block-support:hover {
+  color: #111827;
+  text-decoration: underline;
+}
+
+.geo-block-footer .legal-links {
+  margin-top: 6px;
+}
+
+.geo-block-logout {
+  margin: 0 0 12px;
+  border: 1.5px solid rgba(17, 24, 39, 0.14);
+  background: #fff;
+  color: #111827;
+}
+
+.geo-block-logout:hover {
+  border-color: rgba(17, 24, 39, 0.28);
+  background: #f9fafb;
+}

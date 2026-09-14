@@ -1,5 +1,11 @@
 export const PRIVACY_POLICY_SECTIONS: { heading: string; body: string[] }[] = [
   {
+    heading: 'Mobile Information Sharing',
+    body: [
+      'No mobile information or SMS opt-in data will be shared with third parties/affiliates for marketing or promotional purposes. All the above categories exclude text messaging originator opt-in data and consent; this information will not be shared with any third parties.',
+    ],
+  },
+  {
     heading: '1. Introduction and Scope',
     body: [
       'This Privacy Policy explains how TapStack ("TapStack," "we," "us," or "our"), located at 3365 Fulmar Circle, Frisco, TX 75033, collects, uses, discloses, retains, and protects personal information in connection with https://tapstack.io, our mobile applications, our marketplace and promotional offerings, our payment facilitation and technology services, our marketing, and our offline interactions with you (collectively, the "Sites" or "Services").',
@@ -134,7 +140,7 @@ export const PRIVACY_POLICY_SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: '12. Communications; Email and SMS',
     body: [
-      'We send transactional and service communications necessary to operate the Services — including transaction confirmations, account and security notices, verification requests, legal notices, fraud-prevention communications, and required service updates — which you cannot opt out of while you maintain an account. Where permitted, we send marketing emails; you may opt out at any time via the unsubscribe link or by contacting support@tapstack.io, and we ask that you allow up to ten (10) business days for preferences to update. If you enroll in SMS messaging, message frequency will be as disclosed at enrollment, message and data rates may apply, you may reply STOP to cancel and HELP for help, and consent to marketing texts is never a condition of any purchase.',
+      'We send transactional and service communications necessary to operate the Services — including transaction confirmations, account and security notices, verification requests, legal notices, fraud-prevention communications, and required service updates — which you cannot opt out of while you maintain an account. Where permitted, we send marketing emails; you may opt out at any time via the unsubscribe link or by contacting support@tapstack.io, and we ask that you allow up to ten (10) business days for preferences to update. If you enroll in SMS messaging, message frequency will be as disclosed at enrollment, message and data rates may apply, you may reply STOP to cancel and HELP for help, and consent to marketing texts is never a condition of any purchase. No mobile information or SMS opt-in data will be shared with third parties/affiliates for marketing or promotional purposes. All the above categories exclude text messaging originator opt-in data and consent; this information will not be shared with any third parties.',
     ],
   },
   {

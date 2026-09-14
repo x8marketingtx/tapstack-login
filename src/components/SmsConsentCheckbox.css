@@ -1,0 +1,64 @@
+.sms-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0 2px;
+  padding: 0;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sms-consent input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: #4a7fb0;
+}
+
+.sms-consent-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #111;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.sms-consent-link:hover {
+  text-decoration: underline;
+}
+
+.sms-share-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.sms-share-note-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: #fff;
+  color: #4b5563;
+  box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.06);
+}

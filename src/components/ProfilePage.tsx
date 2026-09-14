@@ -522,7 +522,12 @@ export default function ProfilePage({
         </section>
       )}
 
-      {verification && verificationApplies(verification) && onOpenVerify ? (
+      {verification &&
+      onOpenVerify &&
+      verification.pluginReady &&
+      (verificationApplies(verification) ||
+        verification.geoBlocked ||
+        verification.locationRequired) ? (
         <section className="profile-card">
           <div className="profile-card-head">
             <div>
@@ -532,7 +537,7 @@ export default function ProfilePage({
               </p>
             </div>
             <span className={`profile-verify-pill profile-verify-pill--${verification.canSpend ? 'ok' : 'wait'}`}>
-              {statusLabel(verification.status)}
+              {statusLabel(verification.status, Boolean(verification.geoBlocked))}
             </span>
           </div>
           <button

@@ -1,6 +1,7 @@
 import { ApiError, type TapstackUser } from '../api/client'
 
 export const VERIFY_RETURN_KEY = 'tapstack_verify_return'
+export const VERIFY_LINK_DAILY_LIMIT = 3
 
 export type VerificationStatus =
   | 'disabled'
@@ -18,6 +19,15 @@ export type VerificationDocumentType = {
   label: string
 }
 
+export type GeoBlockType =
+  | 'vpn'
+  | 'geolocation_state'
+  | 'geolocation_country'
+  | 'id_address'
+  | 'billing_address'
+  | 'location_verification'
+  | string
+
 export type VerificationState = {
   status: VerificationStatus
   identityVerified: boolean
@@ -29,6 +39,7 @@ export type VerificationState = {
   blockedReason?: string | null
   geoBlocked?: boolean
   geoReason?: string | null
+  geoType?: GeoBlockType | null
   verificationLink?: string | null
   documentTypes: VerificationDocumentType[]
   defaultDocumentType: string
@@ -61,6 +72,7 @@ export function emptyVerification(overrides: Partial<VerificationState> = {}): V
     blockedReason: null,
     geoBlocked: false,
     geoReason: null,
+    geoType: null,
     verificationLink: null,
     documentTypes: [],
     defaultDocumentType: 'DriversLicense',
@@ -85,6 +97,10 @@ export function verificationFromUser(user?: TapstackUser | null): VerificationSt
     canSpend: raw.canSpend !== false,
     pluginReady: Boolean(raw.pluginReady),
     required: typeof raw.required === 'boolean' ? raw.required : user.role === 'player',
+    blockedReason: raw.blockedReason ?? null,
+    geoBlocked: Boolean(raw.geoBlocked),
+    geoReason: raw.geoReason ?? null,
+    geoType: raw.geoType ?? null,
     message: raw.message || '',
   })
 }
@@ -98,8 +114,56 @@ export function verificationApplies(state: VerificationState): boolean {
   return state.required !== false && verificationEnabled(state)
 }
 
+/** Money actions are locked until KYC and/or location rules pass. */
 export function needsVerification(state: VerificationState): boolean {
-  return verificationApplies(state) && !state.canSpend
+  return state.pluginReady && !state.canSpend
+}
+
+export function isHardGeoBlock(state: VerificationState): boolean {
+  if (!state.geoBlocked) return false
+  return (
+    state.geoType === 'id_address' ||
+    state.geoType === 'billing_address' ||
+    state.geoType === 'geolocation_state' ||
+    state.geoType === 'geolocation_country'
+  )
+}
+
+export function geoBlockTitle(state: VerificationState): string {
+  switch (state.geoType) {
+    case 'vpn':
+      return 'VPN is not allowed'
+    case 'geolocation_state':
+      return 'This state is not allowed'
+    case 'geolocation_country':
+      return 'This country is not allowed'
+    case 'id_address':
+      return 'Your ID location is not allowed'
+    case 'billing_address':
+      return 'Your billing location is not allowed'
+    case 'location_verification':
+      return 'Location check did not pass'
+    default:
+      return 'Location not allowed'
+  }
+}
+
+export function geoBlockHint(state: VerificationState): string {
+  switch (state.geoType) {
+    case 'vpn':
+      return 'Turn off any VPN or proxy, then check again from your real connection.'
+    case 'geolocation_state':
+    case 'geolocation_country':
+      return 'TapStack is not available from your current location.'
+    case 'id_address':
+      return 'The address on your ID is in a blocked area. Contact support if this looks wrong.'
+    case 'billing_address':
+      return 'The billing address on this account is in a blocked area. Contact support if this looks wrong.'
+    case 'location_verification':
+      return 'Confirm your location again from an allowed area, without a VPN.'
+    default:
+      return 'This location is not eligible for top-up, load, or redeem.'
+  }
 }
 
 export function isVerifyApiError(err: unknown): boolean {
@@ -131,7 +195,8 @@ export function consumeVerifyReturn(): string | null {
   }
 }
 
-export function statusLabel(status: VerificationStatus): string {
+export function statusLabel(status: VerificationStatus, geoBlocked = false): string {
+  if (geoBlocked) return 'Location blocked'
   switch (status) {
     case 'verified':
       return 'Verified'

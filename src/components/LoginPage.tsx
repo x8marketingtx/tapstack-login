@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
 import { ApiError, applyAuthSession, clearSession, isApiConfigured, setDemoSession, tapstackApi } from '../api/client'
 import { LegalLinks, type LegalDoc } from './LegalPage'
+import SmsConsentCheckbox, { SmsShareNote } from './SmsConsentCheckbox'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
 
@@ -269,13 +270,14 @@ function PlayersLogin({
   onOpenLegal: (doc: LegalDoc, section?: string) => void
 }) {
   const [phone, setPhone] = useState('')
+  const [smsConsent, setSmsConsent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const canSubmit = phone.trim().length > 0 && !loading
+  const canSubmit = phone.trim().length > 0 && smsConsent && !loading
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!phone.trim()) return
+    if (!phone.trim() || !smsConsent) return
     setError('')
 
     if (isApiConfigured()) {
@@ -346,24 +348,17 @@ function PlayersLogin({
 
           {error ? <p className="otp-error" style={{ marginTop: 8 }}>{error}</p> : null}
 
+          <SmsConsentCheckbox
+            checked={smsConsent}
+            onChange={setSmsConsent}
+            onOpenLegal={onOpenLegal}
+          />
+
           <button type="submit" className="login-button" disabled={!canSubmit}>
             {loading ? 'Sending…' : 'Log In'}
           </button>
 
-          <p className="login-sms-consent" role="note">
-            By providing your phone number, you agree to receive automated security verification and
-            one-time password (OTP) text messages from TapStack Inc to verify your identity. Message
-            and data rates may apply. Message frequency depends on user login activity. You can reply
-            STOP at any time to opt-out of these security texts. View our{' '}
-            <button type="button" className="footer-link" onClick={() => onOpenLegal('privacy')}>
-              Privacy Policy
-            </button>{' '}
-            and{' '}
-            <button type="button" className="footer-link" onClick={() => onOpenLegal('terms')}>
-              Terms of Service
-            </button>
-            .
-          </p>
+          <SmsShareNote />
         </form>
 
         <p className="footer">

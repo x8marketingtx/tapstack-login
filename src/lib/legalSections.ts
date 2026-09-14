@@ -41,7 +41,7 @@ export const TERMS_SECTION_LINKS: LegalPolicyLink[] = [
 
 /** Jump-to-section options for Privacy Policy. */
 export const PRIVACY_SECTION_LINKS: LegalPolicyLink[] = [
-  { label: 'Mobile Information Sharing', doc: 'privacy', section: '7-1' },
+  { label: 'Mobile Information Sharing', doc: 'privacy', section: 'mobile-information-sharing' },
   { label: 'Security & Data Protection Statement', doc: 'privacy', section: '9' },
   { label: 'Cookie Policy', doc: 'privacy', section: '10' },
 ]

@@ -112,6 +112,18 @@
   scroll-margin-top: 16px;
 }
 
+.legal-section--featured {
+  margin-bottom: 8px;
+  padding: 16px 16px 4px;
+  border-radius: 14px;
+  background: #f3f4f6;
+  box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.04);
+}
+
+.legal-section--featured .legal-section-title {
+  margin-top: 0;
+}
+
 .legal-section-jump {
   display: flex;
   flex-direction: column;

@@ -17,6 +17,7 @@ import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } fr
 import VerifyPage, { VerifyBanner } from './VerifyPage'
 import {
   consumeVerifyReturn,
+  needsVerification,
   rememberVerifyReturn,
   verificationFromUser,
   type VerificationState,
@@ -122,7 +123,20 @@ export default function DistributorDashboard({
     applyDocumentTitle({ portal: 'distributor', tab })
   }, [tab, showProfile, showVerify])
 
+  useEffect(() => {
+    if (!needsVerification(verification)) return
+    setShowProfile(false)
+    if (!showVerify) setShowVerify(true)
+    navigate({ portal: 'distributor', tab, verify: true }, 'replace')
+  }, [verification, showVerify, tab])
+
   function changeTab(next: DistributorTab) {
+    if (needsVerification(verification)) {
+      setTab(next)
+      setShowVerify(true)
+      navigate({ portal: 'distributor', tab: next, verify: true }, 'replace')
+      return
+    }
     setShowProfile(false)
     setShowVerify(false)
     setTab(next)
@@ -130,6 +144,11 @@ export default function DistributorDashboard({
   }
 
   function openProfile() {
+    if (needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'distributor', tab, verify: true }, 'replace')
+      return
+    }
     setShowVerify(false)
     setShowProfile(true)
     navigate({ portal: 'distributor', tab, profile: true })
@@ -148,6 +167,13 @@ export default function DistributorDashboard({
   }
 
   function closeVerify() {
+    const current = verificationFromUser(getSessionUser())
+    setVerification(current)
+    if (needsVerification(current) || needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'distributor', tab, verify: true }, 'replace')
+      return
+    }
     setShowVerify(false)
     const back = consumeVerifyReturn()
     if (back) {
@@ -278,6 +304,27 @@ export default function DistributorDashboard({
     }
   }
 
+  const verifyLocked = needsVerification(verification)
+
+  if (showVerify || verifyLocked) {
+    return (
+      <div className="dist-dashboard">
+        <main className="dist-main dist-main--profile">
+          <VerifyPage
+            onBack={closeVerify}
+            onVerified={closeVerify}
+            onLogout={onLogout}
+            lockExit={verifyLocked}
+            onUserUpdate={(user) => {
+              setVerification(verificationFromUser(user))
+              setProfile(profileFromUser(user))
+            }}
+          />
+        </main>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="dist-dashboard" aria-busy="true" aria-label="Loading">
@@ -309,24 +356,6 @@ export default function DistributorDashboard({
     (dash?.slug || '').trim() ||
     slugFromJoinUrl(settings?.profile.affiliateLink || dash?.signupLink || '')
   const affiliate = affiliateSlug ? joinLinkForSlug(affiliateSlug) : { url: '', display: '' }
-
-  if (showVerify) {
-    return (
-      <div className="dist-dashboard">
-        <main className="dist-main dist-main--profile">
-          <VerifyPage
-            onBack={closeVerify}
-            onVerified={closeVerify}
-            onLogout={onLogout}
-            onUserUpdate={(user) => {
-              setVerification(verificationFromUser(user))
-              setProfile(profileFromUser(user))
-            }}
-          />
-        </main>
-      </div>
-    )
-  }
 
   return (
     <div className="dist-dashboard">

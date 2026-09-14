@@ -579,7 +579,21 @@ export default function VendorDashboard({
     applyDocumentTitle({ portal: 'vendor', tab: activeTab })
   }, [activeTab, showProfile, showVerify])
 
+  useEffect(() => {
+    if (!needsVerification(verification)) return
+    setShowProfile(false)
+    setTopUpOpen(false)
+    if (!showVerify) setShowVerify(true)
+    navigate({ portal: 'vendor', tab: activeTab, verify: true }, 'replace')
+  }, [verification, showVerify, activeTab])
+
   function handleTabChange(tab: VendorTab) {
+    if (needsVerification(verification)) {
+      setActiveTab(tab)
+      setShowVerify(true)
+      navigate({ portal: 'vendor', tab, verify: true }, 'replace')
+      return
+    }
     setShowProfile(false)
     setShowVerify(false)
     setActiveTab(tab)
@@ -587,6 +601,11 @@ export default function VendorDashboard({
   }
 
   function openProfile() {
+    if (needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'vendor', tab: activeTab, verify: true }, 'replace')
+      return
+    }
     setShowVerify(false)
     setShowProfile(true)
     navigate({ portal: 'vendor', tab: activeTab, profile: true })
@@ -606,6 +625,13 @@ export default function VendorDashboard({
   }
 
   function closeVerify() {
+    const current = verificationFromUser(getSessionUser())
+    setVerification(current)
+    if (needsVerification(current) || needsVerification(verification)) {
+      setShowVerify(true)
+      navigate({ portal: 'vendor', tab: activeTab, verify: true }, 'replace')
+      return
+    }
     setShowVerify(false)
     const back = consumeVerifyReturn()
     if (back) {
@@ -805,7 +831,9 @@ export default function VendorDashboard({
 
   const initials = profile.initials || initialsFromName(profile.displayName)
 
-  if (showVerify) {
+  const verifyLocked = needsVerification(verification)
+
+  if (showVerify || verifyLocked) {
     return (
       <div className="vendor-dashboard">
         <main className="vendor-main vendor-main--profile">
@@ -813,6 +841,7 @@ export default function VendorDashboard({
             onBack={closeVerify}
             onVerified={closeVerify}
             onLogout={handleLogout}
+            lockExit={verifyLocked}
             onUserUpdate={(user) => {
               setVerification(verificationFromUser(user))
               setProfile(profileFromUser(user))

@@ -9,6 +9,7 @@ import DistributorDashboard from './components/DistributorDashboard'
 import ApplyPage from './components/ApplyPage'
 import JoinPage from './components/JoinPage'
 import LegalPage, { type LegalDoc } from './components/LegalPage'
+import GeoBlockedPage from './components/GeoBlockedPage'
 import {
   applyAuthSession,
   canAccessView,
@@ -20,6 +21,7 @@ import {
   isApiConfigured,
   isMeForCurrentSession,
   tapstackApi,
+  type LocationAccessState,
   type SessionRole,
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
@@ -118,6 +120,10 @@ function App() {
   })
   const [userType, setUserType] = useState<UserType>('players')
   const [phone, setPhone] = useState('')
+  const [locationGate, setLocationGate] = useState<'ok' | 'loading' | 'blocked'>(() =>
+    getSessionRole() && isApiConfigured() ? 'loading' : 'ok',
+  )
+  const [locationBlock, setLocationBlock] = useState<LocationAccessState | null>(null)
 
   function enterSession(role: SessionRole, nextView?: DashboardView) {
     setSessionRole(role)
@@ -194,6 +200,12 @@ function App() {
 
   function backFromLegal() {
     setLegalSection(undefined)
+    if (sessionRole) {
+      const home = homeViewForRole(sessionRole)
+      setView(home)
+      navigate(routeForView(home), 'replace')
+      return
+    }
     navigate({ portal: 'login' }, 'replace')
     setView('login')
   }
@@ -289,6 +301,35 @@ function App() {
     }
   }, [])
 
+  const checkLocationAccess = useCallback(async (): Promise<boolean> => {
+    if (!isApiConfigured()) {
+      setLocationGate('ok')
+      return true
+    }
+    try {
+      const next = await tapstackApi.access()
+      setLocationBlock(next)
+      if (next.blocked) {
+        setLocationGate('blocked')
+        return false
+      }
+      setLocationGate('ok')
+      return true
+    } catch {
+      setLocationGate('ok')
+      return true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!sessionRole) {
+      setLocationGate('ok')
+      setLocationBlock(null)
+      return
+    }
+    void checkLocationAccess()
+  }, [sessionRole, checkLocationAccess])
+
   // Keep top-level portal URL in sync when view changes from in-app actions.
   useEffect(() => {
     const route = parseLocation()
@@ -304,7 +345,9 @@ function App() {
   }, [view])
 
   const screenClass =
-    view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
+    sessionRole && locationGate === 'blocked' && !isLegalView(view)
+      ? 'screen--otp'
+      : view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
       ? 'screen--dashboard'
       : view === 'apply' || view === 'join'
         ? 'screen--apply'
@@ -321,6 +364,21 @@ function App() {
     <div className="page">
       <div className="phone-frame">
         <div className={`screen ${screenClass}`}>
+          {sessionRole && locationGate === 'loading' && isDashboardView(view) ? (
+            <p className="subtitle" style={{ margin: 'auto' }}>
+              Checking location…
+            </p>
+          ) : sessionRole && locationGate === 'blocked' && !isLegalView(view) ? (
+            <GeoBlockedPage
+              reason={locationBlock?.reason}
+              type={locationBlock?.type}
+              country={locationBlock?.country}
+              onOpenLegal={goToLegal}
+              onRetry={checkLocationAccess}
+              onLogout={goToLogin}
+            />
+          ) : (
+            <>
           {view === 'login' && (
             <LoginPage
               userType={userType}
@@ -365,6 +423,7 @@ function App() {
             <PlayerSignupPage
               onComplete={() => enterSession('player')}
               onBack={goToLogin}
+              onOpenLegal={goToLegal}
             />
           )}
 
@@ -390,6 +449,8 @@ function App() {
               onBack={backFromLegal}
               onOpenDoc={goToLegal}
             />
+          )}
+            </>
           )}
         </div>
       </div>

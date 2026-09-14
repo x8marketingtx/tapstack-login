@@ -12,10 +12,13 @@ import {
 import {
   consumeVerifyReturn,
   emptyVerification,
+  geoBlockHint,
+  geoBlockTitle,
+  isHardGeoBlock,
   needsVerification,
   statusLabel,
+  VERIFY_LINK_DAILY_LIMIT,
   type VerificationState,
-  type VerificationStatus,
 } from '../lib/verify'
 import './VerifyPage.css'
 
@@ -24,9 +27,16 @@ type VerifyPageProps = {
   onVerified?: () => void
   onLogout?: () => void
   onUserUpdate?: (user: TapstackUser) => void
+  lockExit?: boolean
 }
 
-export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate }: VerifyPageProps) {
+export default function VerifyPage({
+  onBack,
+  onVerified,
+  onLogout,
+  onUserUpdate,
+  lockExit = false,
+}: VerifyPageProps) {
   const [state, setState] = useState<VerificationState>(emptyVerification())
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -68,9 +78,12 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
   useEffect(() => {
     const pending =
       state.status === 'pending' ||
-      (state.identityVerified &&
-        state.locationRequired &&
-        (state.locationStatus === 'pending' || state.locationStatus === 'unknown' || state.locationStatus === 'stale'))
+      Boolean(state.geoBlocked) ||
+      (state.locationRequired &&
+        (state.locationStatus === 'pending' ||
+          state.locationStatus === 'unknown' ||
+          state.locationStatus === 'stale' ||
+          state.locationStatus === 'failed'))
     if (!pending || !isApiConfigured()) return
 
     const timer = window.setInterval(() => {
@@ -88,7 +101,7 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
     }, 4000)
 
     return () => window.clearInterval(timer)
-  }, [state.status, state.identityVerified, state.locationRequired, state.locationStatus])
+  }, [state.status, state.geoBlocked, state.locationRequired, state.locationStatus])
 
   async function startIdentity(regenerate = false) {
     if (!regenerate && state.verificationLink && (state.status === 'pending' || state.status === 'unverified')) {
@@ -137,15 +150,20 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
     else onBack()
   }
 
-  const tone = toneForStatus(state.status, state.canSpend)
+  const geoBlocked = Boolean(state.geoBlocked)
+  const hardGeo = isHardGeoBlock(state)
+  const tone = toneForStatus(state)
+  const locked = lockExit || needsVerification(state)
   const locationNeeded =
-    state.identityVerified &&
     state.locationRequired &&
-    state.locationStatus !== 'passed'
-  const identityDone = state.identityVerified
-  const locationDone = identityDone && (!state.locationRequired || state.locationStatus === 'passed')
+    state.locationStatus !== 'passed' &&
+    !hardGeo &&
+    (state.identityVerified || state.required === false)
+  const identityDone = state.identityVerified || state.required === false
+  const locationDone =
+    (!state.locationRequired || state.locationStatus === 'passed') && !geoBlocked
   const spendDone = state.canSpend
-  const identityCurrent = !identityDone && state.status !== 'block'
+  const identityCurrent = !identityDone && state.status !== 'block' && !hardGeo
   const locationCurrent = identityDone && !locationDone
   const spendCurrent = locationDone && !spendDone
   const identityAction =
@@ -154,41 +172,48 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
       : state.status === 'error' || Boolean(state.verificationLink)
         ? 'Try again'
         : 'Begin verification'
-  const heroTitle = state.canSpend && state.required === false
-    ? 'Verification not required'
-    : state.canSpend
-      ? 'You are verified'
-      : locationNeeded
-        ? 'Confirm your location'
-        : state.status === 'manual_review'
-          ? 'Documents under review'
-          : state.status === 'block'
-            ? 'Account blocked'
-            : state.status === 'pending'
-              ? 'Finish your ID scan'
-              : state.status === 'error'
-                ? 'Try verification again'
-                : 'Verify your identity'
+  const heroTitle =
+    state.canSpend && state.required === false && !state.locationRequired
+      ? 'Verification not required'
+      : state.canSpend
+        ? 'You are verified'
+        : geoBlocked
+          ? geoBlockTitle(state)
+          : locationNeeded
+            ? 'Confirm your location'
+            : state.status === 'manual_review'
+              ? 'Documents under review'
+              : state.status === 'block'
+                ? 'Account blocked'
+                : state.status === 'pending'
+                  ? 'Finish your ID scan'
+                  : state.status === 'error'
+                    ? 'Try verification again'
+                    : 'Verify your identity'
 
   return (
     <div className="verify-page">
       <header className="verify-header">
-        <button type="button" className="verify-back" onClick={onBack} aria-label="Go back">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-            <path
-              d="M11.25 3.75 L6 9 L11.25 14.25"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-        <h1 className="verify-title">Verify identity</h1>
+        {locked ? (
+          <span className="verify-spacer" aria-hidden="true" />
+        ) : (
+          <button type="button" className="verify-back" onClick={onBack} aria-label="Go back">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path
+                d="M11.25 3.75 L6 9 L11.25 14.25"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
+        <h1 className="verify-title">{geoBlocked ? 'Location' : 'Verify identity'}</h1>
         <span className="verify-spacer" aria-hidden="true" />
       </header>
 
-      {state.required !== false ? (
+      {(state.required !== false || state.locationRequired) ? (
         <ol className="verify-progress" aria-label="Verification steps">
           <li className={identityDone ? 'is-done' : identityCurrent ? 'is-current' : ''}>
             <span>{identityDone ? '✓' : '1'}</span>
@@ -212,7 +237,9 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
           <HeroIcon tone={tone} />
         </div>
         <div className="verify-hero-body">
-          <div className={`verify-badge verify-badge--${tone}`}>{statusLabel(state.status)}</div>
+          <div className={`verify-badge verify-badge--${tone}`}>
+            {statusLabel(state.status, geoBlocked)}
+          </div>
           <h2 className="verify-hero-title">{heroTitle}</h2>
           <p className="verify-hero-copy">
             {state.message ||
@@ -223,7 +250,7 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
 
       {error ? <p className="verify-error">{error}</p> : null}
 
-      {!loading && state.pluginReady && state.required === false ? (
+      {!loading && state.pluginReady && state.required === false && state.canSpend && !state.locationRequired ? (
         <section className="verify-card">
           <CardHead
             title="Not required for this account"
@@ -254,6 +281,7 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
       state.pluginReady &&
       state.required !== false &&
       !state.identityVerified &&
+      !hardGeo &&
       state.status !== 'block' &&
       state.status !== 'manual_review' ? (
         <section className="verify-card">
@@ -294,12 +322,20 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
             type="button"
             className="verify-btn verify-btn--primary"
             disabled={busy || (!state.canRetry && !state.verificationLink)}
-            onClick={() => void startIdentity(Boolean(state.verificationLink) && state.status !== 'pending')}
+            onClick={() => {
+              const reuseExisting =
+                Boolean(state.verificationLink) &&
+                (state.status === 'pending' || !state.canRetry)
+              void startIdentity(!reuseExisting && Boolean(state.verificationLink))
+            }}
           >
             {busy ? 'Starting…' : identityAction}
           </button>
 
-          {state.status === 'pending' && state.verificationLink && state.canRetry ? (
+          {state.status === 'pending' &&
+          state.verificationLink &&
+          state.canRetry &&
+          (state.attemptsLeft ?? 0) > 0 ? (
             <button
               type="button"
               className="verify-btn verify-btn--ghost"
@@ -308,6 +344,16 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
             >
               Generate a new link
             </button>
+          ) : null}
+
+          {!state.rateLimitReason &&
+          typeof state.attemptsLeft === 'number' &&
+          state.status !== 'verified' ? (
+            <p className="verify-hint">
+              {state.attemptsLeft > 0
+                ? `${state.attemptsLeft} of ${VERIFY_LINK_DAILY_LIMIT} new scan links left today. Continuing a current scan does not use one.`
+                : `No more new scan links for 24 hours. Continue your current scan, or try again later.`}
+            </p>
           ) : null}
 
           {state.rateLimitReason ? <p className="verify-hint">{state.rateLimitReason}</p> : null}
@@ -324,9 +370,11 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
           <p className="verify-card-copy">
             You will be able to top up, load, and redeem once it is approved.
           </p>
-          <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
-            Back
-          </button>
+          {locked ? null : (
+            <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
+              Back
+            </button>
+          )}
         </section>
       ) : null}
 
@@ -350,7 +398,53 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
         </section>
       ) : null}
 
-      {!loading && locationNeeded ? (
+      {!loading && geoBlocked ? (
+        <section className="verify-card">
+          <CardHead title={geoBlockTitle(state)} sub={geoBlockHint(state)} tone="bad" />
+          <p className="verify-card-copy">
+            {state.geoReason ||
+              state.message ||
+              'This location is not eligible for top-up, load, or redeem.'}
+          </p>
+          {state.geoType === 'id_address' || state.geoType === 'billing_address' ? (
+            onLogout ? (
+              <button type="button" className="verify-btn verify-btn--ghost" onClick={onLogout}>
+                Log out
+              </button>
+            ) : null
+          ) : (
+            <button
+              type="button"
+              className="verify-btn verify-btn--primary"
+              disabled={busy}
+              onClick={() => {
+                if (locationNeeded) {
+                  if (state.locationLink && state.locationStatus === 'pending') {
+                    window.location.assign(state.locationLink)
+                    return
+                  }
+                  void startLocation()
+                  return
+                }
+                setLoading(true)
+                void refresh()
+              }}
+            >
+              {busy
+                ? 'Starting…'
+                : state.geoType === 'vpn'
+                  ? 'Check again'
+                  : locationNeeded
+                    ? state.locationLink && state.locationStatus === 'pending'
+                      ? 'Continue location check'
+                      : 'Confirm location'
+                    : 'Check again'}
+            </button>
+          )}
+        </section>
+      ) : null}
+
+      {!loading && locationNeeded && !geoBlocked ? (
         <section className="verify-card">
           <CardHead
             title="Location check"
@@ -383,7 +477,7 @@ export default function VerifyPage({ onBack, onVerified, onLogout, onUserUpdate 
         </section>
       ) : null}
 
-      {!loading && state.canSpend && state.required !== false ? (
+      {!loading && state.canSpend && (state.required !== false || state.locationRequired) ? (
         <section className="verify-card">
           <CardHead
             title="Ready to play"
@@ -469,10 +563,10 @@ function CardHead({
   )
 }
 
-function toneForStatus(status: VerificationStatus, canSpend: boolean): 'ok' | 'wait' | 'warn' | 'bad' {
-  if (canSpend || status === 'verified') return 'ok'
-  if (status === 'pending' || status === 'manual_review') return 'wait'
-  if (status === 'block' || status === 'error') return 'bad'
+function toneForStatus(state: VerificationState): 'ok' | 'wait' | 'warn' | 'bad' {
+  if (state.canSpend) return 'ok'
+  if (state.geoBlocked || state.status === 'block' || state.status === 'error') return 'bad'
+  if (state.status === 'pending' || state.status === 'manual_review') return 'wait'
   return 'warn'
 }
 
@@ -490,6 +584,10 @@ function syncUserVerification(next: VerificationState): TapstackUser | null {
       canSpend: next.canSpend,
       pluginReady: next.pluginReady,
       required: next.required !== false,
+      blockedReason: next.blockedReason ?? null,
+      geoBlocked: Boolean(next.geoBlocked),
+      geoReason: next.geoReason ?? null,
+      geoType: next.geoType ?? null,
       message: next.message,
     },
   }
@@ -506,19 +604,21 @@ export function VerifyBanner({
 }) {
   if (!needsVerification(state)) return null
   const tone =
-    state.status === 'block' || state.status === 'error'
+    state.geoBlocked || state.status === 'block' || state.status === 'error'
       ? 'bad'
-      : state.status === 'pending' || state.status === 'manual_review'
+      : state.status === 'pending' || state.status === 'manual_review' || state.locationRequired
         ? 'wait'
         : 'warn'
   const action =
-    state.status === 'pending'
-      ? 'Continue'
-      : state.status === 'manual_review'
-        ? 'View'
-        : state.status === 'block' || state.status === 'error'
-          ? 'Details'
-          : 'Verify'
+    state.geoBlocked
+      ? 'Details'
+      : state.status === 'pending'
+        ? 'Continue'
+        : state.status === 'manual_review'
+          ? 'View'
+          : state.status === 'block' || state.status === 'error'
+            ? 'Details'
+            : 'Verify'
   return (
     <button type="button" className={`verify-banner verify-banner--${tone}`} onClick={onVerify}>
       <span className="verify-banner-icon" aria-hidden="true">
@@ -550,7 +650,7 @@ export function VerifyBanner({
         )}
       </span>
       <span className="verify-banner-copy">
-        <span className="verify-banner-kicker">{statusLabel(state.status)}</span>
+        <span className="verify-banner-kicker">{statusLabel(state.status, Boolean(state.geoBlocked))}</span>
         <span className="verify-banner-text">
           {state.message || 'Verify your identity to top up, load, or redeem.'}
         </span>

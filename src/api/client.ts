@@ -807,6 +807,9 @@ export const tapstackApi = {
       body: {},
     }),
 
+  access: () =>
+    apiRequest<LocationAccessState>('/access', { method: 'POST', body: {}, auth: false }),
+
   changePassword: (currentPassword: string, newPassword: string) =>
     apiRequest<{ ok: boolean; token: string; user: TapstackUser }>('/auth/password', {
       method: 'POST',
@@ -1681,6 +1684,10 @@ export type TapstackUser = {
     pluginReady: boolean
     required?: boolean
     message?: string
+    blockedReason?: string | null
+    geoBlocked?: boolean
+    geoReason?: string | null
+    geoType?: string | null
   }
 }
 
@@ -1729,6 +1736,7 @@ export type CustomerVerifyState = {
   blockedReason?: string | null
   geoBlocked?: boolean
   geoReason?: string | null
+  geoType?: string | null
   verificationLink?: string | null
   documentTypes: Array<{ id: string; label: string }>
   defaultDocumentType: string
@@ -1738,6 +1746,14 @@ export type CustomerVerifyState = {
   rateLimitReason?: string
   required?: boolean
   message: string
+}
+
+export type LocationAccessState = {
+  allowed: boolean
+  blocked: boolean
+  reason?: string | null
+  type?: string | null
+  country?: string | null
 }
 
 export function isApiConfigured(): boolean {

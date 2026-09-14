@@ -8,6 +8,8 @@ import {
   tapstackApi,
 } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
+import SmsConsentCheckbox, { SmsShareNote } from './SmsConsentCheckbox'
+import type { LegalDoc } from './LegalPage'
 import './PlayerSignupPage.css'
 
 const DEMO_OTP = '12345'
@@ -15,15 +17,17 @@ const DEMO_OTP = '12345'
 type PlayerSignupPageProps = {
   onComplete: () => void
   onBack: () => void
+  onOpenLegal: (doc: LegalDoc) => void
 }
 
 type Step = 'details' | 'otp'
 
-export default function PlayerSignupPage({ onBack }: PlayerSignupPageProps) {
+export default function PlayerSignupPage({ onBack, onOpenLegal }: PlayerSignupPageProps) {
   const [step, setStep] = useState<Step>('details')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [smsConsent, setSmsConsent] = useState(false)
   const [digits, setDigits] = useState(['', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,12 +38,13 @@ export default function PlayerSignupPage({ onBack }: PlayerSignupPageProps) {
     fullName.trim().length >= 2 &&
     email.trim().includes('@') &&
     phone.trim().length >= 7 &&
+    smsConsent &&
     !loading
   const otpReady = code.length === 5 && !loading
 
   async function handleDetailsSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!detailsReady) return
+    if (!detailsReady || !smsConsent) return
     setError('')
 
     if (isApiConfigured()) {
@@ -220,9 +225,17 @@ export default function PlayerSignupPage({ onBack }: PlayerSignupPageProps) {
 
           {error ? <p className="player-signup-error">{error}</p> : null}
 
+          <SmsConsentCheckbox
+            checked={smsConsent}
+            onChange={setSmsConsent}
+            onOpenLegal={onOpenLegal}
+          />
+
           <button type="submit" className="player-signup-submit" disabled={!detailsReady}>
             {loading ? 'Sending code…' : 'Continue'}
           </button>
+
+          <SmsShareNote />
 
           <p className="player-signup-footnote">
             Already have an account?{' '}
