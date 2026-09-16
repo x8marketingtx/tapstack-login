@@ -4,6 +4,7 @@ import { LegalLinks, type LegalDoc } from './LegalPage'
 import './GeoBlockedPage.css'
 
 type GeoBlockedPageProps = {
+  status?: 'checking' | 'blocked'
   reason?: string | null
   type?: string | null
   country?: string | null
@@ -86,6 +87,7 @@ function copyForBlock(type?: string | null, country?: string | null): { title: s
 }
 
 export default function GeoBlockedPage({
+  status = 'blocked',
   reason,
   type,
   country,
@@ -94,7 +96,13 @@ export default function GeoBlockedPage({
   onLogout,
 }: GeoBlockedPageProps) {
   const [busy, setBusy] = useState(false)
-  const copy = copyForBlock(type, country)
+  const checking = status === 'checking'
+  const copy = checking
+    ? {
+        title: 'Confirming your location',
+        body: 'Making sure TapStack is available where you are.',
+      }
+    : copyForBlock(type, country)
   const code = countryCode(country)
   const flag = flagEmoji(country)
   const canRetry = type === 'vpn' || type === 'location_verification' || type === 'geolocation_country' || type === 'geolocation_state'
@@ -110,7 +118,7 @@ export default function GeoBlockedPage({
   }
 
   return (
-    <div className="geo-block">
+    <div className={`geo-block${checking ? ' geo-block--checking' : ''}`} aria-busy={checking || undefined}>
       <div className="geo-block-brand">
         <TapStackLogo height={44} />
       </div>
@@ -118,6 +126,7 @@ export default function GeoBlockedPage({
       <div className="geo-block-body">
         <div className="geo-block-panel">
         <div className="geo-block-mark" aria-hidden="true">
+          {checking ? <span className="geo-block-pulse" /> : null}
           <svg viewBox="0 0 36 36" fill="none">
             <circle cx="18" cy="18" r="16" stroke="currentColor" strokeWidth="1.6" opacity="0.22" />
             <path
@@ -131,12 +140,18 @@ export default function GeoBlockedPage({
           </svg>
         </div>
 
-        <p className="geo-block-kicker">Restricted region</p>
+        <p className="geo-block-kicker">{checking ? 'Please wait' : 'Restricted region'}</p>
         <h1 className="geo-block-title">{copy.title}</h1>
         <p className="geo-block-copy">{copy.body}</p>
+        {checking ? (
+          <div className="geo-block-progress" role="status" aria-live="polite" aria-label="Confirming your location">
+            <span className="geo-block-progress-bar" />
+          </div>
+        ) : null}
         </div>
       </div>
 
+      {checking ? null : (
       <div className="geo-block-footer">
         {code ? (
           <div className="geo-block-chip">
@@ -147,7 +162,7 @@ export default function GeoBlockedPage({
           </div>
         ) : null}
 
-        {reason && type !== 'geolocation_country' && type !== 'geolocation_state' ? (
+        {reason && type !== 'geolocation_country' && type !== 'geolocation_state' && type !== 'vpn' ? (
           <p className="geo-block-reason">{reason}</p>
         ) : null}
 
@@ -166,6 +181,7 @@ export default function GeoBlockedPage({
         </a>
         {onOpenLegal ? <LegalLinks onOpen={onOpenLegal} /> : null}
       </div>
+      )}
     </div>
   )
 }

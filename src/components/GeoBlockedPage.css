@@ -40,6 +40,7 @@
 }
 
 .geo-block-mark {
+  position: relative;
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -57,6 +58,80 @@
   box-shadow:
     0 14px 28px rgba(190, 18, 60, 0.12),
     inset 0 0 0 1px rgba(225, 29, 72, 0.08);
+}
+
+.geo-block--checking .geo-block-mark {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.95), transparent 52%),
+    linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #059669;
+  box-shadow:
+    0 14px 28px rgba(5, 150, 105, 0.12),
+    inset 0 0 0 1px rgba(5, 150, 105, 0.1);
+}
+
+.geo-block--checking .geo-block-kicker {
+  color: #059669;
+}
+
+.geo-block-pulse {
+  position: absolute;
+  inset: -8px;
+  border-radius: 28px;
+  border: 1.5px solid rgba(5, 150, 105, 0.35);
+  animation: geo-block-pulse 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+.geo-block-progress {
+  width: 100%;
+  max-width: 180px;
+  height: 4px;
+  margin: 18px 0 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.geo-block-progress-bar {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #34d399, #059669);
+  animation: geo-block-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes geo-block-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+
+@keyframes geo-block-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geo-block-pulse,
+  .geo-block-progress-bar {
+    animation: none;
+  }
+
+  .geo-block-progress-bar {
+    width: 70%;
+    transform: none;
+  }
 }
 
 .geo-block-mark svg {
@@ -202,4 +277,17 @@
 .geo-block-logout:hover {
   border-color: rgba(17, 24, 39, 0.28);
   background: #f9fafb;
+}
+
+.dashboard-scroll:has(> .geo-block),
+.vendor-main:has(> .geo-block),
+.dist-main:has(> .geo-block) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dashboard:has(.geo-block),
+.vendor-dashboard:has(.geo-block),
+.dist-dashboard:has(.geo-block) {
+  background: #f7f6f2;
 }

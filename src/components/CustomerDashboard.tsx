@@ -788,6 +788,7 @@ export default function CustomerDashboard({
             onVerified={closeVerify}
             onLogout={onLogout}
             lockExit={verifyLocked}
+            initial={verification}
             onUserUpdate={(user) => {
               setVerification(verificationFromUser(user))
               setProfile((current) =>

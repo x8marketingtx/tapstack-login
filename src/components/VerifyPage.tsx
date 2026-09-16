@@ -14,12 +14,15 @@ import {
   emptyVerification,
   geoBlockHint,
   geoBlockTitle,
+  isFullPageGeoBlock,
   isHardGeoBlock,
   needsVerification,
+  portalBlockType,
   statusLabel,
   VERIFY_LINK_DAILY_LIMIT,
   type VerificationState,
 } from '../lib/verify'
+import GeoBlockedPage from './GeoBlockedPage'
 import './VerifyPage.css'
 
 type VerifyPageProps = {
@@ -28,6 +31,7 @@ type VerifyPageProps = {
   onLogout?: () => void
   onUserUpdate?: (user: TapstackUser) => void
   lockExit?: boolean
+  initial?: VerificationState
 }
 
 export default function VerifyPage({
@@ -36,8 +40,9 @@ export default function VerifyPage({
   onLogout,
   onUserUpdate,
   lockExit = false,
+  initial,
 }: VerifyPageProps) {
-  const [state, setState] = useState<VerificationState>(emptyVerification())
+  const [state, setState] = useState<VerificationState>(() => initial || emptyVerification())
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -127,6 +132,32 @@ export default function VerifyPage({
     }
   }
 
+  async function retryGeoBlock(): Promise<boolean> {
+    setBusy(true)
+    setError('')
+    try {
+      const status = await tapstackApi.customerVerifyStatus()
+      applyState(status)
+      if (!status.geoBlocked && status.locationStatus === 'passed') return true
+      if (status.locationLink && (status.locationStatus === 'pending' || status.locationStatus === 'unknown')) {
+        window.location.assign(status.locationLink)
+        return false
+      }
+      const next = await tapstackApi.customerVerifyLocation()
+      applyState(next)
+      if (next.locationLink) {
+        window.location.assign(next.locationLink)
+        return false
+      }
+      return !next.geoBlocked
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start location check.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function startLocation() {
     setBusy(true)
     setError('')
@@ -151,6 +182,7 @@ export default function VerifyPage({
   }
 
   const geoBlocked = Boolean(state.geoBlocked)
+  const fullPageGeo = isFullPageGeoBlock(state)
   const hardGeo = isHardGeoBlock(state)
   const tone = toneForStatus(state)
   const locked = lockExit || needsVerification(state)
@@ -190,6 +222,17 @@ export default function VerifyPage({
                   : state.status === 'error'
                     ? 'Try verification again'
                     : 'Verify your identity'
+
+  if (fullPageGeo) {
+    return (
+      <GeoBlockedPage
+        type={portalBlockType(state)}
+        reason={state.geoReason}
+        onRetry={retryGeoBlock}
+        onLogout={onLogout}
+      />
+    )
+  }
 
   return (
     <div className="verify-page">

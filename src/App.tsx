@@ -306,8 +306,13 @@ function App() {
       setLocationGate('ok')
       return true
     }
+    const started = Date.now()
     try {
       const next = await tapstackApi.access()
+      const wait = 900 - (Date.now() - started)
+      if (wait > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, wait))
+      }
       setLocationBlock(next)
       if (next.blocked) {
         setLocationGate('blocked')
@@ -345,7 +350,7 @@ function App() {
   }, [view])
 
   const screenClass =
-    sessionRole && locationGate === 'blocked' && !isLegalView(view)
+    sessionRole && (locationGate === 'blocked' || locationGate === 'loading') && !isLegalView(view)
       ? 'screen--otp'
       : view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
       ? 'screen--dashboard'
@@ -365,9 +370,7 @@ function App() {
       <div className="phone-frame">
         <div className={`screen ${screenClass}`}>
           {sessionRole && locationGate === 'loading' && isDashboardView(view) ? (
-            <p className="subtitle" style={{ margin: 'auto' }}>
-              Checking location…
-            </p>
+            <GeoBlockedPage status="checking" />
           ) : sessionRole && locationGate === 'blocked' && !isLegalView(view) ? (
             <GeoBlockedPage
               reason={locationBlock?.reason}

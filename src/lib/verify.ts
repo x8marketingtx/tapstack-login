@@ -129,6 +129,39 @@ export function isHardGeoBlock(state: VerificationState): boolean {
   )
 }
 
+function geoBlockText(state: Pick<VerificationState, 'geoType' | 'geoReason' | 'message'>): string {
+  return `${state.geoType || ''} ${state.geoReason || ''} ${state.message || ''}`.toLowerCase()
+}
+
+/** AssureLocate "distance / VPN usage" should use the same VPN page as IP VPN blocks. */
+export function looksLikeVpnBlock(
+  state: Pick<VerificationState, 'geoBlocked' | 'geoType' | 'geoReason' | 'message'>,
+): boolean {
+  if (!state.geoBlocked) return false
+  if (state.geoType === 'vpn') return true
+  return /vpn|proxy|\btor\b/.test(geoBlockText(state))
+}
+
+export function portalBlockType(
+  state: Pick<VerificationState, 'geoBlocked' | 'geoType' | 'geoReason' | 'message'>,
+): GeoBlockType | null {
+  if (!state.geoBlocked) return null
+  if (looksLikeVpnBlock(state)) return 'vpn'
+  return state.geoType || 'location_verification'
+}
+
+/** Full-screen location lock instead of the identity stepper. */
+export function isFullPageGeoBlock(state: VerificationState): boolean {
+  if (!state.geoBlocked) return false
+  const type = portalBlockType(state)
+  return (
+    type === 'vpn' ||
+    type === 'location_verification' ||
+    type === 'geolocation_country' ||
+    type === 'geolocation_state'
+  )
+}
+
 export function geoBlockTitle(state: VerificationState): string {
   switch (state.geoType) {
     case 'vpn':

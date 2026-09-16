@@ -842,6 +842,7 @@ export default function VendorDashboard({
             onVerified={closeVerify}
             onLogout={handleLogout}
             lockExit={verifyLocked}
+            initial={verification}
             onUserUpdate={(user) => {
               setVerification(verificationFromUser(user))
               setProfile(profileFromUser(user))
