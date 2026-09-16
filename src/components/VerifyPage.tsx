@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ApiError,
   applyAuthSession,
@@ -45,8 +45,10 @@ export default function VerifyPage({
   const [state, setState] = useState<VerificationState>(() => initial || emptyVerification())
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [autoLocating, setAutoLocating] = useState(false)
   const [error, setError] = useState('')
   const [documentType, setDocumentType] = useState('DriversLicense')
+  const autoLocateStarted = useRef(false)
 
   function applyState(next: CustomerVerifyState | VerificationState) {
     const mapped = emptyVerification({
@@ -158,7 +160,7 @@ export default function VerifyPage({
     }
   }
 
-  async function startLocation() {
+  const startLocation = useCallback(async () => {
     setBusy(true)
     setError('')
     try {
@@ -166,14 +168,52 @@ export default function VerifyPage({
       applyState(next)
       if (next.locationLink) {
         window.location.assign(next.locationLink)
-        return
+        return true
       }
+      return false
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start location check.')
+      return false
     } finally {
       setBusy(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (loading || !isApiConfigured() || autoLocateStarted.current) return
+    if (state.geoBlocked) return
+    if (isHardGeoBlock(state)) return
+    if (!state.locationRequired || state.locationStatus === 'passed') return
+    if (!(state.identityVerified || state.required === false)) return
+
+    const locateReturn = new URLSearchParams(window.location.search).get('locate')
+    if (locateReturn === 'success' || locateReturn === 'error') return
+
+    autoLocateStarted.current = true
+    setAutoLocating(true)
+
+    if (state.locationLink && state.locationStatus === 'pending') {
+      window.location.assign(state.locationLink)
+      return
+    }
+
+    void startLocation().then((ok) => {
+      if (!ok) {
+        autoLocateStarted.current = false
+        setAutoLocating(false)
+      }
+    })
+  }, [
+    loading,
+    startLocation,
+    state.geoBlocked,
+    state.geoType,
+    state.identityVerified,
+    state.locationLink,
+    state.locationRequired,
+    state.locationStatus,
+    state.required,
+  ])
 
   function handleContinue() {
     consumeVerifyReturn()
@@ -232,6 +272,15 @@ export default function VerifyPage({
         onLogout={onLogout}
       />
     )
+  }
+
+  if (autoLocating && locationNeeded) {
+    return <GeoBlockedPage status="checking" />
+  }
+
+  const locateReturn = new URLSearchParams(window.location.search).get('locate')
+  if ((locateReturn === 'success' || locateReturn === 'error') && locationNeeded && !geoBlocked) {
+    return <GeoBlockedPage status="checking" />
   }
 
   return (
