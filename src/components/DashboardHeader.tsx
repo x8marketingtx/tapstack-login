@@ -9,6 +9,7 @@ type DashboardHeaderProps = {
   initials?: string
   loading?: boolean
   onProfileClick?: () => void
+  onLogoClick?: () => void
 }
 
 export default function DashboardHeader({
@@ -17,11 +18,12 @@ export default function DashboardHeader({
   initials = 'P',
   loading = false,
   onProfileClick,
+  onLogoClick,
 }: DashboardHeaderProps) {
   return (
     <header className="dash-header">
       <div className="dash-brand">
-        <TapStackLogo height={40} />
+        <TapStackLogo height={40} onClick={onLogoClick} />
       </div>
 
       <div className="dash-header-meta">

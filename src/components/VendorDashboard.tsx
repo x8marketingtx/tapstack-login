@@ -57,18 +57,20 @@ function VendorHeader({
   notificationCount = 0,
   onProfileClick,
   onNotificationsClick,
+  onLogoClick,
 }: {
   initials: string
   notificationCount?: number
   onProfileClick: () => void
   onNotificationsClick: () => void
+  onLogoClick?: () => void
 }) {
   const badge = notificationCount > 99 ? '99+' : String(notificationCount)
   return (
     <header className="vendor-dash-header">
       <div className="vendor-dash-header-row">
         <div className="vendor-dash-brand">
-          <TapStackLogo height={40} />
+          <TapStackLogo height={40} onClick={onLogoClick} />
         </div>
 
         <div className="vendor-dash-header-actions">
@@ -587,6 +589,15 @@ export default function VendorDashboard({
     navigate({ portal: 'vendor', tab: activeTab, verify: true }, 'replace')
   }, [verification, showVerify, activeTab])
 
+  function goHome() {
+    setShowProfile(false)
+    setShowVerify(false)
+    setNotificationsOpen(false)
+    setTopUpOpen(false)
+    setActiveTab('home')
+    navigate({ portal: 'vendor', tab: 'home' }, 'replace')
+  }
+
   function handleTabChange(tab: VendorTab) {
     if (needsVerification(verification)) {
       setActiveTab(tab)
@@ -861,6 +872,7 @@ export default function VendorDashboard({
           notificationCount={pendingOrderCount}
           onProfileClick={openProfile}
           onNotificationsClick={() => void openNotifications()}
+          onLogoClick={goHome}
         />
       ) : null}
 

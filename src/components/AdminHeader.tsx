@@ -5,20 +5,23 @@ import './AdminDashboard.css'
 type AdminShellContextValue = {
   initials: string
   onProfileClick: () => void
+  onLogoClick: () => void
 }
 
 const AdminShellContext = createContext<AdminShellContextValue>({
   initials: 'AV',
   onProfileClick: () => {},
+  onLogoClick: () => {},
 })
 
 export function AdminShellProvider({
   initials,
   onProfileClick,
+  onLogoClick,
   children,
 }: AdminShellContextValue & { children: ReactNode }) {
   return (
-    <AdminShellContext.Provider value={{ initials, onProfileClick }}>
+    <AdminShellContext.Provider value={{ initials, onProfileClick, onLogoClick }}>
       {children}
     </AdminShellContext.Provider>
   )
@@ -29,12 +32,12 @@ export function useAdminShell() {
 }
 
 export function AdminHeader() {
-  const { initials, onProfileClick } = useAdminShell()
+  const { initials, onProfileClick, onLogoClick } = useAdminShell()
 
   return (
     <header className="admin-dash-header">
       <div className="admin-dash-header-row">
-        <TapStackLogo height={40} />
+        <TapStackLogo height={40} onClick={onLogoClick} />
         <button
           type="button"
           className="admin-dash-avatar"

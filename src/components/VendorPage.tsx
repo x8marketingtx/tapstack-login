@@ -128,6 +128,7 @@ type VendorPageProps = {
   onTabChange: (tab: DashboardTab) => void
   onRemoveVendor?: () => void
   onProfileClick?: () => void
+  onLogoClick?: () => void
   onTopUp?: () => void
   onCashBalanceChange?: (balance: string) => void
   onRequireVerified?: () => boolean
@@ -144,6 +145,7 @@ export default function VendorPage({
   onTabChange,
   onRemoveVendor,
   onProfileClick,
+  onLogoClick,
   onTopUp,
   onCashBalanceChange,
   onRequireVerified,
@@ -705,6 +707,7 @@ export default function VendorPage({
           tier={profile?.tier}
           initials={profile?.initials}
           onProfileClick={onProfileClick}
+          onLogoClick={onLogoClick}
         />
 
         {verification && onOpenVerify ? (

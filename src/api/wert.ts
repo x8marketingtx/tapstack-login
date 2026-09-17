@@ -64,6 +64,17 @@ type OpenWertOptions = {
   onError?: (message: string) => void
 }
 
+type WertWidgetError = {
+  message?: string
+}
+
+type WertPaymentStatus = {
+  status?: string
+  order_id?: string
+  payment_id?: string
+  tx_id?: string
+}
+
 /**
  * Creates a Wert onramp session via WordPress, then opens the official widget.
  * @see https://docs.wert.io/docs/llm-on-ramp.md
@@ -91,10 +102,10 @@ export async function openWertTopUp({ amount, ownerType, onSuccess, onClose, onE
       close: () => {
         onClose?.()
       },
-      error: (data) => {
+      error: (data: WertWidgetError) => {
         onError?.(data?.message || 'Wert widget error')
       },
-      'payment-status': async (data) => {
+      'payment-status': async (data: WertPaymentStatus) => {
         const status = data?.status || ''
         try {
           const result = await confirmWertPayment({

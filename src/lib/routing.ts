@@ -173,6 +173,20 @@ export function pathForRoute(route: RouteState): string {
   }
 }
 
+/** Default dashboard route shown right after login for each portal. */
+export function homeRouteForPortal(portal: DashboardPortal): RouteState {
+  switch (portal) {
+    case 'customer':
+      return { portal: 'customer', tab: 'games' }
+    case 'vendor':
+      return { portal: 'vendor', tab: 'home' }
+    case 'admin':
+      return { portal: 'admin', tab: 'overview' }
+    case 'distributor':
+      return { portal: 'distributor', tab: 'home' }
+  }
+}
+
 const TITLE_BRAND = 'TapStack'
 
 export type DocumentTitleOptions = {

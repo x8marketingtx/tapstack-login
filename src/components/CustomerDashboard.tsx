@@ -546,6 +546,16 @@ export default function CustomerDashboard({
     }
   }
 
+  function goHome() {
+    setSelectedVendor(null)
+    setPendingVendorId(null)
+    setShowProfile(false)
+    setShowVerify(false)
+    setTopUpOpen(false)
+    setActiveTab('games')
+    navigate({ portal: 'customer', tab: 'games' }, 'replace')
+  }
+
   function handleTabChange(tab: DashboardTab) {
     if (needsVerification(verification)) {
       setActiveTab(tab)
@@ -815,6 +825,7 @@ export default function CustomerDashboard({
           onTabChange={handleTabChange}
           onRemoveVendor={() => void removeVendor(selectedVendor)}
           onProfileClick={openProfile}
+          onLogoClick={goHome}
           onTopUp={() => {
             if (!requireVerified()) return
             setTopUpOpen(true)
@@ -893,6 +904,7 @@ export default function CustomerDashboard({
               tier={headerProfile?.tier}
               initials={headerProfile?.initials}
               onProfileClick={openProfile}
+              onLogoClick={goHome}
             />
 
             <VerifyBanner state={verification} onVerify={openVerify} />

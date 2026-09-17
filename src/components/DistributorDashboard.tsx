@@ -130,6 +130,13 @@ export default function DistributorDashboard({
     navigate({ portal: 'distributor', tab, verify: true }, 'replace')
   }, [verification, showVerify, tab])
 
+  function goHome() {
+    setShowProfile(false)
+    setShowVerify(false)
+    setTab('home')
+    navigate({ portal: 'distributor', tab: 'home' }, 'replace')
+  }
+
   function changeTab(next: DistributorTab) {
     if (needsVerification(verification)) {
       setTab(next)
@@ -330,7 +337,7 @@ export default function DistributorDashboard({
     return (
       <div className="dist-dashboard" aria-busy="true" aria-label="Loading">
         <header className="dist-header">
-          <TapStackLogo height={36} />
+          <TapStackLogo height={36} onClick={goHome} />
           <span className="dist-avatar dist-avatar--skel" aria-hidden="true" />
         </header>
         <main className="dist-main">
@@ -362,7 +369,7 @@ export default function DistributorDashboard({
     <div className="dist-dashboard">
       {!showProfile ? (
         <header className="dist-header">
-          <TapStackLogo height={36} />
+          <TapStackLogo height={36} onClick={goHome} />
           <button type="button" className="dist-avatar" aria-label="Open profile" onClick={openProfile}>
             {initials}
           </button>

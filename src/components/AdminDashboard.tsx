@@ -503,6 +503,12 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
     }
   }, [handleOverviewStats])
 
+  function goHome() {
+    setShowProfile(false)
+    setActiveTab('overview')
+    navigate({ portal: 'admin', tab: 'overview' }, 'replace')
+  }
+
   function handleTabChange(tab: AdminTab) {
     setShowProfile(false)
     setActiveTab(tab)
@@ -512,7 +518,11 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
   const initials = profile.initials || initialsFromName(profile.displayName) || 'AV'
 
   return (
-    <AdminShellProvider initials={initials} onProfileClick={() => setShowProfile(true)}>
+    <AdminShellProvider
+      initials={initials}
+      onProfileClick={() => setShowProfile(true)}
+      onLogoClick={goHome}
+    >
       <div className="admin-dashboard">
         {showProfile ? (
           <div className="admin-dashboard-scroll admin-dashboard-scroll--profile">
