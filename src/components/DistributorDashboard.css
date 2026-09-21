@@ -34,6 +34,29 @@
   padding: 16px 18px 4px;
 }
 
+.dist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dist-help-button {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dist-help-button--skel {
+  width: 52px;
+  pointer-events: none;
+}
+
 .dist-avatar {
   width: 36px;
   height: 36px;
@@ -68,6 +91,7 @@
 }
 
 .dist-avatar--skel,
+.dist-help-button--skel,
 .dist-skel {
   background: linear-gradient(90deg, #e8eef7 0%, #f4f7fb 50%, #e8eef7 100%);
   background-size: 200% 100%;

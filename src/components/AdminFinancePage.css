@@ -509,12 +509,13 @@
 
 .admin-finance-customer-username {
   margin: 0 0 2px;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   color: #111827;
   font-size: 13px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .admin-finance-customer-contact {
@@ -629,6 +630,55 @@
   margin: 4px 0 0;
   color: #6b7280;
   font-size: 12px;
+}
+
+.admin-finance-customer-detail-vip-help {
+  margin: 6px 0 0;
+  color: #9ca3af;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.admin-vip-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fde68a, #f59e0b);
+  color: #78350f;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-vip-badge--operator {
+  background: linear-gradient(180deg, #1e3a5f, #0f2744);
+  color: #fde68a;
+}
+
+.admin-vip-button {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.admin-vip-button--on {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+  border-color: #b45309;
+  color: #fff;
+}
+
+.admin-vip-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .admin-finance-customer-detail-info-grid {

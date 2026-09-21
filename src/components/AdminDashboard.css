@@ -37,6 +37,39 @@
   margin: 0;
 }
 
+.admin-dash-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-help-button {
+  position: relative;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-help-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+}
+
 .admin-dash-avatar {
   display: inline-flex;
   align-items: center;

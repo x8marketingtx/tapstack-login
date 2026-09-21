@@ -312,7 +312,8 @@ function App() {
   }, [])
 
   const checkLocationAccess = useCallback(async (): Promise<boolean> => {
-    if (!isApiConfigured()) {
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) {
       setLocationGate('ok')
       return true
     }

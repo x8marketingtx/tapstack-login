@@ -19,6 +19,7 @@ import VendorSettingsPage, { prefetchVendorGames } from './VendorSettingsPage'
 import TopUpModal from './TopUpModal'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
+import HelpCenter from './HelpCenter'
 import {
   consumeVerifyReturn,
   needsVerification,
@@ -55,17 +56,24 @@ type VendorHomeExtras = {
 function VendorHeader({
   initials,
   notificationCount = 0,
+  playerTicketCount = 0,
   onProfileClick,
   onNotificationsClick,
+  onHelpClick,
+  onPlayersClick,
   onLogoClick,
 }: {
   initials: string
   notificationCount?: number
+  playerTicketCount?: number
   onProfileClick: () => void
   onNotificationsClick: () => void
+  onHelpClick: () => void
+  onPlayersClick: () => void
   onLogoClick?: () => void
 }) {
   const badge = notificationCount > 99 ? '99+' : String(notificationCount)
+  const playerBadge = playerTicketCount > 99 ? '99+' : String(playerTicketCount)
   return (
     <header className="vendor-dash-header">
       <div className="vendor-dash-header-row">
@@ -99,6 +107,18 @@ function VendorHeader({
               />
             </svg>
             {notificationCount > 0 ? <span className="vendor-badge">{badge}</span> : null}
+          </button>
+
+          <button type="button" className="vendor-help-button" onClick={onHelpClick}>
+            Help
+          </button>
+          <button
+            type="button"
+            className="vendor-help-button vendor-players-button"
+            onClick={onPlayersClick}
+          >
+            Players
+            {playerTicketCount > 0 ? <span className="vendor-badge">{playerBadge}</span> : null}
           </button>
 
           <button
@@ -518,6 +538,9 @@ export default function VendorDashboard({
   const [showVerify, setShowVerify] = useState(
     () => initialRoute.portal === 'vendor' && Boolean(initialRoute.verify),
   )
+  const [showHelp, setShowHelp] = useState(false)
+  const [showPlayerSupport, setShowPlayerSupport] = useState(false)
+  const [playerTicketCount, setPlayerTicketCount] = useState(0)
   const [verification, setVerification] = useState<VerificationState>(() =>
     verificationFromUser(cachedUser),
   )
@@ -592,6 +615,8 @@ export default function VendorDashboard({
   function goHome() {
     setShowProfile(false)
     setShowVerify(false)
+    setShowHelp(false)
+    setShowPlayerSupport(false)
     setNotificationsOpen(false)
     setTopUpOpen(false)
     setActiveTab('home')
@@ -607,6 +632,8 @@ export default function VendorDashboard({
     }
     setShowProfile(false)
     setShowVerify(false)
+    setShowHelp(false)
+    setShowPlayerSupport(false)
     setActiveTab(tab)
     navigate({ portal: 'vendor', tab })
   }
@@ -618,6 +645,8 @@ export default function VendorDashboard({
       return
     }
     setShowVerify(false)
+    setShowHelp(false)
+    setShowPlayerSupport(false)
     setShowProfile(true)
     navigate({ portal: 'vendor', tab: activeTab, profile: true })
   }
@@ -665,6 +694,13 @@ export default function VendorDashboard({
   }
 
   useEffect(() => {
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) {
+      setPlayerTicketCount((count) => (count > 0 ? count : 1))
+    }
+  }, [])
+
+  useEffect(() => {
     if (!shouldLoadFromApi) return
 
     prefetchVendorGames()
@@ -702,6 +738,7 @@ export default function VendorDashboard({
         }
 
         const dash = vendorDash
+        if (typeof dash?.messagesBadge === 'number') setPlayerTicketCount(dash.messagesBadge)
         const balance = dash?.wallet
         const amount = balance?.amount
         if (typeof amount === 'number') {
@@ -866,18 +903,37 @@ export default function VendorDashboard({
 
   return (
     <div className="vendor-dashboard">
-      {!showProfile ? (
+      {!showProfile && !showHelp && !showPlayerSupport ? (
         <VendorHeader
           initials={initials}
           notificationCount={pendingOrderCount}
+          playerTicketCount={playerTicketCount}
           onProfileClick={openProfile}
+          onHelpClick={() => {
+            setShowProfile(false)
+            setShowPlayerSupport(false)
+            setShowHelp(true)
+          }}
+          onPlayersClick={() => {
+            setShowProfile(false)
+            setShowHelp(false)
+            setShowPlayerSupport(true)
+          }}
           onNotificationsClick={() => void openNotifications()}
           onLogoClick={goHome}
         />
       ) : null}
 
-      <main className={`vendor-main ${showProfile ? 'vendor-main--profile' : ''}`}>
-        {showProfile ? (
+      <main className={`vendor-main ${showProfile || showHelp || showPlayerSupport ? 'vendor-main--profile' : ''}`}>
+        {showPlayerSupport ? (
+          <HelpCenter
+            mode="store-inbox"
+            onBack={() => setShowPlayerSupport(false)}
+            onOpenCount={setPlayerTicketCount}
+          />
+        ) : showHelp ? (
+          <HelpCenter mode="submitter" onBack={() => setShowHelp(false)} />
+        ) : showProfile ? (
           <ProfilePage
             profile={profile}
             showLevel={false}
@@ -920,7 +976,7 @@ export default function VendorDashboard({
         )}
       </main>
 
-      {!showProfile ? (
+      {!showProfile && !showHelp && !showPlayerSupport ? (
         <VendorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       ) : null}
 

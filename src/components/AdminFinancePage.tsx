@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ApiError,
+  getToken,
   isApiConfigured,
   tapstackApi,
   type AdminCustomerDetail,
@@ -136,6 +137,27 @@ type CustomerItem = {
   balance: string
   points: string
   status: CustomerStatus
+  vip: boolean
+  operatorVip: boolean
+}
+
+const DEMO_ADMIN_CUSTOMERS: CustomerItem[] = [
+  {
+    id: 'demo-1',
+    username: 'alex',
+    initial: 'A',
+    avatarBg: '#dbeafe',
+    contact: 'alex@tapstack.demo',
+    balance: '$85.00',
+    points: '120 pts',
+    status: 'active',
+    vip: true,
+    operatorVip: false,
+  },
+]
+
+function isDemoSession() {
+  return !isApiConfigured() || Boolean(getToken()?.startsWith('demo:'))
 }
 
 const CUSTOMER_FILTERS: { id: CustomerFilter; label: string }[] = [
@@ -211,6 +233,8 @@ function mapApiCustomer(customer: AdminFinanceCustomer): CustomerItem {
     balance: customer.balance,
     points: `${Number(customer.points || 0).toLocaleString()} pts`,
     status: normalizeCustomerStatus(customer.status),
+    vip: Boolean(customer.vip),
+    operatorVip: Boolean(customer.operatorVip),
   }
 }
 
@@ -433,9 +457,43 @@ function CustomerDetailView({
   const [range, setRange] = useState<keyof AdminCustomerDetail['stats']>('30d')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [vipBusy, setVipBusy] = useState(false)
   const [detail, setDetail] = useState<AdminCustomerDetail | null>(null)
 
   useEffect(() => {
+    if (isDemoSession()) {
+      const demo = DEMO_ADMIN_CUSTOMERS.find((row) => row.id === customerId)
+      setDetail(
+        demo
+          ? {
+              customer: {
+                ...demo,
+                displayName: 'Alex Rivera',
+                email: demo.contact,
+                vendors: 1,
+              },
+              wallet: {
+                balance: demo.balance,
+                balanceAmount: 85,
+                points: 120,
+                currency: 'USD',
+              },
+              stats: {
+                today: EMPTY_PERIOD_STATS,
+                '7d': EMPTY_PERIOD_STATS,
+                '30d': EMPTY_PERIOD_STATS,
+                month: EMPTY_PERIOD_STATS,
+                all: EMPTY_PERIOD_STATS,
+              },
+              vendors: [{ id: 'v1', name: 'Lucky Strike Arcade', status: 'active' }],
+              recentOrders: [],
+            }
+          : null,
+      )
+      setLoading(false)
+      setError('')
+      return
+    }
     if (!isApiConfigured()) {
       setLoading(false)
       setError('API is not configured.')
@@ -467,6 +525,46 @@ function CustomerDetailView({
   const stats = detail?.stats?.[range] ?? EMPTY_PERIOD_STATS
   const status = normalizeCustomerStatus(customer?.status || 'active')
 
+  async function toggleOperatorVip() {
+    if (!customer || vipBusy) return
+    const next = !customer.operatorVip
+    setVipBusy(true)
+    setError('')
+    try {
+      if (isDemoSession()) {
+        setDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                customer: {
+                  ...prev.customer,
+                  operatorVip: next,
+                },
+              }
+            : prev,
+        )
+        return
+      }
+      const res = await tapstackApi.adminCustomerVip(customer.id, next)
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              customer: {
+                ...prev.customer,
+                operatorVip: res.operatorVip,
+                vip: res.vip,
+              },
+            }
+          : prev,
+      )
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update operator VIP.')
+    } finally {
+      setVipBusy(false)
+    }
+  }
+
   return (
     <div className="admin-finance-customer-detail">
       <button type="button" className="admin-finance-customer-detail-back" onClick={onBack}>
@@ -493,6 +591,7 @@ function CustomerDetailView({
             <div className="admin-finance-customer-detail-hero-main">
               <div className="admin-finance-customer-detail-hero-top">
                 <h1 className="admin-finance-customer-detail-title">{customer.username}</h1>
+                {customer.vip ? <span className="admin-vip-badge">VIP</span> : null}
                 <span className={`admin-finance-customer-status admin-finance-customer-status--${status}`}>
                   {statusLabel(status)}
                 </span>
@@ -502,6 +601,18 @@ function CustomerDetailView({
                 {customer.vendors != null
                   ? ` · ${customer.vendors} ${customer.vendors === 1 ? 'vendor' : 'vendors'}`
                   : ''}
+              </p>
+              <button
+                type="button"
+                className={`admin-vip-button ${customer.operatorVip ? 'admin-vip-button--on' : ''}`}
+                aria-pressed={Boolean(customer.operatorVip)}
+                disabled={vipBusy}
+                onClick={() => void toggleOperatorVip()}
+              >
+                {customer.operatorVip ? 'Operator VIP on' : 'Operator VIP override'}
+              </button>
+              <p className="admin-finance-customer-detail-vip-help">
+                Authorizes this player to use TapStack pay-in caps even if a vendor lowered them.
               </p>
             </div>
           </section>
@@ -639,7 +750,8 @@ function FinanceCustomersTab({
   const [filter, setFilter] = useState<CustomerFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const customers = useApi && finance ? finance.customers.map(mapApiCustomer) : []
+  const customers =
+    isDemoSession() ? DEMO_ADMIN_CUSTOMERS : useApi && finance ? finance.customers.map(mapApiCustomer) : []
   const totalPlayers = customers.length
 
   const walletBalanceLabel = useMemo(() => {
@@ -764,7 +876,13 @@ function FinanceCustomersTab({
                 {customer.initial}
               </span>
               <div className="admin-finance-customer-info">
-                <p className="admin-finance-customer-username">{customer.username}</p>
+                <p className="admin-finance-customer-username">
+                  {customer.username}
+                  {customer.vip ? <span className="admin-vip-badge">VIP</span> : null}
+                  {customer.operatorVip ? (
+                    <span className="admin-vip-badge admin-vip-badge--operator">Override</span>
+                  ) : null}
+                </p>
                 <p className="admin-finance-customer-contact">{customer.contact}</p>
               </div>
               <div className="admin-finance-customer-balances">
@@ -1058,6 +1176,8 @@ function FinanceFeesTab({
   const [redeemFee, setRedeemFee] = useState('2')
   const [playerRankUpgrade, setPlayerRankUpgrade] = useState('9.99')
   const [vendorGameAutomation, setVendorGameAutomation] = useState('999')
+  const [autoPayinMax, setAutoPayinMax] = useState('500')
+  const [staffPayinMax, setStaffPayinMax] = useState('1000')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -1074,6 +1194,8 @@ function FinanceFeesTab({
     setRedeemFee(String(fees.redeemFeePct ?? 2))
     setPlayerRankUpgrade(String(fees.playerRankUpgradeMo ?? 9.99))
     setVendorGameAutomation(String(fees.vendorGameAutomationMo ?? 999))
+    setAutoPayinMax(String(fees.autoPayinMax ?? 500))
+    setStaffPayinMax(String(fees.staffPayinMax ?? 1000))
   }, [dirty, finance, useApi])
 
   const feeEstimate = useMemo(() => {
@@ -1119,12 +1241,22 @@ function FinanceFeesTab({
     const redeemFeePct = Number(redeemFee)
     const playerRankUpgradeMo = Number(playerRankUpgrade)
     const vendorGameAutomationMo = Number(vendorGameAutomation)
+    const autoPayin = Number(autoPayinMax)
+    const staffPayin = Number(staffPayinMax)
     if (
-      ![depositFeePct, redeemFeePct, playerRankUpgradeMo, vendorGameAutomationMo].every(
+      ![depositFeePct, redeemFeePct, playerRankUpgradeMo, vendorGameAutomationMo, autoPayin, staffPayin].every(
         (n) => Number.isFinite(n) && n >= 0,
       )
     ) {
-      setError('Enter valid non-negative fee and pricing values.')
+      setError('Enter valid non-negative fee, pricing, and pay-in values.')
+      return
+    }
+    if (autoPayin <= 0) {
+      setError('Auto pay-in cap must be greater than zero.')
+      return
+    }
+    if (staffPayin < autoPayin) {
+      setError('Staff pay-in cap must be at least the auto pay-in cap.')
       return
     }
 
@@ -1140,6 +1272,8 @@ function FinanceFeesTab({
       redeemFeePct,
       playerRankUpgradeMo,
       vendorGameAutomationMo,
+      autoPayinMax: autoPayin,
+      staffPayinMax: staffPayin,
     }
     try {
       const res = await tapstackApi.adminFinanceUpdateFees(payload)
@@ -1190,6 +1324,49 @@ function FinanceFeesTab({
           checked={maintenanceMode}
           onChange={markDirty(setMaintenanceMode)}
         />
+      </section>
+
+      <section className="admin-finance-fees-card">
+        <h2 className="admin-finance-fees-section-title">PAYIN CAPS</h2>
+        <p className="admin-finance-fees-section-desc">
+          TapStack defaults are $500 automatic and $1,000 staff. Vendors can set lower store limits, not higher.
+        </p>
+        <div className="admin-finance-fees-input-row">
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Auto-approve maximum</span>
+            <div className="admin-finance-fees-money-wrap">
+              <span className="admin-finance-fees-money-prefix">$</span>
+              <input
+                type="number"
+                className="admin-finance-fees-money-input"
+                value={autoPayinMax}
+                onChange={(event) => markDirty(setAutoPayinMax)(event.target.value)}
+                min="1"
+                step="1"
+              />
+            </div>
+            <span className="admin-finance-fees-field-help">
+              Maximum automatic pay-in any vendor can allow
+            </span>
+          </label>
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Staff-approve maximum</span>
+            <div className="admin-finance-fees-money-wrap">
+              <span className="admin-finance-fees-money-prefix">$</span>
+              <input
+                type="number"
+                className="admin-finance-fees-money-input"
+                value={staffPayinMax}
+                onChange={(event) => markDirty(setStaffPayinMax)(event.target.value)}
+                min="1"
+                step="1"
+              />
+            </div>
+            <span className="admin-finance-fees-field-help">
+              Maximum staff-approved pay-in any vendor can allow
+            </span>
+          </label>
+        </div>
       </section>
 
       <section className="admin-finance-fees-card">
@@ -1635,7 +1812,7 @@ function FinanceTransferTab({
 }
 
 export default function AdminFinancePage() {
-  const useApi = isApiConfigured()
+  const useApi = isApiConfigured() && !getToken()?.startsWith('demo:')
   const [subTab, setSubTab] = useState<FinanceSubTab>('analytics')
   const [range, setRange] = useState<FinanceRange>('30d')
   const [finance, setFinance] = useState<AdminFinance | null>(null)

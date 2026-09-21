@@ -264,6 +264,8 @@ export type AdminFees = {
   redeemFeePct: number
   playerRankUpgradeMo: number
   vendorGameAutomationMo: number
+  autoPayinMax: number
+  staffPayinMax: number
 }
 
 export type AdminFinanceCustomer = {
@@ -275,6 +277,9 @@ export type AdminFinanceCustomer = {
   balance: string
   points: number
   status: string
+  vip?: boolean
+  operatorVip?: boolean
+  tags?: string[]
 }
 
 export type AdminCustomerDetail = {
@@ -524,6 +529,8 @@ export type VendorCustomer = {
   email?: string
   tags?: string[]
   tagLabels?: string[]
+  vip?: boolean
+  operatorVip?: boolean
 }
 
 export type VendorGameAccount = {
@@ -966,6 +973,7 @@ export const tapstackApi = {
         tone?: string
         rawAmount?: number
       }>
+      messagesBadge?: number
     }>('/vendor/dashboard'),
   vendorWallet: () =>
     apiRequest<{
@@ -1236,14 +1244,16 @@ export const tapstackApi = {
         bannerUrl?: string
         bannerName?: string
       }
-      games?: Record<string, unknown>
+      games?: VendorRedeemSettings & { catalog?: VendorGameRecord[] }
       gameCatalog?: VendorGameRecord[]
+      payinCaps?: { auto: number; staff: number }
     }>('/vendor/settings'),
   saveVendorSettings: (payload: Record<string, unknown>) =>
     apiRequest<{
       ok: boolean
       profile?: Record<string, unknown>
       settings?: Record<string, unknown>
+      gameCatalog?: VendorGameRecord[]
     }>('/vendor/settings', {
       method: 'PUT',
       body: payload,
@@ -1425,6 +1435,11 @@ export const tapstackApi = {
     apiRequest<AdminDistributorDetail>(`/admin/distributors/${id}`),
   adminCustomerDetail: (id: string | number) =>
     apiRequest<AdminCustomerDetail>(`/admin/customers/${id}`),
+  adminCustomerVip: (id: string | number, operatorVip: boolean) =>
+    apiRequest<{ ok: boolean; id: string; operatorVip: boolean; vip: boolean }>(
+      `/admin/customers/${id}/vip`,
+      { method: 'PATCH', body: { operatorVip } },
+    ),
   adminSignups: (status = 'all') =>
     apiRequest<{ signups: AdminSignup[]; pendingCount?: number }>(
       `/admin/signups?status=${encodeURIComponent(status)}`,
@@ -1454,6 +1469,77 @@ export const tapstackApi = {
   adminSettings: () => apiRequest<AdminSettings>('/admin/settings'),
   adminSettingsUpdate: (payload: { account?: Partial<AdminSettings['account']> }) =>
     apiRequest<{ ok: boolean }>('/admin/settings', { method: 'PUT', body: payload }),
+
+  supportTickets: () =>
+    apiRequest<{ tickets: SupportTicket[]; categories: SupportCategory[]; supportEmail: string }>(
+      '/support/tickets',
+    ),
+  supportTicket: (id: number | string) =>
+    apiRequest<{ ticket: SupportTicket }>(`/support/tickets/${id}`),
+  supportCreateTicket: (payload: { subject: string; message: string; category: string }) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>('/support/tickets', {
+      method: 'POST',
+      body: payload,
+    }),
+  supportReplyTicket: (id: number | string, message: string) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/support/tickets/${id}/replies`, {
+      method: 'POST',
+      body: { message },
+    }),
+  customerVendorSupport: (vendorId: string | number) =>
+    apiRequest<{ tickets: SupportTicket[]; openCount: number; categories: SupportCategory[] }>(
+      `/customer/vendors/${vendorId}/support`,
+    ),
+  customerVendorSupportTicket: (vendorId: string | number, id: number | string) =>
+    apiRequest<{ ticket: SupportTicket }>(`/customer/vendors/${vendorId}/support/${id}`),
+  customerVendorCreateSupport: (
+    vendorId: string | number,
+    payload: { subject: string; message: string; category: string },
+  ) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/customer/vendors/${vendorId}/support`, {
+      method: 'POST',
+      body: payload,
+    }),
+  customerVendorSupportReply: (vendorId: string | number, id: number | string, message: string) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(
+      `/customer/vendors/${vendorId}/support/${id}/replies`,
+      { method: 'POST', body: { message } },
+    ),
+  vendorStoreSupport: () =>
+    apiRequest<{ tickets: SupportTicket[]; openCount: number; categories: SupportCategory[] }>(
+      '/vendor/support',
+    ),
+  vendorStoreSupportTicket: (id: number | string) =>
+    apiRequest<{ ticket: SupportTicket }>(`/vendor/support/${id}`),
+  vendorStoreSupportReply: (id: number | string, message: string) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/vendor/support/${id}/replies`, {
+      method: 'POST',
+      body: { message },
+    }),
+  vendorStoreSupportUpdate: (id: number | string, status: SupportTicketStatus) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/vendor/support/${id}`, {
+      method: 'PATCH',
+      body: { status },
+    }),
+  adminSupportTickets: (status = 'all') =>
+    apiRequest<{
+      tickets: SupportTicket[]
+      openCount: number
+      categories: SupportCategory[]
+      supportEmail: string
+    }>(`/admin/support/tickets?status=${encodeURIComponent(status)}`),
+  adminSupportTicket: (id: number | string) =>
+    apiRequest<{ ticket: SupportTicket }>(`/admin/support/tickets/${id}`),
+  adminSupportReply: (id: number | string, message: string) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/admin/support/tickets/${id}/replies`, {
+      method: 'POST',
+      body: { message },
+    }),
+  adminSupportUpdate: (id: number | string, status: SupportTicketStatus) =>
+    apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/admin/support/tickets/${id}`, {
+      method: 'PATCH',
+      body: { status },
+    }),
 
   distributorDashboard: (range = 'today') =>
     apiRequest<{
@@ -1635,6 +1721,22 @@ export const tapstackApi = {
     }),
 }
 
+export type RedeemApprovalMode = 'manual' | 'auto' | 'hybrid'
+
+export type VendorRedeemSettings = {
+  minRedeem: number
+  maxRedeem: number
+  autoLoads: boolean
+  autoRedeems: boolean
+  redeemApproval: RedeemApprovalMode
+  autoRedeemThreshold: number
+  autoPayinThreshold: number
+  staffPayinThreshold: number
+  vipPayinEnabled: boolean
+  vipAutoPayinThreshold: number
+  vipStaffPayinThreshold: number
+}
+
 export type VendorGameRecord = {
   id: string
   title: string
@@ -1754,6 +1856,41 @@ export type LocationAccessState = {
   reason?: string | null
   type?: string | null
   country?: string | null
+}
+
+export type SupportTicketStatus = 'open' | 'pending' | 'resolved' | 'closed'
+
+export type SupportCategory = {
+  id: string
+  label: string
+}
+
+export type SupportReply = {
+  id: number
+  ticketId?: number
+  authorRole: 'vendor' | 'distributor' | 'admin' | 'player' | string
+  body: string
+  createdAt: string
+}
+
+export type SupportTicket = {
+  id: number
+  userId?: number
+  vendorId?: number
+  vendorName?: string
+  channel?: 'platform' | 'store' | string
+  subject: string
+  category: string
+  categoryLabel: string
+  status: SupportTicketStatus
+  statusLabel: string
+  role: string
+  authorName: string
+  authorEmail: string
+  message: string
+  createdAt: string
+  updatedAt: string
+  replies?: SupportReply[]
 }
 
 export function isApiConfigured(): boolean {

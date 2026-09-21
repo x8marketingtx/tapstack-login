@@ -3,9 +3,12 @@ import { createPortal } from 'react-dom'
 import {
   ApiError,
   applyAuthSession,
+  getToken,
   isApiConfigured,
   tapstackApi,
+  type RedeemApprovalMode,
   type VendorGameRecord,
+  type VendorRedeemSettings,
 } from '../api/client'
 import './VendorSettingsPage.css'
 
@@ -1181,14 +1184,145 @@ function BillingTab() {
   const [minRedeem, setMinRedeem] = useState('10')
   const [maxRedeem, setMaxRedeem] = useState('500')
   const [autoLoads, setAutoLoads] = useState(true)
-  const [autoRedeems, setAutoRedeems] = useState(true)
+  const [approval, setApproval] = useState<RedeemApprovalMode>('hybrid')
+  const [autoThreshold, setAutoThreshold] = useState('500')
+  const [autoPayin, setAutoPayin] = useState('500')
+  const [staffPayin, setStaffPayin] = useState('1000')
+  const [vipPayinEnabled, setVipPayinEnabled] = useState(true)
+  const [vipAutoPayin, setVipAutoPayin] = useState('500')
+  const [vipStaffPayin, setVipStaffPayin] = useState('1000')
+  const [payinCaps, setPayinCaps] = useState({ auto: 500, staff: 1000 })
+  const [linkedCount, setLinkedCount] = useState(0)
+  const [gameCount, setGameCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveOk, setSaveOk] = useState(false)
+
+  function applyGames(games: Partial<VendorRedeemSettings> | null | undefined) {
+    if (!games) return
+    if (games.minRedeem != null) setMinRedeem(String(games.minRedeem))
+    if (games.maxRedeem != null) setMaxRedeem(String(games.maxRedeem))
+    if (typeof games.autoLoads === 'boolean') setAutoLoads(games.autoLoads)
+    const mode = games.redeemApproval
+    if (mode === 'manual' || mode === 'auto' || mode === 'hybrid') {
+      setApproval(mode)
+    } else if (typeof games.autoRedeems === 'boolean') {
+      setApproval(games.autoRedeems ? 'auto' : 'hybrid')
+    }
+    if (games.autoRedeemThreshold != null) setAutoThreshold(String(games.autoRedeemThreshold))
+    else if (games.maxRedeem != null) setAutoThreshold(String(games.maxRedeem))
+    if (games.autoPayinThreshold != null) setAutoPayin(String(games.autoPayinThreshold))
+    if (games.staffPayinThreshold != null) setStaffPayin(String(games.staffPayinThreshold))
+    if (typeof games.vipPayinEnabled === 'boolean') setVipPayinEnabled(games.vipPayinEnabled)
+    if (games.vipAutoPayinThreshold != null) setVipAutoPayin(String(games.vipAutoPayinThreshold))
+    if (games.vipStaffPayinThreshold != null) setVipStaffPayin(String(games.vipStaffPayinThreshold))
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const token = getToken()
+    const demo = !isApiConfigured() || Boolean(token?.startsWith('demo:'))
+
+    ;(async () => {
+      setLoading(true)
+      try {
+        if (demo) {
+          try {
+            const raw = localStorage.getItem('tapstack_vendor_redeem_settings')
+            if (raw) applyGames(JSON.parse(raw) as VendorRedeemSettings)
+          } catch {
+            /* keep defaults */
+          }
+        } else {
+          const settings = await tapstackApi.vendorSettings().catch(() => null)
+          if (!cancelled) {
+            applyGames(settings?.games)
+            if (settings?.payinCaps) setPayinCaps(settings.payinCaps)
+          }
+        }
+        const { games } = await loadVendorGames()
+        if (!cancelled) {
+          setGameCount(games.length)
+          setLinkedCount(games.filter((game) => game.statusBadge === 'auto').length)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSaveError(err instanceof Error ? err.message : 'Could not load redeem settings.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleSave() {
+    const min = Math.max(0, Number(minRedeem) || 0)
+    const max = Math.max(min, Number(maxRedeem) || 0)
+    const threshold = Math.max(0, Number(autoThreshold) || max)
+    const capAuto = Math.max(0, payinCaps.auto || 500)
+    const capStaff = Math.max(capAuto, payinCaps.staff || 1000)
+    const clamp = (value: number, cap: number) => Math.round(Math.min(Math.max(0, value), cap) * 100) / 100
+    const autoPayinValue = clamp(Number(autoPayin) || 0, capAuto)
+    const vipAutoValue = clamp(Number(vipAutoPayin) || 0, capAuto)
+    const payload: VendorRedeemSettings = {
+      minRedeem: Math.round(min * 100) / 100,
+      maxRedeem: Math.round(max * 100) / 100,
+      autoLoads,
+      autoRedeems: approval !== 'manual',
+      redeemApproval: approval,
+      autoRedeemThreshold: Math.round(threshold * 100) / 100,
+      autoPayinThreshold: autoPayinValue,
+      staffPayinThreshold: Math.max(autoPayinValue, clamp(Number(staffPayin) || 0, capStaff)),
+      vipPayinEnabled,
+      vipAutoPayinThreshold: vipAutoValue,
+      vipStaffPayinThreshold: Math.max(vipAutoValue, clamp(Number(vipStaffPayin) || 0, capStaff)),
+    }
+
+    setSaving(true)
+    setSaveError('')
+    setSaveOk(false)
+    try {
+      const token = getToken()
+      if (!isApiConfigured() || token?.startsWith('demo:')) {
+        localStorage.setItem('tapstack_vendor_redeem_settings', JSON.stringify(payload))
+        applyGames(payload)
+        setSaveOk(true)
+        return
+      }
+      const res = await tapstackApi.saveVendorSettings({ games: payload })
+      const saved = (res.settings as { games?: VendorRedeemSettings } | undefined)?.games
+      applyGames(saved || payload)
+      setSaveOk(true)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Could not save redeem settings.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const money = (value: string) => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'
+  }
+
+  const needsThreshold = approval === 'auto' || approval === 'hybrid'
+  const thresholdLabel = approval === 'auto' ? 'Maximum auto-redeem' : 'Auto-approve up to'
+  const thresholdHelp =
+    approval === 'auto'
+      ? `Redemptions at or below $${money(autoThreshold)} are approved automatically. Larger requests are blocked.`
+      : `Redemptions at or below $${money(autoThreshold)} are approved automatically. Amounts above that (up to $${money(maxRedeem)}) wait in Pending Redeems.`
 
   return (
     <div className="vendor-settings-content">
       <div className="vendor-settings-games-toolbar">
         <div>
           <h2 className="vendor-settings-games-heading">Billing</h2>
-          <p className="vendor-settings-games-meta">Redeems and automation</p>
+          <p className="vendor-settings-games-meta">Redeems, pay-ins, and automation</p>
         </div>
       </div>
 
@@ -1221,6 +1355,7 @@ function BillingTab() {
                 value={minRedeem}
                 onChange={(event) => setMinRedeem(event.target.value)}
                 min="0"
+                step="1"
               />
             </div>
           </label>
@@ -1234,15 +1369,220 @@ function BillingTab() {
                 value={maxRedeem}
                 onChange={(event) => setMaxRedeem(event.target.value)}
                 min="0"
+                step="1"
               />
             </div>
           </label>
         </div>
 
         <p className="vendor-settings-panel-help">
-          Players can redeem between ${minRedeem || '0'} and ${maxRedeem || '0'} per request, across
+          Players can redeem between ${money(minRedeem)} and ${money(maxRedeem)} per request, across
           every game.
         </p>
+      </section>
+
+      <section className="vendor-settings-panel">
+        <div className="vendor-settings-games-card-header">
+          <span className="vendor-settings-games-card-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M9 11l3 3L22 4"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <div>
+            <h3 className="vendor-settings-games-card-title">Redeem Approval</h3>
+            <p className="vendor-settings-games-card-desc">
+              Choose how player redemptions are approved at your store.
+            </p>
+          </div>
+        </div>
+
+        <div className="vendor-settings-mode-list" role="radiogroup" aria-label="Redeem approval method">
+          {(
+            [
+              {
+                id: 'manual' as const,
+                label: 'Manual',
+                description: 'All redemptions require manual approval.',
+              },
+              {
+                id: 'auto' as const,
+                label: 'Auto',
+                description:
+                  'Redemptions below your threshold are approved automatically. Larger amounts are blocked.',
+              },
+              {
+                id: 'hybrid' as const,
+                label: 'Hybrid',
+                description:
+                  'Set the dollar amount that can be automatically approved. Amounts above that wait for you.',
+              },
+            ] satisfies { id: RedeemApprovalMode; label: string; description: string }[]
+          ).map((mode) => {
+            const active = approval === mode.id
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={`vendor-settings-mode-card ${active ? 'vendor-settings-mode-card--active' : ''}`}
+                onClick={() => setApproval(mode.id)}
+              >
+                <span className="vendor-settings-mode-radio" aria-hidden="true" />
+                <span>
+                  <span className="vendor-settings-mode-label">{mode.label}</span>
+                  <span className="vendor-settings-mode-desc">{mode.description}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {needsThreshold ? (
+          <label className="vendor-settings-redeem-field vendor-settings-threshold-field">
+            <span className="vendor-settings-field-label">{thresholdLabel}</span>
+            <div className="vendor-settings-money-input-wrap">
+              <span className="vendor-settings-money-prefix">$</span>
+              <input
+                type="number"
+                className="vendor-settings-money-input"
+                value={autoThreshold}
+                onChange={(event) => setAutoThreshold(event.target.value)}
+                min="0"
+                step="1"
+              />
+            </div>
+            <span className="vendor-settings-panel-help">{thresholdHelp}</span>
+          </label>
+        ) : (
+          <p className="vendor-settings-panel-help">
+            Every redeem request will show up under Orders → Redeems for you to approve or reject.
+          </p>
+        )}
+      </section>
+
+      <section className="vendor-settings-panel">
+        <div className="vendor-settings-games-card-header">
+          <span className="vendor-settings-games-card-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 3v18M5 8h14M7 16h10"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <div>
+            <h3 className="vendor-settings-games-card-title">Payin Thresholds</h3>
+            <p className="vendor-settings-games-card-desc">
+              TapStack defaults are ${money(String(payinCaps.auto))} auto and $
+              {money(String(payinCaps.staff))} staff. You can set lower limits for this store.
+            </p>
+          </div>
+        </div>
+
+        <div className="vendor-settings-redeem-row">
+          <label className="vendor-settings-redeem-field">
+            <span className="vendor-settings-field-label">Auto-approve payins up to</span>
+            <div className="vendor-settings-money-input-wrap">
+              <span className="vendor-settings-money-prefix">$</span>
+              <input
+                type="number"
+                className="vendor-settings-money-input"
+                value={autoPayin}
+                onChange={(event) => setAutoPayin(event.target.value)}
+                min="0"
+                max={payinCaps.auto}
+                step="1"
+              />
+            </div>
+          </label>
+          <label className="vendor-settings-redeem-field">
+            <span className="vendor-settings-field-label">Staff-approve payins up to</span>
+            <div className="vendor-settings-money-input-wrap">
+              <span className="vendor-settings-money-prefix">$</span>
+              <input
+                type="number"
+                className="vendor-settings-money-input"
+                value={staffPayin}
+                onChange={(event) => setStaffPayin(event.target.value)}
+                min="0"
+                max={payinCaps.staff}
+                step="1"
+              />
+            </div>
+          </label>
+        </div>
+        <p className="vendor-settings-panel-help">
+          Loads at or below ${money(autoPayin)} credit automatically when the game is API-linked.
+          Amounts up to ${money(staffPayin)} wait for staff approval. Larger payins are blocked.
+        </p>
+
+        <div className="vendor-settings-auto-list">
+          <div className="vendor-settings-auto-item">
+            <SettingsToggle
+              label="VIP payin override"
+              description="Let VIP customers use higher payin limits at this store"
+              checked={vipPayinEnabled}
+              onChange={setVipPayinEnabled}
+            />
+          </div>
+        </div>
+
+        {vipPayinEnabled ? (
+          <>
+            <div className="vendor-settings-redeem-row">
+              <label className="vendor-settings-redeem-field">
+                <span className="vendor-settings-field-label">VIP auto-approve up to</span>
+                <div className="vendor-settings-money-input-wrap">
+                  <span className="vendor-settings-money-prefix">$</span>
+                  <input
+                    type="number"
+                    className="vendor-settings-money-input"
+                    value={vipAutoPayin}
+                    onChange={(event) => setVipAutoPayin(event.target.value)}
+                    min="0"
+                    max={payinCaps.auto}
+                    step="1"
+                  />
+                </div>
+              </label>
+              <label className="vendor-settings-redeem-field">
+                <span className="vendor-settings-field-label">VIP staff-approve up to</span>
+                <div className="vendor-settings-money-input-wrap">
+                  <span className="vendor-settings-money-prefix">$</span>
+                  <input
+                    type="number"
+                    className="vendor-settings-money-input"
+                    value={vipStaffPayin}
+                    onChange={(event) => setVipStaffPayin(event.target.value)}
+                    min="0"
+                    max={payinCaps.staff}
+                    step="1"
+                  />
+                </div>
+              </label>
+            </div>
+            <p className="vendor-settings-panel-help">
+              VIP customers tagged in Analytics can auto-load up to ${money(vipAutoPayin)} and request
+              staff approval up to ${money(vipStaffPayin)}. TapStack VIP override can raise a player
+              to the platform caps.
+            </p>
+          </>
+        ) : null}
       </section>
 
       <section className="vendor-settings-panel">
@@ -1259,10 +1599,9 @@ function BillingTab() {
             </svg>
           </span>
           <div>
-            <h3 className="vendor-settings-games-card-title">Automate Loads &amp; Redeems</h3>
+            <h3 className="vendor-settings-games-card-title">Automate Loads</h3>
             <p className="vendor-settings-games-card-desc">
-              Link your game platform APIs to load credits and pay out redeems automatically · no
-              manual work needed.
+              Link your game platform APIs to credit loads automatically.
             </p>
           </div>
         </div>
@@ -1276,20 +1615,28 @@ function BillingTab() {
               onChange={setAutoLoads}
             />
           </div>
-          <div className="vendor-settings-auto-item">
-            <SettingsToggle
-              label="Auto Redeems"
-              description="Pay out approved redeems automatically"
-              checked={autoRedeems}
-              onChange={setAutoRedeems}
-            />
-          </div>
         </div>
 
         <p className="vendor-settings-panel-help">
-          1 of 1 games are API-linked. Open a game&apos;s settings to link its platform.
+          {gameCount > 0
+            ? `${linkedCount} of ${gameCount} games are API-linked. Open a game's settings to link its platform.`
+            : 'Open a game’s Settings tab to link its platform for automatic loads.'}
         </p>
       </section>
+
+      {saveError ? <p className="vendor-settings-modal-error">{saveError}</p> : null}
+      {saveOk ? <p className="vendor-settings-save-ok">Billing settings saved.</p> : null}
+
+      <div className="vendor-settings-actions vendor-settings-actions--single">
+        <button
+          type="button"
+          className="vendor-settings-save-btn"
+          disabled={saving || loading}
+          onClick={() => void handleSave()}
+        >
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
     </div>
   )
 }

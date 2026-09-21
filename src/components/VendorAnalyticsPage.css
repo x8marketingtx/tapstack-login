@@ -1796,6 +1796,59 @@
   gap: 12px;
 }
 
+.vendor-customer-hero-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.vendor-customer-operator-vip {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: #92400e;
+}
+
+.vendor-vip-button {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.vendor-vip-button--compact {
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+.vendor-vip-button--on {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+  border-color: #b45309;
+  color: #fff;
+}
+
+.vendor-vip-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.vendor-vip-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1e3a5f, #0f2744);
+  color: #fde68a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .vendor-customer-name {
   margin: 0;
   font-size: 20px;

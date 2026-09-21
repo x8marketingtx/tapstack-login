@@ -1,0 +1,303 @@
+.help-center {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  color: #111827;
+}
+
+.help-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.help-back,
+.help-new {
+  flex-shrink: 0;
+  height: 36px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+}
+
+.help-back {
+  width: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-new {
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.help-head-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.help-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.help-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.help-head-spacer {
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.help-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.help-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+.help-empty,
+.help-empty-copy,
+.help-author,
+.help-mail {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.help-empty-card {
+  padding: 22px 18px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.help-empty-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.help-empty-copy {
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+.help-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.help-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+  text-align: left;
+}
+
+.help-row-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.help-row-copy strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.help-row-copy span {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.help-status {
+  flex-shrink: 0;
+  margin-top: 1px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.help-status--open {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.help-status--pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.help-status--resolved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.help-status--closed {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.help-mail {
+  display: block;
+  text-align: center;
+  margin-top: 4px;
+}
+
+.help-form,
+.help-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.help-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.help-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.help-textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.help-primary,
+.help-ghost {
+  height: 46px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.help-primary {
+  border: none;
+  background: #111827;
+  color: #fff;
+}
+
+.help-primary:disabled {
+  opacity: 0.55;
+}
+
+.help-ghost {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+}
+
+.help-detail-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.help-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help-bubble {
+  max-width: 92%;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+
+.help-bubble p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.help-bubble time {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.help-bubble--them {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.help-bubble--mine {
+  align-self: flex-end;
+  background: #111827;
+  color: #fff;
+}
+
+.help-bubble--mine time {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.help-status-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.help-center--embedded {
+  min-height: 0;
+  height: 100%;
+}
+
+.help-center--embedded .help-head {
+  margin-bottom: 10px;
+}

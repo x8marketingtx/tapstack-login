@@ -15,6 +15,7 @@ import { TapStackLogo } from './TapStackLogo'
 import DistributorBottomNav from './DistributorBottomNav'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
+import HelpCenter from './HelpCenter'
 import {
   consumeVerifyReturn,
   needsVerification,
@@ -128,6 +129,7 @@ export default function DistributorDashboard({
   const [showVerify, setShowVerify] = useState(
     () => initial.portal === 'distributor' && Boolean(initial.verify),
   )
+  const [showHelp, setShowHelp] = useState(false)
   const [verification, setVerification] = useState<VerificationState>(() =>
     verificationFromUser(cachedUser),
   )
@@ -197,6 +199,7 @@ export default function DistributorDashboard({
   function goHome() {
     setShowProfile(false)
     setShowVerify(false)
+    setShowHelp(false)
     setTab('home')
     navigate({ portal: 'distributor', tab: 'home' }, 'replace')
   }
@@ -210,6 +213,7 @@ export default function DistributorDashboard({
     }
     setShowProfile(false)
     setShowVerify(false)
+    setShowHelp(false)
     setTab(next)
     navigate({ portal: 'distributor', tab: next })
   }
@@ -221,6 +225,7 @@ export default function DistributorDashboard({
       return
     }
     setShowVerify(false)
+    setShowHelp(false)
     setShowProfile(true)
     navigate({ portal: 'distributor', tab, profile: true })
   }
@@ -418,7 +423,10 @@ export default function DistributorDashboard({
       <div className="dist-dashboard" aria-busy="true" aria-label="Loading">
         <header className="dist-header">
           <TapStackLogo height={36} onClick={goHome} />
-          <span className="dist-avatar dist-avatar--skel" aria-hidden="true" />
+          <div className="dist-header-actions">
+            <span className="dist-help-button dist-help-button--skel" aria-hidden="true" />
+            <span className="dist-avatar dist-avatar--skel" aria-hidden="true" />
+          </div>
         </header>
         <main className="dist-main">
           <div className="dist-skel dist-skel--title" />
@@ -447,17 +455,24 @@ export default function DistributorDashboard({
 
   return (
     <div className="dist-dashboard">
-      {!showProfile ? (
+      {!showProfile && !showHelp ? (
         <header className="dist-header">
           <TapStackLogo height={36} onClick={goHome} />
-          <button type="button" className="dist-avatar" aria-label="Open profile" onClick={openProfile}>
-            {initials}
-          </button>
+          <div className="dist-header-actions">
+            <button type="button" className="dist-help-button" onClick={() => setShowHelp(true)}>
+              Help
+            </button>
+            <button type="button" className="dist-avatar" aria-label="Open profile" onClick={openProfile}>
+              {initials}
+            </button>
+          </div>
         </header>
       ) : null}
 
-      <main className={`dist-main${showProfile ? ' dist-main--profile' : ''}`}>
-        {showProfile ? (
+      <main className={`dist-main${showProfile || showHelp ? ' dist-main--profile' : ''}`}>
+        {showHelp ? (
+          <HelpCenter mode="submitter" onBack={() => setShowHelp(false)} />
+        ) : showProfile ? (
           <ProfilePage
             profile={profile}
             showLevel={false}
@@ -563,7 +578,7 @@ export default function DistributorDashboard({
         )}
       </main>
 
-      {!showProfile ? (
+      {!showProfile && !showHelp ? (
         <DistributorBottomNav activeTab={tab} onTabChange={changeTab} vendorsBadge={vendorsTotal || undefined} />
       ) : null}
     </div>

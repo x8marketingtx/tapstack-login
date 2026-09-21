@@ -40,6 +40,28 @@
   gap: 10px;
 }
 
+.vendor-help-button {
+  position: relative;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vendor-players-button {
+  position: relative;
+}
+
+.vendor-help-button .vendor-badge {
+  top: -6px;
+  right: -6px;
+}
+
 .vendor-main {
   flex: 1;
   min-height: 0;

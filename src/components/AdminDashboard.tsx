@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   ApiError,
   getSessionUser,
+  getToken,
   isApiConfigured,
   isMeForCurrentSession,
   normalizeSessionRole,
@@ -20,6 +21,7 @@ import ProfilePage, {
   profileFromUser,
   type PlayerProfile,
 } from './ProfilePage'
+import HelpCenter from './HelpCenter'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
 import './AdminDashboard.css'
 import './ProfilePage.css'
@@ -438,6 +440,8 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
   )
   const [navBadges, setNavBadges] = useState<Partial<Record<AdminTab, string>> | undefined>()
   const [showProfile, setShowProfile] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  const [openTicketCount, setOpenTicketCount] = useState(0)
   const [profile, setProfile] = useState<PlayerProfile>(() => {
     const user = getSessionUser()
     if (user && normalizeSessionRole(user.role) === 'admin') {
@@ -503,14 +507,31 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
     }
   }, [handleOverviewStats])
 
+  useEffect(() => {
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) return
+    let cancelled = false
+    tapstackApi
+      .adminSupportTickets()
+      .then((res) => {
+        if (!cancelled) setOpenTicketCount(res.openCount || 0)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [showHelp])
+
   function goHome() {
     setShowProfile(false)
+    setShowHelp(false)
     setActiveTab('overview')
     navigate({ portal: 'admin', tab: 'overview' }, 'replace')
   }
 
   function handleTabChange(tab: AdminTab) {
     setShowProfile(false)
+    setShowHelp(false)
     setActiveTab(tab)
     navigate({ portal: 'admin', tab })
   }
@@ -520,7 +541,15 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
   return (
     <AdminShellProvider
       initials={initials}
-      onProfileClick={() => setShowProfile(true)}
+      onProfileClick={() => {
+        setShowHelp(false)
+        setShowProfile(true)
+      }}
+      onHelpClick={() => {
+        setShowProfile(false)
+        setShowHelp(true)
+      }}
+      openTicketCount={openTicketCount}
       onLogoClick={goHome}
     >
       <div className="admin-dashboard">
@@ -533,6 +562,21 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
               onBack={() => setShowProfile(false)}
               onLogout={() => onLogout?.()}
               onProfileChange={setProfile}
+            />
+          </div>
+        ) : showHelp ? (
+          <div className="admin-dashboard-scroll admin-dashboard-scroll--profile">
+            <HelpCenter
+              mode="inbox"
+              onBack={() => {
+                setShowHelp(false)
+                const token = getToken()
+                if (!isApiConfigured() || token?.startsWith('demo:')) return
+                void tapstackApi
+                  .adminSupportTickets()
+                  .then((res) => setOpenTicketCount(res.openCount || 0))
+                  .catch(() => {})
+              }}
             />
           </div>
         ) : (

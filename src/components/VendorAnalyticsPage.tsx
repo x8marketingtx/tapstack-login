@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ApiError,
+  getToken,
   isApiConfigured,
   PLAYER_TAG_OPTIONS,
   tapstackApi,
@@ -13,6 +14,27 @@ import './VendorAnalyticsPage.css'
 type AnalyticsTab = 'customers' | 'financial' | 'games'
 
 type CustomerRow = VendorCustomer
+
+function isDemoSession() {
+  return !isApiConfigured() || Boolean(getToken()?.startsWith('demo:'))
+}
+
+const DEMO_CUSTOMERS: CustomerRow[] = [
+  {
+    id: 'demo-1',
+    name: 'Alex Rivera',
+    username: '@alex',
+    meta: 'VIP-ready player',
+    initial: 'AR',
+    inAmount: '$120.00',
+    outAmount: '$40.00',
+    visits: 8,
+    tags: [],
+    tagLabels: [],
+    vip: false,
+    operatorVip: true,
+  },
+]
 
 const ANALYTICS_TABS: { id: AnalyticsTab; label: string; icon: string }[] = [
   { id: 'customers', label: 'Customers', icon: '👥' },
@@ -77,7 +99,9 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
     : emptyMessage
 
   useEffect(() => {
-    if (!isApiConfigured()) {
+    if (isDemoSession()) {
+      setCustomers(DEMO_CUSTOMERS)
+      setTotal(DEMO_CUSTOMERS.length)
       setLoading(false)
       return
     }
@@ -109,11 +133,20 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
   }, [])
 
   useEffect(() => {
-    if (!selectedId || !isApiConfigured()) {
+    if (!selectedId) {
       setDetailCustomer(null)
       setAccounts([])
       setOrders([])
       setDetailError('')
+      return
+    }
+    if (isDemoSession()) {
+      const row = customers.find((customer) => customer.id === selectedId)
+      setDetailCustomer(row || null)
+      setAccounts([])
+      setOrders([])
+      setDetailError('')
+      setDetailLoading(false)
       return
     }
     let cancelled = false
@@ -152,7 +185,7 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
   }, [customers, query])
 
   async function toggleCustomerTag(customer: CustomerRow, tagId: string) {
-    if (!isApiConfigured() || tagBusyId) return
+    if (tagBusyId) return
     const current = customer.tags || []
     const next = current.includes(tagId)
       ? current.filter((id) => id !== tagId)
@@ -162,12 +195,18 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
     // Optimistic UI so toggles feel instant on both list + detail.
     setCustomers((prev) =>
       prev.map((row) =>
-        row.id === customer.id ? { ...row, tags: next, tagLabels: nextLabels } : row,
+        row.id === customer.id
+          ? { ...row, tags: next, tagLabels: nextLabels, vip: next.includes('vip') }
+          : row,
       ),
     )
     setDetailCustomer((prev) =>
-      prev && prev.id === customer.id ? { ...prev, tags: next, tagLabels: nextLabels } : prev,
+      prev && prev.id === customer.id
+        ? { ...prev, tags: next, tagLabels: nextLabels, vip: next.includes('vip') }
+        : prev,
     )
+
+    if (isDemoSession()) return
 
     setTagBusyId(customer.id)
     try {
@@ -175,13 +214,13 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
       setCustomers((prev) =>
         prev.map((row) =>
           row.id === customer.id
-            ? { ...row, tags: res.tags, tagLabels: res.tagLabels }
+            ? { ...row, tags: res.tags, tagLabels: res.tagLabels, vip: res.tags.includes('vip') }
             : row,
         ),
       )
       setDetailCustomer((prev) =>
         prev && prev.id === customer.id
-          ? { ...prev, tags: res.tags, tagLabels: res.tagLabels }
+          ? { ...prev, tags: res.tags, tagLabels: res.tagLabels, vip: res.tags.includes('vip') }
           : prev,
       )
       setError('')
@@ -191,13 +230,13 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
       setCustomers((prev) =>
         prev.map((row) =>
           row.id === customer.id
-            ? { ...row, tags: current, tagLabels: customer.tagLabels }
+            ? { ...row, tags: current, tagLabels: customer.tagLabels, vip: current.includes('vip') }
             : row,
         ),
       )
       setDetailCustomer((prev) =>
         prev && prev.id === customer.id
-          ? { ...prev, tags: current, tagLabels: customer.tagLabels }
+          ? { ...prev, tags: current, tagLabels: customer.tagLabels, vip: current.includes('vip') }
           : prev,
       )
       const message = err instanceof ApiError ? err.message : 'Could not update player tags.'
@@ -239,13 +278,27 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
             <section className="vendor-customer-hero">
               <div className="vendor-customer-hero-top">
                 <div className="vendor-analytics-avatar vendor-analytics-avatar--lg">{shown.initial}</div>
-                <div>
+                <div className="vendor-customer-hero-copy">
                   <h2 className="vendor-customer-name">{shown.name}</h2>
                   <p className="vendor-customer-meta">
                     {[shown.username, shown.meta].filter(Boolean).join(' · ')}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  className={`vendor-vip-button ${
+                    shown.vip || (shown.tags || []).includes('vip') ? 'vendor-vip-button--on' : ''
+                  }`}
+                  aria-pressed={shown.vip || (shown.tags || []).includes('vip')}
+                  disabled={tagBusyId === shown.id}
+                  onClick={() => void toggleCustomerTag(shown, 'vip')}
+                >
+                  VIP
+                </button>
               </div>
+              {shown.operatorVip ? (
+                <p className="vendor-customer-operator-vip">TapStack VIP override is on for this player.</p>
+              ) : null}
 
               <div className="vendor-customer-stats">
                 <div className="vendor-customer-stat">
@@ -297,7 +350,7 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                 <p className="vendor-customer-section-hint">Tap to turn on or off</p>
               </div>
               <div className="vendor-analytics-tag-picks vendor-analytics-tag-picks--detail" role="group" aria-label={`Tags for ${shown.name}`}>
-                {PLAYER_TAG_OPTIONS.map((tag) => {
+                {PLAYER_TAG_OPTIONS.filter((tag) => tag.id !== 'vip').map((tag) => {
                   const active = (shown.tags || []).includes(tag.id)
                   return (
                     <button
@@ -489,7 +542,26 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => event.stopPropagation()}
                     >
-                      {PLAYER_TAG_OPTIONS.map((tag) => {
+                      <button
+                        type="button"
+                        className={`vendor-vip-button vendor-vip-button--compact ${
+                          customer.vip || (customer.tags || []).includes('vip')
+                            ? 'vendor-vip-button--on'
+                            : ''
+                        }`}
+                        aria-pressed={customer.vip || (customer.tags || []).includes('vip')}
+                        disabled={tagBusyId === customer.id}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void toggleCustomerTag(customer, 'vip')
+                        }}
+                      >
+                        VIP
+                      </button>
+                      {customer.operatorVip ? (
+                        <span className="vendor-vip-chip">TapStack</span>
+                      ) : null}
+                      {PLAYER_TAG_OPTIONS.filter((tag) => tag.id !== 'vip').map((tag) => {
                         const active = (customer.tags || []).includes(tag.id)
                         return (
                           <button

@@ -2,13 +2,14 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent 
 import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
 import { gameArtUrl } from '../data/gameArt'
-import { ApiError, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
+import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import type { PlayerProfile } from './ProfilePage'
 import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './GameLoadModal'
 import { VerifyBanner } from './VerifyPage'
 import type { VerificationState } from '../lib/verify'
+import HelpCenter from './HelpCenter'
 import './CustomerDashboard.css'
 import './VendorPage.css'
 
@@ -255,7 +256,7 @@ export default function VendorPage({
     loadFavoriteGames(initialVendor.id),
   )
   const [chatOpen, setChatOpen] = useState(false)
-  const chatUnread = 1
+  const [chatUnread, setChatUnread] = useState(0)
 
   useEffect(() => {
     if (!chatOpen) return
@@ -265,6 +266,39 @@ export default function VendorPage({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [chatOpen])
+
+  useEffect(() => {
+    const vendorId = vendor.id
+    if (!vendorId) {
+      setChatUnread(0)
+      return
+    }
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) {
+      try {
+        const raw = localStorage.getItem(`tapstack_store_tickets:store:${vendorId}`)
+        const tickets = raw ? (JSON.parse(raw) as Array<{ status?: string }>) : []
+        setChatUnread(
+          tickets.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
+        )
+      } catch {
+        setChatUnread(0)
+      }
+      return
+    }
+    let cancelled = false
+    tapstackApi
+      .customerVendorSupport(vendorId)
+      .then((res) => {
+        if (!cancelled) setChatUnread(res.openCount || 0)
+      })
+      .catch(() => {
+        if (!cancelled) setChatUnread(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [vendor.id, chatOpen])
 
   useEffect(() => {
     setVendor(initialVendor)
@@ -843,6 +877,35 @@ export default function VendorPage({
               </button>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            className="vendor-pending-btn vendor-support-btn"
+            aria-expanded={chatOpen}
+            onClick={() => setChatOpen(true)}
+          >
+            <span className="vendor-pending-btn-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H9l-4.5 3.5V16H6.5A2.5 2.5 0 0 1 4 13.5v-7Z"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="vendor-pending-btn-copy">
+              <strong>Support</strong>
+              <small>Message this store about loads, redeems, or your account</small>
+            </span>
+            {chatUnread > 0 ? (
+              <span className="vendor-pending-btn-count">{chatUnread > 9 ? '9+' : chatUnread}</span>
+            ) : (
+              <span className="vendor-pending-btn-chevron" aria-hidden="true">
+                →
+              </span>
+            )}
+          </button>
 
           <button
             type="button"
@@ -1564,38 +1627,11 @@ export default function VendorPage({
         ) : null}
       </div>
 
-      {!chatOpen ? (
-        <button
-          type="button"
-          className="vendor-chat-tab"
-          aria-label="Open chat with vendor"
-          aria-expanded={false}
-          onClick={() => setChatOpen(true)}
-        >
-          <span className="vendor-chat-tab-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H9l-4.5 3.5V16H6.5A2.5 2.5 0 0 1 4 13.5v-7Z"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <span className="vendor-chat-tab-label">Chat</span>
-          {chatUnread > 0 ? (
-            <span className="vendor-chat-tab-badge" aria-hidden="true">
-              {chatUnread > 9 ? '9+' : chatUnread}
-            </span>
-          ) : null}
-        </button>
-      ) : null}
-
       <div className={`vendor-chat-drawer${chatOpen ? ' is-open' : ''}`} aria-hidden={!chatOpen}>
         <button
           type="button"
           className="vendor-chat-backdrop"
-          aria-label="Close chat"
+          aria-label="Close support"
           tabIndex={chatOpen ? 0 : -1}
           onClick={() => setChatOpen(false)}
         />
@@ -1610,48 +1646,31 @@ export default function VendorPage({
               <h2 id="vendor-chat-title" className="vendor-chat-title">
                 {vendor.name}
               </h2>
-              <p className="vendor-chat-subtitle">Message your vendor</p>
+              <p className="vendor-chat-subtitle">Tickets with this store</p>
             </div>
             <button
               type="button"
               className="vendor-chat-close"
-              aria-label="Close chat"
+              aria-label="Close support"
               onClick={() => setChatOpen(false)}
             >
               ×
             </button>
           </header>
-
-          <div className="vendor-chat-thread">
-            <div className="vendor-chat-message vendor-chat-message--vendor">
-              <p>
-                Hi! Need help loading credits or redeeming? Send a message and we&apos;ll get back to
-                you shortly.
-              </p>
-            </div>
+          <div className="vendor-chat-help">
+            {chatOpen && vendor.id ? (
+              <HelpCenter
+                mode="store"
+                vendorId={vendor.id}
+                vendorName={vendor.name}
+                embedded
+                onBack={() => setChatOpen(false)}
+                onOpenCount={setChatUnread}
+              />
+            ) : !vendor.id ? (
+              <p className="vendor-chat-unavailable">Support isn’t available for this store yet.</p>
+            ) : null}
           </div>
-
-          <form
-            className="vendor-chat-composer"
-            onSubmit={(event) => {
-              event.preventDefault()
-            }}
-          >
-            <label className="vendor-chat-input-wrap">
-              <span className="sr-only">Message</span>
-              <input type="text" placeholder="Type a message…" autoComplete="off" />
-            </label>
-            <button type="submit" className="vendor-chat-send" aria-label="Send message">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path
-                  d="M4 12 20 4l-3.5 8L20 20 4 12Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </form>
         </aside>
       </div>
 
