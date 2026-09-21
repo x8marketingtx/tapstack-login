@@ -928,6 +928,7 @@ export default function VendorDashboard({
         {showPlayerSupport ? (
           <HelpCenter
             mode="store-inbox"
+            vendorName={profile.displayName}
             onBack={() => setShowPlayerSupport(false)}
             onOpenCount={setPlayerTicketCount}
           />

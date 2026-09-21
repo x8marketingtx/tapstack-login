@@ -25,11 +25,18 @@ const CATEGORIES: SupportCategory[] = [
   { id: 'other', label: 'Other' },
 ]
 
-const STATUS_LABEL: Record<SupportTicketStatus, string> = {
-  open: 'Open',
-  pending: 'Waiting on you',
-  resolved: 'Resolved',
-  closed: 'Closed',
+function statusLabelFor(status: SupportTicketStatus, mode: HelpMode): string {
+  if (status === 'resolved') return 'Resolved'
+  if (status === 'closed') return 'Closed'
+  const staffView = mode === 'inbox' || mode === 'store-inbox'
+  if (status === 'pending') {
+    if (mode === 'store-inbox') return 'Waiting on player'
+    if (mode === 'inbox') return 'Waiting on them'
+    return 'Waiting on you'
+  }
+  if (staffView) return 'Waiting on you'
+  if (mode === 'store') return 'Waiting on store'
+  return 'Open'
 }
 
 function useDemoMode() {
@@ -283,7 +290,7 @@ export default function HelpCenter({
         const updated: SupportTicket = {
           ...selected,
           status,
-          statusLabel: STATUS_LABEL[status],
+          statusLabel: statusLabelFor(status, mode),
           updatedAt: nextReply.createdAt,
           replies: [...(selected.replies || []), nextReply],
         }
@@ -318,7 +325,12 @@ export default function HelpCenter({
     setError('')
     try {
       if (demo) {
-        const updated = { ...selected, status, statusLabel: STATUS_LABEL[status], updatedAt: new Date().toISOString() }
+        const updated = {
+          ...selected,
+          status,
+          statusLabel: statusLabelFor(status, mode),
+          updatedAt: new Date().toISOString(),
+        }
         const next = readDemo(mode, vendorId).map((item) => (item.id === selected.id ? updated : item))
         writeDemo(mode, next, vendorId)
         setTickets(next)
@@ -436,7 +448,9 @@ export default function HelpCenter({
               {tickets.map((ticket) => (
                 <li key={ticket.id}>
                   <button type="button" className="help-row" onClick={() => void openTicket(ticket)}>
-                    <span className={`help-status help-status--${ticket.status}`}>{ticket.statusLabel}</span>
+                    <span className={`help-status help-status--${ticket.status}`}>
+                      {statusLabelFor(ticket.status, mode)}
+                    </span>
                     <span className="help-row-copy">
                       <strong>{ticket.subject}</strong>
                       <span>
@@ -505,7 +519,9 @@ export default function HelpCenter({
       {view === 'detail' && selected ? (
         <div className="help-body help-detail">
           <div className="help-detail-meta">
-            <span className={`help-status help-status--${selected.status}`}>{selected.statusLabel}</span>
+            <span className={`help-status help-status--${selected.status}`}>
+              {statusLabelFor(selected.status, mode)}
+            </span>
             <span>
               {selected.categoryLabel}
               {inbox ? ` · ${selected.role}` : ''} · {formatWhen(selected.createdAt)}
@@ -530,12 +546,12 @@ export default function HelpCenter({
               >
                 <p>{item.body}</p>
                 <time>
-                  {item.authorRole === 'admin'
-                    ? 'TapStack'
-                    : item.authorRole === 'vendor' && store
-                      ? partnerName
-                      : item.authorRole === 'player'
-                        ? selected.authorName
+                  {isMine(item.authorRole)
+                    ? 'You'
+                    : item.authorRole === 'admin'
+                      ? 'TapStack'
+                      : item.authorRole === 'vendor'
+                        ? partnerName
                         : selected.authorName}{' '}
                   · {formatWhen(item.createdAt)}
                 </time>
