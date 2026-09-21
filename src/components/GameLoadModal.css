@@ -182,6 +182,48 @@
   outline: none;
 }
 
+.game-load-split {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.game-load-split-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.game-load-split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.game-load-split-row + .game-load-split-row {
+  margin-top: 6px;
+}
+
+.game-load-split-row strong {
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+}
+
+.game-load-split-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #64748b;
+}
+
 .game-load-text-input,
 .game-load-textarea {
   width: 100%;

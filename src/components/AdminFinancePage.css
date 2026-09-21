@@ -1336,6 +1336,11 @@
   line-height: 1.45;
 }
 
+.admin-finance-fees-mode-pills {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
 .admin-finance-fees-subscription-field {
   display: flex;
   flex-direction: column;

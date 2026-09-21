@@ -132,6 +132,10 @@ export type AdminOverview = {
     suspended: number
     pendingApplications?: number
   }
+  roomAlerts?: {
+    openCount: number
+    items: AdminRoomAlert[]
+  }
 }
 
 export type AdminVendor = {
@@ -266,6 +270,25 @@ export type AdminFees = {
   vendorGameAutomationMo: number
   autoPayinMax: number
   staffPayinMax: number
+  gameRoomThreshold: number
+  gameRoomWindowDays: number
+  gameRoomMode: 'launch' | 'always' | 'vendor'
+}
+
+export type AdminRoomAlert = {
+  id: number
+  playerId: number
+  playerName: string
+  playerEmail?: string
+  vendorId: number
+  vendorName: string
+  orderId?: number
+  threshold: number
+  thresholdFormatted?: string
+  spend: number
+  spendFormatted?: string
+  status: string
+  createdAt?: string
 }
 
 export type AdminFinanceCustomer = {
@@ -1246,7 +1269,13 @@ export const tapstackApi = {
       }
       games?: VendorRedeemSettings & { catalog?: VendorGameRecord[] }
       gameCatalog?: VendorGameRecord[]
-      payinCaps?: { auto: number; staff: number }
+      payinCaps?: {
+        auto: number
+        staff: number
+        gameRoomMode?: string
+        gameRoomThreshold?: number
+        gameRoomWindowDays?: number
+      }
     }>('/vendor/settings'),
   saveVendorSettings: (payload: Record<string, unknown>) =>
     apiRequest<{
@@ -1465,6 +1494,11 @@ export const tapstackApi = {
     apiRequest<{ ok: boolean; recipient?: string; amount?: number; reserveWallet?: string }>(
       '/admin/finance/transfer',
       { method: 'POST', body: payload },
+    ),
+  adminAckRoomAlert: (id: number | string) =>
+    apiRequest<{ ok: boolean; openCount: number; items: AdminRoomAlert[] }>(
+      `/admin/room-alerts/${id}/ack`,
+      { method: 'POST' },
     ),
   adminSettings: () => apiRequest<AdminSettings>('/admin/settings'),
   adminSettingsUpdate: (payload: { account?: Partial<AdminSettings['account']> }) =>
@@ -1735,6 +1769,7 @@ export type VendorRedeemSettings = {
   vipPayinEnabled: boolean
   vipAutoPayinThreshold: number
   vipStaffPayinThreshold: number
+  gameRoomThreshold?: number
 }
 
 export type VendorGameRecord = {

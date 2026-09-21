@@ -1,14 +1,49 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, isApiConfigured, tapstackApi } from '../api/client'
+import { ApiError, getToken, isApiConfigured, tapstackApi } from '../api/client'
 import { isVerifyApiError } from '../lib/verify'
 import { decodeIcon } from '../data/vendors'
+import { openWertTopUp } from '../api/wert'
 import './GameLoadModal.css'
 
 const PRESETS = [10, 25, 50, 100]
+const CARD_MIN = 5
 
 function parseMoney(value: string): number {
   const n = Number(String(value).replace(/[^0-9.-]/g, ''))
   return Number.isFinite(n) ? n : 0
+}
+
+function money(value: number): string {
+  return `$${value.toFixed(2)}`
+}
+
+function collectCardRemainder(amount: number): Promise<number | undefined> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let closeTimer: number | undefined
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      if (closeTimer) window.clearTimeout(closeTimer)
+      fn()
+    }
+    openWertTopUp({
+      amount,
+      ownerType: 'player',
+      onSuccess: (wallet) => finish(() => resolve(wallet?.balance)),
+      onClose: () => {
+        if (settled) return
+        closeTimer = window.setTimeout(() => {
+          finish(() => reject(new Error('Card payment cancelled.')))
+        }, 400)
+      },
+      onError: (message) => finish(() => reject(new Error(message))),
+    }).catch((err) => {
+      finish(() =>
+        reject(err instanceof Error ? err : new Error('Could not start card payment.')),
+      )
+    })
+  })
 }
 
 export type GameLoadTarget = {
@@ -122,7 +157,11 @@ export default function GameLoadModal({
   const availableWallet = parseMoney(walletFormatted)
   const hasKnownGameBalance = Boolean(gameBalance && gameBalance !== '—' && !loadingWallet)
   const availableGame = parseMoney(gameBalance)
-  const exceedsWallet = !isRedeem && Number.isFinite(numericAmount) && numericAmount > availableWallet
+  const walletUsed =
+    !isRedeem && Number.isFinite(numericAmount) ? Math.min(Math.max(0, availableWallet), numericAmount) : 0
+  const cardNeeded =
+    !isRedeem && Number.isFinite(numericAmount) ? Math.max(0, Math.round((numericAmount - walletUsed) * 100) / 100) : 0
+  const cardCharge = cardNeeded > 0 ? Math.max(cardNeeded, CARD_MIN) : 0
   const exceedsGame =
     isRedeem &&
     hasKnownGameBalance &&
@@ -132,7 +171,6 @@ export default function GameLoadModal({
   const canSubmit =
     Number.isFinite(numericAmount) &&
     numericAmount >= 1 &&
-    !exceedsWallet &&
     !exceedsGame &&
     (!isManual || mobileId.trim().length > 0) &&
     !submitting &&
@@ -141,25 +179,44 @@ export default function GameLoadModal({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const activeGame: GameLoadTarget = target
-    if (!canSubmit || exceedsGame || exceedsWallet) return
+    if (!canSubmit || exceedsGame) return
     if (isRedeem && hasKnownGameBalance && numericAmount > availableGame) {
       setError('Amount exceeds your game balance.')
       return
     }
 
     setError('')
-    setStatus(
-      isRedeem
-        ? isManual
-          ? 'Submitting redeem request…'
-          : 'Redeeming credits from game…'
-        : isManual
-          ? 'Submitting load request…'
-          : 'Loading credits to game…',
-    )
     setSubmitting(true)
 
     try {
+      if (!isRedeem && cardCharge > 0 && !getToken()?.startsWith('demo:')) {
+        setStatus(
+          cardNeeded < CARD_MIN
+            ? `Card minimum is ${money(CARD_MIN)}. Charging ${money(cardCharge)}…`
+            : `Using wallet first, then charging ${money(cardCharge)} to your card…`,
+        )
+        const nextBalance = await collectCardRemainder(cardCharge)
+        if (typeof nextBalance === 'number' && Number.isFinite(nextBalance)) {
+          setWalletFormatted(`$${nextBalance.toFixed(2)}`)
+        } else {
+          try {
+            const walletRes = await tapstackApi.customerWallet()
+            if (walletRes.wallet?.formatted) setWalletFormatted(walletRes.wallet.formatted)
+          } catch {
+            /* load will still attempt */
+          }
+        }
+      }
+
+      setStatus(
+        isRedeem
+          ? isManual
+            ? 'Submitting redeem request…'
+            : 'Redeeming credits from game…'
+          : isManual
+            ? 'Submitting load request…'
+            : 'Loading credits to game…',
+      )
       const payload = {
         gameKey: activeGame.gameKey,
         amount: numericAmount,
@@ -344,8 +401,8 @@ export default function GameLoadModal({
                   ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
                   : 'Pull credits from your connected game account into your TapStack wallet.'
                 : isManual
-                  ? 'Send a load request from your TapStack wallet. Include your game Mobile ID so the vendor can credit the right account.'
-                  : 'Move funds from your TapStack wallet into the connected game account.'}
+                  ? 'Wallet is used first. If it isn’t enough, the rest is charged to your card. Include your game Mobile ID so the vendor can credit the right account.'
+                  : 'Wallet is used first. If it isn’t enough, the rest is charged to your card, then credits move into the connected game account.'}
             </p>
 
             <div className="game-load-presets">
@@ -408,8 +465,25 @@ export default function GameLoadModal({
                 </>
               ) : null}
 
-              {exceedsWallet ? (
-                <p className="game-load-error">Amount exceeds your wallet balance.</p>
+              {cardCharge > 0 ? (
+                <div className="game-load-split">
+                  <p className="game-load-split-title">Payment</p>
+                  <div className="game-load-split-row">
+                    <span>Wallet</span>
+                    <strong>{money(walletUsed)}</strong>
+                  </div>
+                  <div className="game-load-split-row">
+                    <span>Card</span>
+                    <strong>{money(cardCharge)}</strong>
+                  </div>
+                  {cardCharge > cardNeeded ? (
+                    <p className="game-load-split-note">
+                      Card minimum is {money(CARD_MIN)}. Extra stays in your wallet.
+                    </p>
+                  ) : (
+                    <p className="game-load-split-note">Wallet is charged first. Card covers the rest.</p>
+                  )}
+                </div>
               ) : null}
               {exceedsGame ? (
                 <p className="game-load-error">Amount exceeds your game balance.</p>
@@ -428,10 +502,14 @@ export default function GameLoadModal({
                 {submitting
                   ? isRedeem
                     ? 'Redeeming…'
-                    : 'Loading…'
-                  : `${isRedeem ? 'Redeem' : 'Load'} $${
-                      Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'
-                    }`}
+                    : cardCharge > 0
+                      ? 'Paying…'
+                      : 'Loading…'
+                  : isRedeem
+                    ? `Redeem $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
+                    : cardCharge > 0
+                      ? `Pay & load $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
+                      : `Load $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
               </button>
             </form>
           </>

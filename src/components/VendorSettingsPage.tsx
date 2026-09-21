@@ -1191,7 +1191,14 @@ function BillingTab() {
   const [vipPayinEnabled, setVipPayinEnabled] = useState(true)
   const [vipAutoPayin, setVipAutoPayin] = useState('500')
   const [vipStaffPayin, setVipStaffPayin] = useState('1000')
-  const [payinCaps, setPayinCaps] = useState({ auto: 500, staff: 1000 })
+  const [payinCaps, setPayinCaps] = useState({
+    auto: 500,
+    staff: 1000,
+    gameRoomMode: 'launch',
+    gameRoomThreshold: 3000,
+    gameRoomWindowDays: 14,
+  })
+  const [gameRoomThreshold, setGameRoomThreshold] = useState('3000')
   const [linkedCount, setLinkedCount] = useState(0)
   const [gameCount, setGameCount] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -1217,6 +1224,7 @@ function BillingTab() {
     if (typeof games.vipPayinEnabled === 'boolean') setVipPayinEnabled(games.vipPayinEnabled)
     if (games.vipAutoPayinThreshold != null) setVipAutoPayin(String(games.vipAutoPayinThreshold))
     if (games.vipStaffPayinThreshold != null) setVipStaffPayin(String(games.vipStaffPayinThreshold))
+    if (games.gameRoomThreshold != null) setGameRoomThreshold(String(games.gameRoomThreshold))
   }
 
   useEffect(() => {
@@ -1238,7 +1246,15 @@ function BillingTab() {
           const settings = await tapstackApi.vendorSettings().catch(() => null)
           if (!cancelled) {
             applyGames(settings?.games)
-            if (settings?.payinCaps) setPayinCaps(settings.payinCaps)
+            if (settings?.payinCaps) {
+              setPayinCaps({
+                auto: settings.payinCaps.auto,
+                staff: settings.payinCaps.staff,
+                gameRoomMode: settings.payinCaps.gameRoomMode || 'launch',
+                gameRoomThreshold: settings.payinCaps.gameRoomThreshold || 3000,
+                gameRoomWindowDays: settings.payinCaps.gameRoomWindowDays || 14,
+              })
+            }
           }
         }
         const { games } = await loadVendorGames()
@@ -1281,6 +1297,7 @@ function BillingTab() {
       vipPayinEnabled,
       vipAutoPayinThreshold: vipAutoValue,
       vipStaffPayinThreshold: Math.max(vipAutoValue, clamp(Number(vipStaffPayin) || 0, capStaff)),
+      gameRoomThreshold: Math.max(0, Math.round((Number(gameRoomThreshold) || 0) * 100) / 100),
     }
 
     setSaving(true)
@@ -1582,6 +1599,49 @@ function BillingTab() {
               to the platform caps.
             </p>
           </>
+        ) : null}
+      </section>
+
+      <section className="vendor-settings-panel">
+        <div className="vendor-settings-games-card-header">
+          <span className="vendor-settings-games-card-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 19V5h16v14H4zm4-4h8M8 11h8"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <div>
+            <h3 className="vendor-settings-games-card-title">Game Room Monitoring</h3>
+            <p className="vendor-settings-games-card-desc">
+              {payinCaps.gameRoomMode === 'vendor'
+                ? 'TapStack notifies operators when a player’s loads at this store reach your threshold. Set 0 to turn alerts off.'
+                : payinCaps.gameRoomMode === 'always'
+                  ? `TapStack notifies operators when a player’s loads at this store reach $${money(String(payinCaps.gameRoomThreshold))}.`
+                  : `For a new player’s first ${payinCaps.gameRoomWindowDays} days, TapStack is notified at $${money(String(payinCaps.gameRoomThreshold))} of loads on this store.`}
+            </p>
+          </div>
+        </div>
+        {payinCaps.gameRoomMode === 'vendor' ? (
+          <div className="vendor-settings-redeem-row">
+            <label className="vendor-settings-redeem-field">
+              <span className="vendor-settings-field-label">Notify TapStack at</span>
+              <div className="vendor-settings-money-input-wrap">
+                <span className="vendor-settings-money-prefix">$</span>
+                <input
+                  type="number"
+                  className="vendor-settings-money-input"
+                  value={gameRoomThreshold}
+                  onChange={(event) => setGameRoomThreshold(event.target.value)}
+                  min="0"
+                  step="1"
+                />
+              </div>
+            </label>
+          </div>
         ) : null}
       </section>
 

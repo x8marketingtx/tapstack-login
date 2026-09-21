@@ -1179,6 +1179,9 @@ function FinanceFeesTab({
   const [vendorGameAutomation, setVendorGameAutomation] = useState('999')
   const [autoPayinMax, setAutoPayinMax] = useState('500')
   const [staffPayinMax, setStaffPayinMax] = useState('1000')
+  const [gameRoomThreshold, setGameRoomThreshold] = useState('3000')
+  const [gameRoomWindowDays, setGameRoomWindowDays] = useState('14')
+  const [gameRoomMode, setGameRoomMode] = useState<AdminFees['gameRoomMode']>('launch')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -1197,6 +1200,9 @@ function FinanceFeesTab({
     setVendorGameAutomation(String(fees.vendorGameAutomationMo ?? 999))
     setAutoPayinMax(String(fees.autoPayinMax ?? 500))
     setStaffPayinMax(String(fees.staffPayinMax ?? 1000))
+    setGameRoomThreshold(String(fees.gameRoomThreshold ?? 3000))
+    setGameRoomWindowDays(String(fees.gameRoomWindowDays ?? 14))
+    setGameRoomMode(fees.gameRoomMode === 'always' || fees.gameRoomMode === 'vendor' ? fees.gameRoomMode : 'launch')
   }, [dirty, finance, useApi])
 
   const feeEstimate = useMemo(() => {
@@ -1244,8 +1250,10 @@ function FinanceFeesTab({
     const vendorGameAutomationMo = Number(vendorGameAutomation)
     const autoPayin = Number(autoPayinMax)
     const staffPayin = Number(staffPayinMax)
+    const roomThreshold = Number(gameRoomThreshold)
+    const roomDays = Number(gameRoomWindowDays)
     if (
-      ![depositFeePct, redeemFeePct, playerRankUpgradeMo, vendorGameAutomationMo, autoPayin, staffPayin].every(
+      ![depositFeePct, redeemFeePct, playerRankUpgradeMo, vendorGameAutomationMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
         (n) => Number.isFinite(n) && n >= 0,
       )
     ) {
@@ -1258,6 +1266,14 @@ function FinanceFeesTab({
     }
     if (staffPayin < autoPayin) {
       setError('Staff pay-in cap must be at least the auto pay-in cap.')
+      return
+    }
+    if (roomThreshold <= 0) {
+      setError('Game room threshold must be greater than zero.')
+      return
+    }
+    if (roomDays < 1) {
+      setError('Game room window must be at least 1 day.')
       return
     }
 
@@ -1275,6 +1291,9 @@ function FinanceFeesTab({
       vendorGameAutomationMo,
       autoPayinMax: autoPayin,
       staffPayinMax: staffPayin,
+      gameRoomThreshold: roomThreshold,
+      gameRoomWindowDays: roomDays,
+      gameRoomMode,
     }
     try {
       const res = await tapstackApi.adminFinanceUpdateFees(payload)
@@ -1367,6 +1386,63 @@ function FinanceFeesTab({
               Maximum staff-approved pay-in any vendor can allow
             </span>
           </label>
+        </div>
+      </section>
+
+      <section className="admin-finance-fees-card">
+        <h2 className="admin-finance-fees-section-title">GAME ROOM MONITORING</h2>
+        <p className="admin-finance-fees-section-desc">
+          For new players, notify TapStack when loads on a single vendor page reach this amount. This does
+          not block the load.
+        </p>
+        <div className="admin-finance-fees-input-row">
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Threshold per store</span>
+            <div className="admin-finance-fees-money-wrap">
+              <span className="admin-finance-fees-money-prefix">$</span>
+              <input
+                type="number"
+                className="admin-finance-fees-money-input"
+                value={gameRoomThreshold}
+                onChange={(event) => markDirty(setGameRoomThreshold)(event.target.value)}
+                min="1"
+                step="1"
+              />
+            </div>
+            <span className="admin-finance-fees-field-help">Default $3,000 per game room</span>
+          </label>
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">New-player window (days)</span>
+            <input
+              type="number"
+              className="admin-finance-fees-money-input"
+              value={gameRoomWindowDays}
+              onChange={(event) => markDirty(setGameRoomWindowDays)(event.target.value)}
+              min="1"
+              step="1"
+            />
+            <span className="admin-finance-fees-field-help">Used when monitoring new players only</span>
+          </label>
+        </div>
+        <div className="admin-finance-range-pills admin-finance-fees-mode-pills" role="radiogroup" aria-label="Game room monitoring period">
+          {(
+            [
+              { id: 'launch', label: 'First 2 weeks' },
+              { id: 'always', label: 'Keep for all players' },
+              { id: 'vendor', label: 'Vendor-configurable' },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="radio"
+              aria-checked={gameRoomMode === item.id}
+              className={`admin-finance-range-btn${gameRoomMode === item.id ? ' admin-finance-range-btn--active' : ''}`}
+              onClick={() => markDirty(setGameRoomMode)(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </section>
 

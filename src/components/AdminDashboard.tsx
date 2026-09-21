@@ -123,6 +123,7 @@ const EMPTY_OVERVIEW: AdminOverview = {
     suspended: 0,
     pendingApplications: 0,
   },
+  roomAlerts: { openCount: 0, items: [] },
 }
 
 function detailIconFor(id: string, title: string) {
@@ -300,6 +301,55 @@ function AdminOverviewPage({
           All systems operational
         </p>
       </section>
+
+      {(data.roomAlerts?.items?.length || 0) > 0 ? (
+        <section className="admin-room-alerts" aria-label="Game room threshold alerts">
+          <div className="admin-room-alerts-head">
+            <h2 className="admin-room-alerts-title">Game room alerts</h2>
+            <span className="admin-room-alerts-count">
+              {data.roomAlerts?.openCount || data.roomAlerts?.items.length} open
+            </span>
+          </div>
+          <ul className="admin-room-alerts-list">
+            {(data.roomAlerts?.items || []).map((alert) => (
+              <li key={alert.id} className="admin-room-alert">
+                <div className="admin-room-alert-copy">
+                  <strong>
+                    {alert.playerName} hit {alert.thresholdFormatted || `$${alert.threshold.toFixed(0)}`} at{' '}
+                    {alert.vendorName}
+                  </strong>
+                  <span>
+                    Spend {alert.spendFormatted || `$${alert.spend.toFixed(0)}`}
+                    {alert.playerEmail ? ` · ${alert.playerEmail}` : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="admin-room-alert-ack"
+                  onClick={() => {
+                    void tapstackApi
+                      .adminAckRoomAlert(alert.id)
+                      .then((res) => {
+                        setData((current) => ({
+                          ...current,
+                          roomAlerts: {
+                            openCount: res.openCount,
+                            items: res.items || [],
+                          },
+                        }))
+                      })
+                      .catch(() => {
+                        /* keep list */
+                      })
+                  }}
+                >
+                  Acknowledge
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {error ? <p className="admin-api-error">{error}</p> : null}
 
