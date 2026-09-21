@@ -24,6 +24,8 @@ export type Vendor = {
   accentColor?: string
   accentSolid?: string
   tagline?: string
+  hasPublicPromo?: boolean
+  tipsEnabled?: boolean
   games: VendorGame[]
 }
 
@@ -177,6 +179,8 @@ export function vendorFromApi(vendor: ApiVendor): Vendor {
     accentColor: vendor.accentColor || 'purple',
     accentSolid: vendor.accentSolid || '#7c3aed',
     tagline: vendor.tagline || '',
+    hasPublicPromo: Boolean(vendor.hasPublicPromo),
+    tipsEnabled: vendor.tipsEnabled !== false,
     games: (vendor.games?.length ? vendor.games : defaultGames(vendor.name)).map((game) => ({
       ...game,
       icon: decodeIcon(game.icon, game.name),

@@ -7,7 +7,7 @@
 
 .admin-finance-subtabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
   padding-bottom: 4px;
   border-bottom: 1px solid #e5e7eb;
@@ -1694,4 +1694,86 @@
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
   cursor: pointer;
+}
+
+.admin-giveaway {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-giveaway-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.admin-giveaway-controls label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.admin-giveaway-controls input {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.admin-giveaway-list-card {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.admin-giveaway-list-head h3,
+.admin-giveaway-list-card h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.admin-giveaway-list-head p {
+  margin: 0 0 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.admin-giveaway-list,
+.admin-giveaway-history {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-giveaway-list label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  border: 1px solid #eef2ff;
+  border-radius: 12px;
+}
+
+.admin-giveaway-list small {
+  display: block;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.admin-giveaway-history li {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.admin-giveaway-note {
+  margin: 10px 0 0;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 600;
 }

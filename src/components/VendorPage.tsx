@@ -40,8 +40,15 @@ function saveFavoriteGames(vendorId: number | string | null | undefined, keys: s
 
 const REDEEMABLE_BALANCE_TOOLTIP =
   'These are your redeemable winnings. Not your playable balance.'
+const PAYABLE_BALANCE_TOOLTIP = 'Credits you can play with in this game.'
 
-function RedeemableBalanceLabel() {
+function GameBalanceLabel({
+  label,
+  tooltip,
+}: {
+  label: string
+  tooltip: string
+}) {
   const [open, setOpen] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
   const tooltipId = useId()
@@ -67,11 +74,11 @@ function RedeemableBalanceLabel() {
       ref={rowRef}
       className={`game-balance-label-row${open ? ' is-open' : ''}`}
     >
-      <span className="game-balance-label">Redeemable Balance</span>
+      <span className="game-balance-label">{label}</span>
       <button
         type="button"
         className="game-balance-info"
-        aria-label="About redeemable balance"
+        aria-label={`About ${label.toLowerCase()}`}
         aria-expanded={open}
         aria-describedby={open ? tooltipId : undefined}
         onClick={() => setOpen((current) => !current)}
@@ -91,10 +98,18 @@ function RedeemableBalanceLabel() {
         role="tooltip"
         className="game-balance-tooltip"
       >
-        {REDEEMABLE_BALANCE_TOOLTIP}
+        {tooltip}
       </span>
     </div>
   )
+}
+
+function PayableBalanceLabel() {
+  return <GameBalanceLabel label="Payable Balance" tooltip={PAYABLE_BALANCE_TOOLTIP} />
+}
+
+function RedeemableBalanceLabel() {
+  return <GameBalanceLabel label="Redeemable Balance" tooltip={REDEEMABLE_BALANCE_TOOLTIP} />
 }
 
 function credsStorageKey(vendorId: number | string, gameKey: string) {
@@ -237,13 +252,25 @@ export default function VendorPage({
   const [credsLoading, setCredsLoading] = useState(false)
   const [connectError, setConnectError] = useState('')
   const [connecting, setConnecting] = useState(false)
+  const [tipOpen, setTipOpen] = useState(false)
+  const [tipAmount, setTipAmount] = useState('5')
+  const [tipBusy, setTipBusy] = useState(false)
+  const [tipError, setTipError] = useState('')
   const [disconnectingKey, setDisconnectingKey] = useState<string | null>(null)
   const [gameMenuKey, setGameMenuKey] = useState<string | null>(null)
   const [connectedGames, setConnectedGames] = useState<Record<string, boolean>>(() =>
     seedConnectedGames(initialVendor),
   )
   const [gameBalances, setGameBalances] = useState<
-    Record<string, { status: 'loading' | 'ready' | 'unavailable'; formatted: string }>
+    Record<
+      string,
+      {
+        status: 'loading' | 'ready' | 'unavailable'
+        formatted: string
+        payableFormatted?: string
+        redeemableFormatted?: string
+      }
+    >
   >({})
   const [gamesLoading, setGamesLoading] = useState(isApiConfigured() && Boolean(initialVendor.id))
   const [connectionResolved, setConnectionResolved] = useState(
@@ -372,7 +399,9 @@ export default function VendorPage({
         ...current,
         [gameKey]: {
           status: res.live || res.connected ? 'ready' : 'unavailable',
-          formatted: res.formatted || '—',
+          formatted: res.redeemableFormatted || res.formatted || '—',
+          payableFormatted: res.payableFormatted || res.formatted || '—',
+          redeemableFormatted: res.redeemableFormatted || res.formatted || '—',
         },
       }))
     } catch {
@@ -434,7 +463,12 @@ export default function VendorPage({
           const nextConnected: Record<string, boolean> = {}
           const nextBalances: Record<
             string,
-            { status: 'loading' | 'ready' | 'unavailable'; formatted: string }
+            {
+              status: 'loading' | 'ready' | 'unavailable'
+              formatted: string
+              payableFormatted?: string
+              redeemableFormatted?: string
+            }
           > = {}
 
           for (const game of remoteGames) {
@@ -577,6 +611,8 @@ export default function VendorPage({
       icon: game.icon,
       iconBg: game.iconBg,
       gameBalance: gameBalances[gameKey]?.formatted,
+      payableBalance: gameBalances[gameKey]?.payableFormatted,
+      redeemableBalance: gameBalances[gameKey]?.redeemableFormatted,
     })
   }
 
@@ -871,11 +907,26 @@ export default function VendorPage({
               <span className="vendor-balance-label">Tapstack Balance</span>
               <span className="vendor-balance-value">{walletBalance || '$0.00'}</span>
             </div>
+            <div className="vendor-balance-actions">
             {onTopUp ? (
               <button type="button" className="vendor-topup-btn" onClick={onTopUp}>
                 Top Up
               </button>
             ) : null}
+            {vendor.tipsEnabled !== false ? (
+              <button
+                type="button"
+                className="vendor-topup-btn vendor-tip-btn"
+                onClick={() => {
+                  if (onRequireVerified && !onRequireVerified()) return
+                  setTipError('')
+                  setTipOpen(true)
+                }}
+              >
+                Tip
+              </button>
+            ) : null}
+            </div>
           </div>
 
           <button
@@ -1016,16 +1067,28 @@ export default function VendorPage({
                     </div>
 
                     <div className="game-card-aside">
-                      {game.mode === 'auto' ? (
+                      <div className="game-balance-stack">
+                        <div className="game-balance-wrap">
+                          <PayableBalanceLabel />
+                          {showBalanceSkeleton ? (
+                            <span className="game-balance-skeleton" aria-label="Loading payable balance" />
+                          ) : (
+                            <span className="game-balance">
+                              {balanceState?.payableFormatted || balanceText}
+                            </span>
+                          )}
+                        </div>
                         <div className="game-balance-wrap">
                           <RedeemableBalanceLabel />
                           {showBalanceSkeleton ? (
                             <span className="game-balance-skeleton" aria-label="Loading redeemable balance" />
                           ) : (
-                            <span className="game-balance">{balanceText}</span>
+                            <span className="game-balance">
+                              {balanceState?.redeemableFormatted || balanceText}
+                            </span>
                           )}
                         </div>
-                      ) : null}
+                      </div>
                       <div className="game-side">
                       {game.mode === 'auto' ? (
                         connected ? (
@@ -1044,6 +1107,15 @@ export default function VendorPage({
                             >
                               Redeem
                             </button>
+                            {vendor.games.length > 1 ? (
+                              <button
+                                type="button"
+                                className="game-btn game-btn--move"
+                                onClick={() => openTransferGame(game, 'move')}
+                              >
+                                Move
+                              </button>
+                            ) : null}
                             <div className="game-more" data-game-menu={gameKey}>
                               <button
                                 type="button"
@@ -1178,6 +1250,15 @@ export default function VendorPage({
                           >
                             Redeem
                           </button>
+                          {vendor.games.length > 1 ? (
+                            <button
+                              type="button"
+                              className="game-btn game-btn--move"
+                              onClick={() => openTransferGame(game, 'move')}
+                            >
+                              Move
+                            </button>
+                          ) : null}
                         </div>
                       )}
                       </div>
@@ -1680,6 +1761,21 @@ export default function VendorPage({
         vendorId={vendor.id || 0}
         vendorName={vendor.name}
         game={loadGame}
+        games={vendor.games.map((item) => {
+          const key =
+            item.id ||
+            item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+          return {
+            gameKey: key,
+            name: item.name,
+            mode: item.mode === 'auto' ? 'auto' : 'manual',
+            icon: item.icon,
+            iconBg: item.iconBg,
+            gameBalance: gameBalances[key]?.formatted,
+            payableBalance: gameBalances[key]?.payableFormatted,
+            redeemableBalance: gameBalances[key]?.redeemableFormatted,
+          }
+        })}
         cashBalance={walletBalance}
         onClose={() => {
           setLoadGame(null)
@@ -1774,6 +1870,63 @@ export default function VendorPage({
                 })}
               </ul>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {tipOpen ? (
+        <div className="vendor-tip-overlay" role="dialog" aria-modal="true" aria-labelledby="vendor-tip-title">
+          <div className="vendor-tip-card">
+            <h3 id="vendor-tip-title">Tip {vendor.name}</h3>
+            <p>Send a thank-you from your TapStack wallet to this gameroom.</p>
+            <label className="vendor-tip-field">
+              <span>Amount</span>
+              <div className="vendor-tip-input-wrap">
+                <span>$</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={tipAmount}
+                  onChange={(event) => setTipAmount(event.target.value)}
+                />
+              </div>
+            </label>
+            {tipError ? <p className="vendor-tip-error">{tipError}</p> : null}
+            <div className="vendor-tip-actions">
+              <button type="button" onClick={() => setTipOpen(false)} disabled={tipBusy}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={tipBusy || Number(tipAmount) < 1}
+                onClick={() => {
+                  if (!vendor.id || tipBusy) return
+                  const amount = Number(tipAmount)
+                  if (!Number.isFinite(amount) || amount < 1) {
+                    setTipError('Enter at least $1.')
+                    return
+                  }
+                  setTipBusy(true)
+                  setTipError('')
+                  void tapstackApi
+                    .tipVendor(vendor.id, amount)
+                    .then((res) => {
+                      if (res.wallet?.formatted) {
+                        setWalletBalance(res.wallet.formatted)
+                        onCashBalanceChange?.(res.wallet.formatted)
+                      }
+                      setTipOpen(false)
+                    })
+                    .catch((err) => {
+                      setTipError(err instanceof ApiError ? err.message : 'Could not send tip.')
+                    })
+                    .finally(() => setTipBusy(false))
+                }}
+              >
+                {tipBusy ? 'Sending…' : `Send $${Number(tipAmount || 0).toFixed(0)}`}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

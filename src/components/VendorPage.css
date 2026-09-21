@@ -153,6 +153,12 @@
   min-width: 0;
 }
 
+.vendor-balance-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .vendor-stat-label {
   font-size: 11px;
   font-weight: 700;
@@ -217,6 +223,97 @@
 .vendor-topup-btn:hover {
   background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.22);
+}
+
+.vendor-tip-btn {
+  background: rgba(236, 72, 153, 0.18);
+  border-color: rgba(244, 114, 182, 0.35);
+}
+
+.vendor-tip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 16px;
+}
+
+.vendor-tip-card {
+  width: min(420px, 100%);
+  margin-bottom: 24px;
+  padding: 18px;
+  border-radius: 18px;
+  background: #fff;
+  color: #111827;
+}
+
+.vendor-tip-card h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.vendor-tip-card p {
+  margin: 0 0 14px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.vendor-tip-field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.vendor-tip-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 16px;
+  color: #111827;
+}
+
+.vendor-tip-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 16px;
+}
+
+.vendor-tip-error {
+  margin: 8px 0 0;
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.vendor-tip-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.vendor-tip-actions button {
+  flex: 1;
+  padding: 12px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-weight: 650;
+}
+
+.vendor-tip-actions button:last-child {
+  border: none;
+  background: #ec4899;
+  color: #fff;
 }
 
 .vendor-balance-mark {
@@ -679,11 +776,16 @@
   flex-shrink: 0;
 }
 
-.game-balance-wrap {
+.game-balance-stack {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  min-height: 34px;
+  gap: 8px;
+}
+
+.game-btn--move {
+  border: 1px solid #c4b5fd;
+  color: #6d28d9;
 }
 
 .game-balance-label-row {
@@ -1710,7 +1812,7 @@
     gap: 12px;
   }
 
-  .game-card:not(:has(.game-balance-wrap)) {
+  .game-card:not(:has(.game-balance-stack)) {
     grid-template-areas:
       'main main'
       'actions actions';

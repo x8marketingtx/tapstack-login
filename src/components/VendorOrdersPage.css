@@ -292,6 +292,14 @@
   line-height: 1.35;
 }
 
+.vendor-order-tags {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 650;
+  color: #6d28d9;
+  text-transform: uppercase;
+}
+
 .vendor-order-note {
   margin: 3px 0 0;
   font-size: 11px;

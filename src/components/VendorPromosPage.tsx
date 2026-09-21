@@ -8,6 +8,7 @@ import {
   type EmailBlastItem,
   type EmailBlastSegment,
   type VendorCoupon,
+  type VendorGameRecord,
   type VendorPromotion,
 } from '../api/client'
 import './VendorPromosPage.css'
@@ -15,7 +16,7 @@ import './VendorPromosPage.css'
 type PromosTab = 'promotions' | 'codes' | 'email-blast'
 
 const PROMOS_TABS: { id: PromosTab; label: string; icon: string }[] = [
-  { id: 'promotions', label: 'Promotions', icon: '🎁' },
+  { id: 'promotions', label: 'Promos & Giveaways', icon: '🎁' },
   { id: 'codes', label: 'Codes', icon: '🏷️' },
   { id: 'email-blast', label: 'Email Blast', icon: '✉️' },
 ]
@@ -38,6 +39,41 @@ function splitDateTime(value?: string): { date: string; time: string } {
     date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
     time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
   }
+}
+
+function GameExclusiveSelect({
+  value,
+  onChange,
+  games,
+}: {
+  value: string
+  onChange: (next: string) => void
+  games: VendorGameRecord[]
+}) {
+  return (
+    <fieldset className="vendor-promos-fieldset">
+      <legend className="vendor-promos-field-legend">GAME EXCLUSIVE</legend>
+      <p className="vendor-promos-hint">Leave as all games, or lock this to one title (Golden Dragon, Magic City, …).</p>
+      <div className="vendor-promos-select-wrap">
+        <select
+          className="vendor-promos-select"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label="Game exclusive"
+        >
+          <option value="">All games</option>
+          {games.map((game) => (
+            <option key={game.id} value={game.id}>
+              {game.title || game.id}
+            </option>
+          ))}
+        </select>
+        <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </fieldset>
+  )
 }
 
 function PromotionCard({
@@ -67,12 +103,20 @@ function PromotionCard({
       <div className="vendor-promo-list-card-top">
         <div className="vendor-promo-list-card-info">
           <span className="vendor-promo-list-icon" aria-hidden="true">
-            {promo.icon || '🎁'}
+            {promo.imageUrl ? (
+              <img src={promo.imageUrl} alt="" className="vendor-promo-list-thumb" />
+            ) : (
+              promo.icon || '🎁'
+            )}
           </span>
           <div>
             <h3 className="vendor-promo-list-title">{promo.title}</h3>
             <p className="vendor-promo-list-meta">
               {promo.typeLabel} · {promo.endsLabel}
+              {promo.gameTitle ? ` · ${promo.gameTitle} only` : ''}
+              {promo.type === 'giveaway' && promo.winnerCount
+                ? ` · ${promo.winnerCount} winner${promo.winnerCount === 1 ? '' : 's'} · pool ${promo.valueGiven !== '$0.00' ? promo.valueGiven : `$${(promo.poolAmount || promo.rewardValue || 0).toFixed(0)}`}`
+                : ''}
             </p>
             <p className="vendor-promo-list-limits">
               {promo.limitsLabel || '1× / player'}
@@ -167,11 +211,22 @@ function PromotionsTab() {
   const [limitPerDay, setLimitPerDay] = useState('')
   const [limitTotal, setLimitTotal] = useState('')
   const [playerTags, setPlayerTags] = useState<string[]>([])
+  const [winnerCount, setWinnerCount] = useState('1')
+  const [entryMode, setEntryMode] = useState<'per_order' | 'total'>('per_order')
+  const [walletUsdc, setWalletUsdc] = useState<number | null>(null)
+  const [imageId, setImageId] = useState(0)
+  const [imageUrl, setImageUrl] = useState('')
+  const [gameKey, setGameKey] = useState('')
+  const [catalog, setCatalog] = useState<VendorGameRecord[]>([])
+  const [uploading, setUploading] = useState(false)
 
+  const isGiveaway = promoType === 'giveaway'
   const rewardHint =
     promoType === 'deposit-bonus'
       ? 'Bonus % (e.g. 20 for +20%)'
-      : 'Reward $ (e.g. 5 for $5 credit)'
+      : isGiveaway
+        ? 'Giveaway amount total ($)'
+        : 'Reward $ (e.g. 5 for $5 credit)'
 
   const load = useCallback(async () => {
     if (!isApiConfigured()) {
@@ -191,6 +246,15 @@ function PromotionsTab() {
 
   useEffect(() => {
     void load()
+    if (!isApiConfigured()) return
+    tapstackApi
+      .vendorWallet()
+      .then((res) => setWalletUsdc(res.wallet?.balance ?? 0))
+      .catch(() => setWalletUsdc(null))
+    tapstackApi
+      .vendorGames()
+      .then((res) => setCatalog((res.games || []).filter((game) => game.enabled !== false)))
+      .catch(() => setCatalog([]))
   }, [load])
 
   function resetForm() {
@@ -210,6 +274,11 @@ function PromotionsTab() {
     setLimitPerDay('')
     setLimitTotal('')
     setPlayerTags([])
+    setWinnerCount('1')
+    setEntryMode('per_order')
+    setImageId(0)
+    setImageUrl('')
+    setGameKey('')
   }
 
   function beginEdit(promo: VendorPromotion) {
@@ -230,6 +299,11 @@ function PromotionsTab() {
     setLimitPerDay(promo.limitPerDay && promo.limitPerDay > 0 ? String(promo.limitPerDay) : '')
     setLimitTotal(promo.limitTotal && promo.limitTotal > 0 ? String(promo.limitTotal) : '')
     setPlayerTags(promo.playerTags || [])
+    setWinnerCount(String(promo.winnerCount || 1))
+    setEntryMode(promo.entryMode === 'total' ? 'total' : 'per_order')
+    setImageId(promo.imageId || 0)
+    setImageUrl(promo.imageUrl || '')
+    setGameKey(promo.gameKey || '')
     setError('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -253,6 +327,14 @@ function PromotionsTab() {
       limitPerDay: limitPerDay === '' ? 0 : Number(limitPerDay),
       limitTotal: limitTotal === '' ? 0 : Number(limitTotal),
       playerTags,
+      imageId: imageId || undefined,
+      gameKey,
+      ...(promoType === 'giveaway'
+        ? {
+            winnerCount: Math.max(1, Number(winnerCount) || 1),
+            entryMode,
+          }
+        : {}),
     }
     try {
       if (editingId) {
@@ -310,7 +392,7 @@ function PromotionsTab() {
   return (
     <div className="vendor-promos-content">
       <div className="vendor-promos-toolbar">
-        <h2 className="vendor-promos-heading">Promotions</h2>
+        <h2 className="vendor-promos-heading">Promos and Giveaways</h2>
       </div>
 
       <form className="vendor-promos-form-card" onSubmit={handleSubmit}>
@@ -336,6 +418,7 @@ function PromotionsTab() {
             <option value="deposit-bonus">Deposit Bonus (% match)</option>
             <option value="freeplay">Freeplay ($ credit)</option>
             <option value="load-redeem">Load &amp; Redeem ($ flat)</option>
+            <option value="giveaway">Giveaway (pool from TapStack balance)</option>
           </select>
           <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -348,11 +431,11 @@ function PromotionsTab() {
             className="vendor-promos-input"
             min={1}
             step="1"
-            placeholder="Min load $"
+            placeholder={isGiveaway ? 'Entry amount $' : 'Min load $'}
             value={minAmount}
             onChange={(event) => setMinAmount(event.target.value)}
             required
-            aria-label="Minimum load amount"
+            aria-label={isGiveaway ? 'Entry amount' : 'Minimum load amount'}
           />
           <input
             type="number"
@@ -363,13 +446,58 @@ function PromotionsTab() {
             value={rewardValue}
             onChange={(event) => setRewardValue(event.target.value)}
             required
-            aria-label="Reward value"
+            aria-label={isGiveaway ? 'Giveaway amount total' : 'Reward value'}
+            max={isGiveaway && walletUsdc != null ? walletUsdc : undefined}
           />
         </div>
+        {isGiveaway ? (
+          <>
+            <p className="vendor-promos-hint">
+              Pool must be available in your TapStack USDC balance
+              {walletUsdc != null ? ` (available $${walletUsdc.toFixed(2)})` : ''}.
+            </p>
+            <div className="vendor-promos-datetime-row">
+              <div className="vendor-promos-select-wrap">
+                <select
+                  className="vendor-promos-select"
+                  value={entryMode}
+                  onChange={(event) => setEntryMode(event.target.value === 'total' ? 'total' : 'per_order')}
+                  aria-label="Entry setting"
+                >
+                  <option value="per_order">Entry per order ≥ ${minAmount || '—'}</option>
+                  <option value="total">Entry from total loads ≥ ${minAmount || '—'}</option>
+                </select>
+                <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <input
+                type="number"
+                className="vendor-promos-input"
+                min={1}
+                step="1"
+                placeholder="Number of winners"
+                value={winnerCount}
+                onChange={(event) => setWinnerCount(event.target.value)}
+                required
+                aria-label="How many people win"
+              />
+            </div>
+            <p className="vendor-promos-hint">
+              {winnerCount || '1'} winner{(Number(winnerCount) || 1) === 1 ? '' : 's'} split{' '}
+              ${rewardValue || '0'} equally
+              {Number(winnerCount) > 0 && Number(rewardValue) > 0
+                ? ` ($${ (Number(rewardValue) / Math.max(1, Number(winnerCount))).toFixed(2) } each)`
+                : ''}
+              . {entryMode === 'total' ? 'Players earn an entry when their total loads in the window reach the amount.' : 'Each qualifying order is one entry.'}
+            </p>
+          </>
+        ) : (
         <p className="vendor-promos-hint">
           Player activates → loads ≥ ${minAmount || '—'} at your shop → claims{' '}
           {promoType === 'deposit-bonus' ? `${rewardValue || '—'}% match` : `$${rewardValue || '—'} credit`}.
         </p>
+        )}
 
         <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">STARTS</legend>
@@ -489,6 +617,57 @@ function PromotionsTab() {
           </div>
         </fieldset>
 
+        <GameExclusiveSelect value={gameKey} onChange={setGameKey} games={catalog} />
+
+        <fieldset className="vendor-promos-fieldset">
+          <legend className="vendor-promos-field-legend">IMAGE</legend>
+          <label className="vendor-promos-upload">
+            {imageUrl ? (
+              <img src={imageUrl} alt="" className="vendor-promos-upload-preview" />
+            ) : (
+              <>
+                <span aria-hidden="true">📷</span>
+                <span>{uploading ? 'Uploading…' : 'Upload a promo image'}</span>
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="vendor-promos-upload-input"
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (!file || !isApiConfigured()) return
+                setUploading(true)
+                setError('')
+                void tapstackApi
+                  .uploadPromoImage(file)
+                  .then((res) => {
+                    setImageId(res.imageId)
+                    setImageUrl(res.imageUrl)
+                  })
+                  .catch((err) => {
+                    setError(err instanceof ApiError ? err.message : 'Could not upload image.')
+                  })
+                  .finally(() => setUploading(false))
+              }}
+            />
+          </label>
+          {imageUrl ? (
+            <button
+              type="button"
+              className="vendor-promos-cancel-btn"
+              onClick={() => {
+                setImageId(0)
+                setImageUrl('')
+              }}
+            >
+              Remove image
+            </button>
+          ) : null}
+        </fieldset>
+
         <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">SUMMARY</legend>
           <textarea
@@ -573,6 +752,9 @@ function CouponCard({
           {coupon.limitsLabel ? (
             <p className="vendor-codes-card-limits">{coupon.limitsLabel}</p>
           ) : null}
+          {coupon.gameTitle ? (
+            <p className="vendor-codes-card-limits">{coupon.gameTitle} only</p>
+          ) : null}
         </div>
         <span
           className={`vendor-codes-card-status ${
@@ -629,6 +811,8 @@ function CodesTab() {
     return d.toISOString().slice(0, 10)
   })
   const [expiresTime, setExpiresTime] = useState('23:59')
+  const [gameKey, setGameKey] = useState('')
+  const [catalog, setCatalog] = useState<VendorGameRecord[]>([])
 
   const load = useCallback(async () => {
     if (!isApiConfigured()) {
@@ -648,6 +832,11 @@ function CodesTab() {
 
   useEffect(() => {
     void load()
+    if (!isApiConfigured()) return
+    tapstackApi
+      .vendorGames()
+      .then((res) => setCatalog((res.games || []).filter((game) => game.enabled !== false)))
+      .catch(() => setCatalog([]))
   }, [load])
 
   function handleAutoCode() {
@@ -671,6 +860,7 @@ function CodesTab() {
         startTime,
         endDate: expiresDate,
         endTime: expiresTime,
+        gameKey,
       })
       setCode('')
       setBonusValue('20')
@@ -791,6 +981,8 @@ function CodesTab() {
             aria-label="Max total redemptions"
           />
         </div>
+
+        <GameExclusiveSelect value={gameKey} onChange={setGameKey} games={catalog} />
 
         <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">STARTS</legend>
@@ -1328,7 +1520,7 @@ export default function VendorPromosPage({
 
   return (
     <div className="vendor-promos-page">
-      <div className="vendor-promos-tabs" role="tablist" aria-label="Promos sections">
+      <div className="vendor-promos-tabs" role="tablist" aria-label="Promos and Giveaways sections">
         {PROMOS_TABS.map((tab) => {
           const active = activeTab === tab.id
           return (

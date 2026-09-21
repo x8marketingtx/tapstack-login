@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ApiError,
   getToken,
@@ -16,7 +16,7 @@ import { VendorDetailView } from './AdminVendorsPage'
 import './AdminFinancePage.css'
 import './AdminVendorsPage.css'
 
-type FinanceSubTab = 'analytics' | 'customers' | 'vendors' | 'fees' | 'transfer'
+type FinanceSubTab = 'analytics' | 'customers' | 'vendors' | 'fees' | 'transfer' | 'giveaway'
 type FinanceRange = 'today' | '7d' | '30d' | 'custom'
 
 const FINANCE_SUB_TABS: { id: FinanceSubTab; label: string; icon: string }[] = [
@@ -25,6 +25,7 @@ const FINANCE_SUB_TABS: { id: FinanceSubTab; label: string; icon: string }[] = [
   { id: 'vendors', label: 'Vendors', icon: '🏪' },
   { id: 'fees', label: 'Fees', icon: '⚙️' },
   { id: 'transfer', label: 'Transfer', icon: '↔' },
+  { id: 'giveaway', label: 'Giveaway', icon: '🎉' },
 ]
 
 const FINANCE_RANGES: { id: FinanceRange; label: string }[] = [
@@ -467,11 +468,19 @@ function CustomerDetailView({
         demo
           ? {
               customer: {
-                ...demo,
+                id: demo.id,
+                username: demo.username,
+                initial: demo.initial,
+                avatarBg: demo.avatarBg,
+                contact: demo.contact,
+                balance: demo.balance,
+                points: 120,
+                status: demo.status,
+                vip: demo.vip,
+                operatorVip: demo.operatorVip,
                 displayName: 'Alex Rivera',
                 email: demo.contact,
                 vendors: 1,
-                points: 120,
               },
               wallet: {
                 balance: demo.balance,
@@ -1175,6 +1184,7 @@ function FinanceFeesTab({
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [depositFee, setDepositFee] = useState('2')
   const [redeemFee, setRedeemFee] = useState('2')
+  const [transferFee, setTransferFee] = useState('2')
   const [playerRankUpgrade, setPlayerRankUpgrade] = useState('9.99')
   const [vendorGameAutomation, setVendorGameAutomation] = useState('999')
   const [autoPayinMax, setAutoPayinMax] = useState('500')
@@ -1196,6 +1206,7 @@ function FinanceFeesTab({
     setMaintenanceMode(Boolean(fees.maintenanceMode))
     setDepositFee(String(fees.depositFeePct ?? 2))
     setRedeemFee(String(fees.redeemFeePct ?? 2))
+    setTransferFee(String(fees.transferFeePct ?? fees.depositFeePct ?? 2))
     setPlayerRankUpgrade(String(fees.playerRankUpgradeMo ?? 9.99))
     setVendorGameAutomation(String(fees.vendorGameAutomationMo ?? 999))
     setAutoPayinMax(String(fees.autoPayinMax ?? 500))
@@ -1246,6 +1257,7 @@ function FinanceFeesTab({
     }
     const depositFeePct = Number(depositFee)
     const redeemFeePct = Number(redeemFee)
+    const transferFeePct = Number(transferFee)
     const playerRankUpgradeMo = Number(playerRankUpgrade)
     const vendorGameAutomationMo = Number(vendorGameAutomation)
     const autoPayin = Number(autoPayinMax)
@@ -1253,7 +1265,7 @@ function FinanceFeesTab({
     const roomThreshold = Number(gameRoomThreshold)
     const roomDays = Number(gameRoomWindowDays)
     if (
-      ![depositFeePct, redeemFeePct, playerRankUpgradeMo, vendorGameAutomationMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
+      ![depositFeePct, redeemFeePct, transferFeePct, playerRankUpgradeMo, vendorGameAutomationMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
         (n) => Number.isFinite(n) && n >= 0,
       )
     ) {
@@ -1287,6 +1299,7 @@ function FinanceFeesTab({
       maintenanceMode,
       depositFeePct,
       redeemFeePct,
+      transferFeePct,
       playerRankUpgradeMo,
       vendorGameAutomationMo,
       autoPayinMax: autoPayin,
@@ -1482,6 +1495,26 @@ function FinanceFeesTab({
             </div>
             <span className="admin-finance-fees-field-help admin-finance-fees-field-help--red">
               Charged on each redeem / payout
+            </span>
+          </label>
+        </div>
+
+        <div className="admin-finance-fees-input-row">
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Balance Transfer Fee %</span>
+            <div className="admin-finance-fees-percent-wrap">
+              <input
+                type="number"
+                className="admin-finance-fees-percent-input"
+                value={transferFee}
+                onChange={(event) => markDirty(setTransferFee)(event.target.value)}
+                min="0"
+                step="0.1"
+              />
+              <span className="admin-finance-fees-percent-suffix">%</span>
+            </div>
+            <span className="admin-finance-fees-field-help">
+              Charged when moving money between vendors. Same-vendor game-to-game moves are free.
             </span>
           </label>
         </div>
@@ -1888,6 +1921,196 @@ function FinanceTransferTab({
   )
 }
 
+function yesterdayIso() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function FinanceGiveawayTab({ useApi }: { useApi: boolean }) {
+  const [date, setDate] = useState(yesterdayIso)
+  const [winnerCount, setWinnerCount] = useState('1')
+  const [amount, setAmount] = useState('1000')
+  const [selected, setSelected] = useState<string[]>([])
+  const [eligible, setEligible] = useState<
+    Array<{ id: string; name: string; email?: string; loaded: number; loadedLabel: string; loads: number }>
+  >([])
+  const [history, setHistory] = useState<
+    Array<{
+      id: string
+      date: string
+      winnerCount: number
+      amount: number
+      total: number
+      winners?: Array<{ id: string; name: string; amountLabel: string }>
+      sentAt?: string
+    }>
+  >([])
+  const [loading, setLoading] = useState(useApi)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+
+  const load = useCallback(async (nextDate = date) => {
+    if (!useApi) {
+      setEligible([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await tapstackApi.adminGiveawayEligible(nextDate)
+      setEligible(res.eligible || [])
+      setHistory(res.history || [])
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not load yesterday’s loaders.')
+    } finally {
+      setLoading(false)
+    }
+  }, [date, useApi])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  function toggle(id: string) {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]))
+  }
+
+  async function handleSend() {
+    if (!useApi || busy) return
+    const count = Math.max(1, Number(winnerCount) || 1)
+    const prize = Number(amount)
+    if (!Number.isFinite(prize) || prize <= 0) {
+      setError('Enter a prize amount.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    setNote('')
+    try {
+      const res = await tapstackApi.adminGiveawaySend({
+        date,
+        winnerCount: count,
+        amount: prize,
+        playerIds: selected,
+      })
+      setNote(
+        `Sent ${res.winnerCount} winner${res.winnerCount === 1 ? '' : 's'} ${res.amount ? `$${res.amount.toFixed(2)}` : ''} each.`,
+      )
+      setSelected([])
+      await load(date)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not send the giveaway.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="admin-giveaway">
+      <section className="admin-finance-transfer-card">
+        <h2 className="admin-finance-transfer-title">Daily load giveaway</h2>
+        <p className="admin-finance-transfer-copy">
+          Players who loaded on the selected day. Pick winners and an amount — prizes send from the platform reserve.
+        </p>
+        <div className="admin-giveaway-controls">
+          <label>
+            <span>Load date</span>
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
+          <label>
+            <span>Winners</span>
+            <input
+              type="number"
+              min={1}
+              value={winnerCount}
+              onChange={(event) => setWinnerCount(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Amount each</span>
+            <input
+              type="number"
+              min={1}
+              step="1"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+            />
+          </label>
+        </div>
+        <button type="button" className="admin-finance-transfer-execute-btn" onClick={() => void load(date)} disabled={loading}>
+          {loading ? 'Loading…' : 'Refresh list'}
+        </button>
+        {error ? <p className="admin-api-error">{error}</p> : null}
+        {note ? <p className="admin-giveaway-note">{note}</p> : null}
+      </section>
+
+      <section className="admin-giveaway-list-card">
+        <div className="admin-giveaway-list-head">
+          <h3>
+            {eligible.length} player{eligible.length === 1 ? '' : 's'} loaded
+          </h3>
+          <p>Leave unchecked to draw randomly from the list.</p>
+        </div>
+        {loading ? (
+          <p>Loading…</p>
+        ) : eligible.length === 0 ? (
+          <p>No loads on that day.</p>
+        ) : (
+          <ul className="admin-giveaway-list">
+            {eligible.map((row) => {
+              const on = selected.includes(row.id)
+              return (
+                <li key={row.id}>
+                  <label>
+                    <input type="checkbox" checked={on} onChange={() => toggle(row.id)} />
+                    <span>
+                      <strong>{row.name}</strong>
+                      <small>
+                        {row.loadedLabel} · {row.loads} load{row.loads === 1 ? '' : 's'}
+                        {row.email ? ` · ${row.email}` : ''}
+                      </small>
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        <button
+          type="button"
+          className="admin-finance-transfer-execute-btn"
+          onClick={() => void handleSend()}
+          disabled={busy || eligible.length === 0}
+        >
+          {busy ? 'Sending…' : selected.length > 0 ? 'Send to selected' : 'Draw & send'}
+        </button>
+      </section>
+
+      {history.length > 0 ? (
+        <section className="admin-giveaway-list-card">
+          <h3>Recent sends</h3>
+          <ul className="admin-giveaway-history">
+            {history.map((row) => (
+              <li key={row.id}>
+                <strong>
+                  {row.date} · {row.winnerCount} × ${Number(row.amount || 0).toFixed(0)}
+                </strong>
+                <span>
+                  {(row.winners || []).map((winner) => winner.name).join(', ') || 'Winners sent'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
 export default function AdminFinancePage() {
   const useApi = isApiConfigured() && !getToken()?.startsWith('demo:')
   const [subTab, setSubTab] = useState<FinanceSubTab>('analytics')
@@ -2012,6 +2235,8 @@ export default function AdminFinancePage() {
             onRefresh={() => refreshFinance()}
           />
         )
+      ) : subTab === 'giveaway' ? (
+        <FinanceGiveawayTab useApi={useApi} />
       ) : (
         <div className="admin-finance-placeholder">
           <p>{FINANCE_SUB_TABS.find((tab) => tab.id === subTab)?.label} coming soon.</p>

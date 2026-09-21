@@ -53,9 +53,11 @@ export type GameLoadTarget = {
   icon?: string
   iconBg?: string
   gameBalance?: string
+  payableBalance?: string
+  redeemableBalance?: string
 }
 
-export type GameTransferIntent = 'load' | 'redeem'
+export type GameTransferIntent = 'load' | 'redeem' | 'move'
 
 type GameLoadModalProps = {
   open: boolean
@@ -63,6 +65,7 @@ type GameLoadModalProps = {
   vendorId: number | string
   vendorName: string
   game: GameLoadTarget | null
+  games?: GameLoadTarget[]
   cashBalance: string
   onClose: () => void
   onSuccess?: (next: { cashBalance: string; gameBalance?: string }) => void
@@ -82,17 +85,22 @@ export default function GameLoadModal({
   vendorId,
   vendorName,
   game,
+  games = [],
   cashBalance,
   onClose,
   onSuccess,
   onVerifyRequired,
 }: GameLoadModalProps) {
   const isRedeem = intent === 'redeem'
+  const isMove = intent === 'move'
   const [amount, setAmount] = useState('25')
   const [mobileId, setMobileId] = useState('')
   const [note, setNote] = useState('')
+  const [couponCode, setCouponCode] = useState('')
+  const [destGameKey, setDestGameKey] = useState('')
   const [walletFormatted, setWalletFormatted] = useState(cashBalance)
-  const [gameBalance, setGameBalance] = useState(game?.gameBalance || '—')
+  const [gameBalance, setGameBalance] = useState(game?.redeemableBalance || game?.gameBalance || '—')
+  const [payableBalance, setPayableBalance] = useState(game?.payableBalance || game?.gameBalance || '—')
   const [loadingWallet, setLoadingWallet] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -104,11 +112,13 @@ export default function GameLoadModal({
     setAmount('25')
     setMobileId('')
     setNote('')
+    setDestGameKey('')
     setError('')
     setStatus('')
     setSuccess(null)
     setWalletFormatted(cashBalance)
-    setGameBalance(game.gameBalance || '—')
+    setGameBalance(game.redeemableBalance || game.gameBalance || '—')
+    setPayableBalance(game.payableBalance || game.gameBalance || '—')
 
     if (!isApiConfigured()) return
 
@@ -128,8 +138,9 @@ export default function GameLoadModal({
           setWalletFormatted(`$${walletRes.wallet.balance.toFixed(2)}`)
         }
         if (balRes?.formatted) {
-          setGameBalance(balRes.formatted)
-          const maxGame = parseMoney(balRes.formatted)
+          setGameBalance(balRes.redeemableFormatted || balRes.formatted)
+          setPayableBalance(balRes.payableFormatted || balRes.formatted)
+          const maxGame = parseMoney(balRes.redeemableFormatted || balRes.formatted)
           if (Number.isFinite(maxGame) && maxGame >= 0) {
             setAmount((current) => {
               const n = Number(current)
@@ -157,13 +168,15 @@ export default function GameLoadModal({
   const availableWallet = parseMoney(walletFormatted)
   const hasKnownGameBalance = Boolean(gameBalance && gameBalance !== '—' && !loadingWallet)
   const availableGame = parseMoney(gameBalance)
+  const destGames = games.filter((item) => item.gameKey !== target.gameKey)
+  const destGame = destGames.find((item) => item.gameKey === destGameKey) || destGames[0] || null
   const walletUsed =
-    !isRedeem && Number.isFinite(numericAmount) ? Math.min(Math.max(0, availableWallet), numericAmount) : 0
+    !isRedeem && !isMove && Number.isFinite(numericAmount) ? Math.min(Math.max(0, availableWallet), numericAmount) : 0
   const cardNeeded =
-    !isRedeem && Number.isFinite(numericAmount) ? Math.max(0, Math.round((numericAmount - walletUsed) * 100) / 100) : 0
+    !isRedeem && !isMove && Number.isFinite(numericAmount) ? Math.max(0, Math.round((numericAmount - walletUsed) * 100) / 100) : 0
   const cardCharge = cardNeeded > 0 ? Math.max(cardNeeded, CARD_MIN) : 0
   const exceedsGame =
-    isRedeem &&
+    (isRedeem || isMove) &&
     hasKnownGameBalance &&
     Number.isFinite(numericAmount) &&
     Number.isFinite(availableGame) &&
@@ -172,7 +185,8 @@ export default function GameLoadModal({
     Number.isFinite(numericAmount) &&
     numericAmount >= 1 &&
     !exceedsGame &&
-    (!isManual || mobileId.trim().length > 0) &&
+    (!isMove || Boolean(destGame)) &&
+    (!isManual || isMove || mobileId.trim().length > 0) &&
     !submitting &&
     isApiConfigured()
 
@@ -180,8 +194,12 @@ export default function GameLoadModal({
     event.preventDefault()
     const activeGame: GameLoadTarget = target
     if (!canSubmit || exceedsGame) return
-    if (isRedeem && hasKnownGameBalance && numericAmount > availableGame) {
+    if ((isRedeem || isMove) && hasKnownGameBalance && numericAmount > availableGame) {
       setError('Amount exceeds your game balance.')
+      return
+    }
+    if (isMove && !destGame) {
+      setError('Choose a destination game.')
       return
     }
 
@@ -189,7 +207,7 @@ export default function GameLoadModal({
     setSubmitting(true)
 
     try {
-      if (!isRedeem && cardCharge > 0 && !getToken()?.startsWith('demo:')) {
+      if (!isRedeem && !isMove && cardCharge > 0 && !getToken()?.startsWith('demo:')) {
         setStatus(
           cardNeeded < CARD_MIN
             ? `Card minimum is ${money(CARD_MIN)}. Charging ${money(cardCharge)}…`
@@ -209,7 +227,9 @@ export default function GameLoadModal({
       }
 
       setStatus(
-        isRedeem
+        isMove
+          ? 'Moving credits between games…'
+          : isRedeem
           ? isManual
             ? 'Submitting redeem request…'
             : 'Redeeming credits from game…'
@@ -220,16 +240,25 @@ export default function GameLoadModal({
       const payload = {
         gameKey: activeGame.gameKey,
         amount: numericAmount,
-        ...(isManual
+        ...(isManual && !isMove
           ? {
               mobileId: mobileId.trim(),
               note: note.trim() || undefined,
             }
           : {}),
+        ...(!isRedeem && !isMove && couponCode.trim()
+          ? { couponCode: couponCode.trim().toUpperCase() }
+          : {}),
       }
-      const res = isRedeem
-        ? await tapstackApi.createVendorRedeem(vendorId, payload)
-        : await tapstackApi.createVendorLoad(vendorId, payload)
+      const res = isMove
+        ? await tapstackApi.createVendorTransfer(vendorId, {
+            fromGameKey: activeGame.gameKey,
+            toGameKey: destGame!.gameKey,
+            amount: numericAmount,
+          })
+        : isRedeem
+          ? await tapstackApi.createVendorRedeem(vendorId, payload)
+          : await tapstackApi.createVendorLoad(vendorId, payload)
 
       let nextCash = walletFormatted
       let nextGame = gameBalance
@@ -257,8 +286,9 @@ export default function GameLoadModal({
         try {
           const balRes = await tapstackApi.vendorGameBalance(vendorId, activeGame.gameKey)
           if (balRes.formatted) {
-            nextGame = balRes.formatted
-            setGameBalance(balRes.formatted)
+            nextGame = balRes.redeemableFormatted || balRes.formatted
+            setGameBalance(nextGame)
+            setPayableBalance(balRes.payableFormatted || balRes.formatted)
           }
         } catch {
           /* keep previous */
@@ -286,7 +316,9 @@ export default function GameLoadModal({
             ? err.message
             : isRedeem
               ? 'Could not redeem credits.'
-              : 'Could not load credits.',
+              : isMove
+                ? 'Could not move credits.'
+                : 'Could not load credits.',
       )
     } finally {
       setSubmitting(false)
@@ -317,7 +349,11 @@ export default function GameLoadModal({
               </svg>
             </div>
             <h2 id="game-load-title" className="game-load-success-title">
-              {isRedeem
+              {isMove
+                ? success.auto
+                  ? 'Successfully moved'
+                  : 'Move submitted'
+                : isRedeem
                 ? success.auto
                   ? 'Successfully redeemed'
                   : 'Redeem submitted'
@@ -326,7 +362,11 @@ export default function GameLoadModal({
                   : 'Load submitted'}
             </h2>
             <p className="game-load-success-copy">
-              {isRedeem
+              {isMove
+                ? success.auto
+                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to ${destGame?.name || 'another game'}. No transfer fee.`
+                  : `$${success.amount.toFixed(0)} move request sent. The vendor will process it shortly. No transfer fee.`
+                : isRedeem
                 ? success.auto
                   ? `$${success.amount.toFixed(0)} moved from ${game.name} to your TapStack wallet.`
                   : `$${success.amount.toFixed(0)} redeem request sent for ${game.name}. The vendor will process it shortly.`
@@ -363,7 +403,7 @@ export default function GameLoadModal({
                 </div>
                 <div>
                   <h2 id="game-load-title">
-                    {isRedeem ? 'Redeem' : 'Load'} {game.name}
+                    {isMove ? 'Move' : isRedeem ? 'Redeem' : 'Load'} {game.name}
                   </h2>
                   <p className="game-load-sub">{vendorName}</p>
                 </div>
@@ -374,29 +414,32 @@ export default function GameLoadModal({
             </div>
 
             <div className="game-load-balances">
-              <div className="game-load-balance-card">
-                <span className="game-load-balance-label">Your wallet</span>
-                <strong className="game-load-balance-value">
-                  {loadingWallet ? '…' : walletFormatted}
-                </strong>
-              </div>
-              {isManual ? (
+              {!isMove ? (
                 <div className="game-load-balance-card">
-                  <span className="game-load-balance-label">Mode</span>
-                  <strong className="game-load-balance-value game-load-balance-value--sm">Manual</strong>
-                </div>
-              ) : (
-                <div className="game-load-balance-card">
-                  <span className="game-load-balance-label">Game balance</span>
+                  <span className="game-load-balance-label">Your wallet</span>
                   <strong className="game-load-balance-value">
-                    {loadingWallet ? '…' : gameBalance}
+                    {loadingWallet ? '…' : walletFormatted}
                   </strong>
                 </div>
-              )}
+              ) : null}
+              <div className="game-load-balance-card">
+                <span className="game-load-balance-label">Payable</span>
+                <strong className="game-load-balance-value">
+                  {loadingWallet ? '…' : payableBalance}
+                </strong>
+              </div>
+              <div className="game-load-balance-card">
+                <span className="game-load-balance-label">Redeemable</span>
+                <strong className="game-load-balance-value">
+                  {loadingWallet ? '…' : gameBalance}
+                </strong>
+              </div>
             </div>
 
             <p className="game-load-copy">
-              {isRedeem
+              {isMove
+                ? 'Move credits from this game to another game at the same vendor. No transfer fee.'
+                : isRedeem
                 ? isManual
                   ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
                   : 'Pull credits from your connected game account into your TapStack wallet.'
@@ -404,6 +447,30 @@ export default function GameLoadModal({
                   ? 'Wallet is used first. If it isn’t enough, the rest is charged to your card. Include your game Mobile ID so the vendor can credit the right account.'
                   : 'Wallet is used first. If it isn’t enough, the rest is charged to your card, then credits move into the connected game account.'}
             </p>
+
+            {isMove ? (
+              <>
+                <label className="game-load-label" htmlFor="game-move-dest">
+                  Destination game
+                </label>
+                <select
+                  id="game-move-dest"
+                  className="game-load-text-input"
+                  value={destGame?.gameKey || ''}
+                  onChange={(event) => setDestGameKey(event.target.value)}
+                >
+                  {destGames.length === 0 ? (
+                    <option value="">No other games</option>
+                  ) : (
+                    destGames.map((item) => (
+                      <option key={item.gameKey} value={item.gameKey}>
+                        {item.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </>
+            ) : null}
 
             <div className="game-load-presets">
               {PRESETS.map((preset) => (
@@ -435,7 +502,7 @@ export default function GameLoadModal({
                 />
               </div>
 
-              {isManual ? (
+              {isManual && !isMove ? (
                 <>
                   <label className="game-load-label" htmlFor="game-load-mobile">
                     Mobile ID / username
@@ -465,6 +532,22 @@ export default function GameLoadModal({
                 </>
               ) : null}
 
+              {!isRedeem && !isMove ? (
+                <>
+                  <label className="game-load-label" htmlFor="game-load-coupon">
+                    Promo code <span className="game-load-optional">(optional)</span>
+                  </label>
+                  <input
+                    id="game-load-coupon"
+                    className="game-load-input"
+                    value={couponCode}
+                    onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                    placeholder="Game-exclusive or store code"
+                    autoCapitalize="characters"
+                  />
+                </>
+              ) : null}
+
               {cardCharge > 0 ? (
                 <div className="game-load-split">
                   <p className="game-load-split-title">Payment</p>
@@ -488,7 +571,7 @@ export default function GameLoadModal({
               {exceedsGame ? (
                 <p className="game-load-error">Amount exceeds your game balance.</p>
               ) : null}
-              {isManual && !mobileId.trim() ? (
+              {isManual && !isMove && !mobileId.trim() ? (
                 <p className="game-load-error">Mobile ID / username is required.</p>
               ) : null}
               {status ? <p className="game-load-status">{status}</p> : null}
@@ -496,20 +579,24 @@ export default function GameLoadModal({
 
               <button
                 type="submit"
-                className={`game-load-submit ${isRedeem ? 'game-load-submit--redeem' : ''}`}
+                className={`game-load-submit ${isRedeem || isMove ? 'game-load-submit--redeem' : ''}`}
                 disabled={!canSubmit}
               >
                 {submitting
-                  ? isRedeem
-                    ? 'Redeeming…'
-                    : cardCharge > 0
-                      ? 'Paying…'
-                      : 'Loading…'
-                  : isRedeem
-                    ? `Redeem $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
-                    : cardCharge > 0
-                      ? `Pay & load $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
-                      : `Load $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
+                  ? isMove
+                    ? 'Moving…'
+                    : isRedeem
+                      ? 'Redeeming…'
+                      : cardCharge > 0
+                        ? 'Paying…'
+                        : 'Loading…'
+                  : isMove
+                    ? `Move $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
+                    : isRedeem
+                      ? `Redeem $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
+                      : cardCharge > 0
+                        ? `Pay & load $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
+                        : `Load $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
               </button>
             </form>
           </>

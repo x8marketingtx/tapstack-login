@@ -5,6 +5,7 @@ import {
   isApiConfigured,
   PLAYER_TAG_OPTIONS,
   tapstackApi,
+  type VendorAffiliate,
   type VendorCustomer,
   type VendorGameAccount,
   type VendorOrderItem,
@@ -88,6 +89,13 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
   const [accounts, setAccounts] = useState<VendorGameAccount[]>([])
   const [orders, setOrders] = useState<VendorOrderItem[]>([])
   const [revealPasswords, setRevealPasswords] = useState<Record<string, boolean>>({})
+  const [affiliate, setAffiliate] = useState<VendorAffiliate | null>(null)
+  const [affRateType, setAffRateType] = useState<'percent' | 'fixed'>('percent')
+  const [affRate, setAffRate] = useState('10')
+  const [affBasis, setAffBasis] = useState<'deposit' | 'signup'>('deposit')
+  const [affCadence, setAffCadence] = useState<'daily' | 'weekly' | 'monthly'>('weekly')
+  const [affBusy, setAffBusy] = useState(false)
+  const [affNote, setAffNote] = useState('')
 
   const emptyMessage =
     portal === 'distributor'
@@ -160,6 +168,19 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
         setDetailCustomer(res.customer as CustomerRow & { phone?: string; email?: string; netAmount?: string })
         setAccounts(res.accounts || [])
         setOrders(res.orders || [])
+        const nextAff = res.affiliate || res.customer?.affiliate
+        if (nextAff) {
+          setAffiliate(nextAff)
+          setAffRateType(nextAff.rateType === 'fixed' ? 'fixed' : 'percent')
+          setAffRate(String(nextAff.rate || 0))
+          setAffBasis(nextAff.basis === 'signup' ? 'signup' : 'deposit')
+          setAffCadence(
+            nextAff.cadence === 'daily' || nextAff.cadence === 'monthly' ? nextAff.cadence : 'weekly',
+          )
+        } else {
+          setAffiliate(null)
+        }
+        setAffNote('')
       } catch (err) {
         if (cancelled) return
         setDetailError(err instanceof ApiError ? err.message : 'Could not load player details.')
@@ -365,6 +386,134 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                     </button>
                   )
                 })}
+              </div>
+            </section>
+
+            <section className="vendor-customer-info-card">
+              <div className="vendor-customer-section-head">
+                <h3 className="vendor-customer-section-title">Make affiliate</h3>
+                <p className="vendor-customer-section-hint">Shortlink is assigned automatically. Payouts are tagged Affiliate and need manual approval.</p>
+              </div>
+              <div className="vendor-affiliate-grid">
+                <label>
+                  <span>Rate type</span>
+                  <select
+                    value={affRateType}
+                    onChange={(event) => setAffRateType(event.target.value === 'fixed' ? 'fixed' : 'percent')}
+                  >
+                    <option value="percent">Percent</option>
+                    <option value="fixed">Fixed $</option>
+                  </select>
+                </label>
+                <label>
+                  <span>{affRateType === 'fixed' ? 'Dollar amount' : 'Percent'}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={affRateType === 'fixed' ? '1' : '0.1'}
+                    value={affRate}
+                    onChange={(event) => setAffRate(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Earns</span>
+                  <select
+                    value={affBasis}
+                    onChange={(event) => setAffBasis(event.target.value === 'signup' ? 'signup' : 'deposit')}
+                  >
+                    <option value="deposit">Per deposit</option>
+                    <option value="signup">Per signup</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Payout cadence</span>
+                  <select
+                    value={affCadence}
+                    onChange={(event) => {
+                      const next = event.target.value
+                      setAffCadence(next === 'daily' || next === 'monthly' ? next : 'weekly')
+                    }}
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </label>
+              </div>
+              {affiliate?.shortlinkPath ? (
+                <p className="vendor-affiliate-link">
+                  Shortlink: {typeof window !== 'undefined' ? window.location.origin : ''}
+                  {affiliate.shortlinkPath}
+                </p>
+              ) : null}
+              {affiliate?.enabled ? (
+                <p className="vendor-customer-section-hint">
+                  Pending {`$${Number(affiliate.pendingAmount || 0).toFixed(2)}`} · lifetime{' '}
+                  {`$${Number(affiliate.lifetimeAmount || 0).toFixed(2)}`}
+                </p>
+              ) : null}
+              {affNote ? <p className="vendor-customer-section-hint">{affNote}</p> : null}
+              <div className="vendor-affiliate-actions">
+                <button
+                  type="button"
+                  className="vendor-vip-button vendor-vip-button--on"
+                  disabled={affBusy}
+                  onClick={() => {
+                    if (!shown.id) return
+                    setAffBusy(true)
+                    setAffNote('')
+                    void tapstackApi
+                      .vendorCustomerAffiliate(shown.id, {
+                        enabled: true,
+                        rateType: affRateType,
+                        rate: Number(affRate) || 0,
+                        basis: affBasis,
+                        cadence: affCadence,
+                      })
+                      .then((res) => {
+                        setAffiliate(res.affiliate)
+                        setAffNote('Affiliate saved. Payouts appear under Orders → Redeems with an Affiliate tag.')
+                        if (!(shown.tags || []).includes('affiliate')) {
+                          void toggleCustomerTag(shown, 'affiliate')
+                        }
+                      })
+                      .catch((err) => {
+                        setAffNote(err instanceof ApiError ? err.message : 'Could not save affiliate.')
+                      })
+                      .finally(() => setAffBusy(false))
+                  }}
+                >
+                  {affiliate?.enabled ? 'Save affiliate' : 'Make affiliate'}
+                </button>
+                {affiliate?.enabled ? (
+                  <button
+                    type="button"
+                    className="vendor-vip-button"
+                    disabled={affBusy}
+                    onClick={() => {
+                      if (!shown.id) return
+                      setAffBusy(true)
+                      void tapstackApi
+                        .vendorCustomerAffiliate(shown.id, {
+                          enabled: false,
+                          rateType: affRateType,
+                          rate: Number(affRate) || 0,
+                          basis: affBasis,
+                          cadence: affCadence,
+                        })
+                        .then((res) => {
+                          setAffiliate(res.affiliate)
+                          setAffNote('Affiliate turned off.')
+                        })
+                        .catch((err) => {
+                          setAffNote(err instanceof ApiError ? err.message : 'Could not update affiliate.')
+                        })
+                        .finally(() => setAffBusy(false))
+                    }}
+                  >
+                    Remove
+                  </button>
+                ) : null}
               </div>
             </section>
 

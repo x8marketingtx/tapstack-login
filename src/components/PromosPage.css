@@ -87,6 +87,17 @@
   position: relative;
   min-height: 120px;
   padding: 16px;
+  overflow: hidden;
+}
+
+.promo-card-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+}
   color: #fff;
   overflow: hidden;
 }
@@ -102,6 +113,8 @@
 }
 
 .promo-card-badge {
+  position: relative;
+  z-index: 1;
   position: absolute;
   top: 14px;
   right: 14px;
@@ -114,6 +127,8 @@
 }
 
 .promo-card-vendor {
+  position: relative;
+  z-index: 1;
   position: relative;
   display: flex;
   align-items: center;
@@ -137,6 +152,8 @@
 }
 
 .promo-card-headline {
+  position: relative;
+  z-index: 1;
   position: relative;
   margin: 0;
   max-width: 240px;
@@ -198,11 +215,43 @@
   color: #15803d;
 }
 
+.promo-tag--pink {
+  background: #fce7f3;
+  color: #be185d;
+}
+
 .promo-card-desc {
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.45;
   color: #6b7280;
+}
+
+.promo-giveaway-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.promo-giveaway-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f5f3ff;
+}
+
+.promo-giveaway-stats span {
+  font-size: 11px;
+  color: #6d28d9;
+  font-weight: 650;
+}
+
+.promo-giveaway-stats strong {
+  font-size: 18px;
+  color: #111827;
 }
 
 .promo-card-footer {

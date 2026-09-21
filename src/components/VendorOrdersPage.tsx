@@ -98,13 +98,11 @@ function LoadsTab({
   manualLoads,
   autoLoads,
   busyId,
-  onApprove,
   onOpenOrder,
 }: {
   manualLoads: VendorOrderItem[]
   autoLoads: VendorOrderItem[]
   busyId: string | null
-  onApprove: (id: string) => void
   onOpenOrder: (id: string) => void
 }) {
   return (
@@ -144,7 +142,7 @@ function LoadsTab({
                   disabled={busyId === load.id}
                   onClick={(event) => {
                     event.stopPropagation()
-                    onApprove(load.id)
+                    onOpenOrder(load.id)
                   }}
                 >
                   {busyId === load.id ? '…' : null}
@@ -167,6 +165,11 @@ function LoadsTab({
                         .join(' · ')}
                     </p>
                     {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
+                    {(load.payoutTags || load.playerTags || []).length > 0 ? (
+                      <p className="vendor-order-tags">
+                        {(load.payoutTags || load.playerTags || []).join(' · ')}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="vendor-order-right">
@@ -238,15 +241,11 @@ function RedeemsTab({
   redeems,
   pendingTotal,
   busyId,
-  onApprove,
-  onReject,
   onOpenOrder,
 }: {
   redeems: VendorOrderItem[]
   pendingTotal: string
   busyId: string | null
-  onApprove: (id: string) => void
-  onReject: (id: string) => void
   onOpenOrder: (id: string) => void
 }) {
   return (
@@ -284,6 +283,11 @@ function RedeemsTab({
                   <p className="vendor-order-meta">
                     {[redeem.game, redeem.time].filter(Boolean).join(' · ')}
                   </p>
+                  {(redeem.payoutTags || redeem.playerTags || []).length > 0 ? (
+                    <p className="vendor-order-tags">
+                      {(redeem.payoutTags || redeem.playerTags || []).map((tag) => tag.toUpperCase()).join(' · ')}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="vendor-order-right">
@@ -297,7 +301,7 @@ function RedeemsTab({
                   type="button"
                   className="vendor-redeem-btn vendor-redeem-btn--reject"
                   disabled={busyId === redeem.id}
-                  onClick={() => onReject(redeem.id)}
+                  onClick={() => onOpenOrder(redeem.id)}
                 >
                   Reject
                 </button>
@@ -305,7 +309,7 @@ function RedeemsTab({
                   type="button"
                   className="vendor-redeem-btn vendor-redeem-btn--approve"
                   disabled={busyId === redeem.id}
-                  onClick={() => onApprove(redeem.id)}
+                  onClick={() => onOpenOrder(redeem.id)}
                 >
                   {busyId === redeem.id ? '…' : 'Approve'}
                 </button>
@@ -332,7 +336,7 @@ function HistoryTab({
     return history.filter((entry) => {
       if (!inHistoryRange(entry, range)) return false
       if (filter === 'loads') return entry.type.includes('load')
-      if (filter === 'redeems') return entry.type === 'redeem'
+      if (filter === 'redeems') return entry.type === 'redeem' || entry.type === 'affiliate-payout'
       return true
     })
   }, [history, range, filter])
@@ -423,7 +427,6 @@ export default function VendorOrdersPage() {
   const [orders, setOrders] = useState<OrdersState>(EMPTY_ORDERS)
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
-  const [busyId, setBusyId] = useState<string | null>(null)
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -462,44 +465,6 @@ export default function VendorOrdersPage() {
     void refresh()
   }, [refresh])
 
-  async function handleApprove(id: string) {
-    setBusyId(id)
-    setError('')
-    try {
-      await tapstackApi.vendorOrderApprove(id)
-      await refresh()
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not approve order.',
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function handleReject(id: string) {
-    setBusyId(id)
-    setError('')
-    try {
-      await tapstackApi.vendorOrderReject(id)
-      await refresh()
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Could not reject order.',
-      )
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   const tabs: { id: OrdersTab; label: string; count?: number }[] = [
     { id: 'loads', label: 'Loads', count: orders.manualLoads.length },
     { id: 'redeems', label: 'Redeems', count: orders.redeems.length },
@@ -536,8 +501,7 @@ export default function VendorOrdersPage() {
         <LoadsTab
           manualLoads={orders.manualLoads}
           autoLoads={orders.autoLoads}
-          busyId={busyId}
-          onApprove={handleApprove}
+          busyId={null}
           onOpenOrder={setDetailOrderId}
         />
       ) : null}
@@ -545,9 +509,7 @@ export default function VendorOrdersPage() {
         <RedeemsTab
           redeems={orders.redeems}
           pendingTotal={orders.pendingTotal}
-          busyId={busyId}
-          onApprove={handleApprove}
-          onReject={handleReject}
+          busyId={null}
           onOpenOrder={setDetailOrderId}
         />
       ) : null}

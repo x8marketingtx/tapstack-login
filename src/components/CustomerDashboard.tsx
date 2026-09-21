@@ -47,6 +47,7 @@ import {
   parseLocation,
   vendorPathId,
 } from '../lib/routing'
+import { clearPlayerAffiliateRef, getPlayerAffiliateRef, setPlayerAffiliateRef } from '../lib/affiliate'
 import './CustomerDashboard.css'
 
 function vendorStorageKey(vendor: Pick<Vendor, 'id' | 'code' | 'name'>): string {
@@ -273,6 +274,11 @@ function GamesHome({
                         style={{ background: vendor.color, color: vendor.text }}
                       >
                         {vendor.initials}
+                        {vendor.hasPublicPromo ? (
+                          <span className="vendor-promo-emoji" title="Public promotion" aria-label="Public promotion">
+                            🎉
+                          </span>
+                        ) : null}
                       </div>
                       <div className="vendor-info">
                         <span className="vendor-name">{vendor.name}</span>
@@ -430,6 +436,14 @@ export default function CustomerDashboard({
       setSelectedVendor(null)
     }
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const aff = (params.get('a') || params.get('aff') || '').trim()
+    const vendorInvite = (params.get('v') || params.get('join') || '').trim()
+    if (aff) setPlayerAffiliateRef(aff)
+    if (vendorInvite) setInviteCode(vendorInvite.toUpperCase())
+  }, [])
 
   useEffect(() => {
     window.addEventListener('popstate', syncFromRoute)
@@ -756,7 +770,8 @@ export default function CustomerDashboard({
       let nextList: Vendor[] | null = null
       let next: Vendor
       if (shouldLoadFromApi) {
-        const res = await tapstackApi.linkVendor(code)
+        const res = await tapstackApi.linkVendor(code, getPlayerAffiliateRef() || undefined)
+        if (getPlayerAffiliateRef()) clearPlayerAffiliateRef()
         next = vendorFromApi(res.vendor)
         if (Array.isArray(res.vendors)) {
           nextList = res.vendors.map(vendorFromApi)

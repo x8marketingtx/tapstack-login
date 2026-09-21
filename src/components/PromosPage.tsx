@@ -108,6 +108,7 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
   }
 
   function actionLabel(promo: PlayerPromo): string {
+    if (promo.type === 'giveaway') return 'Load to enter'
     if (promo.claimStatus === 'available') return 'Activate'
     if (promo.claimStatus === 'active') return 'In progress'
     if (promo.claimStatus === 'completed') return 'Claim reward'
@@ -117,8 +118,8 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
   return (
     <div className="promos-page">
       <div className="promos-intro">
-        <h1 className="promos-title">Promotions</h1>
-        <p className="promos-subtitle">From your linked vendors — activate, complete a load, claim</p>
+        <h1 className="promos-title">Promos and Giveaways</h1>
+        <p className="promos-subtitle">From your linked vendors — activate, complete a load, or enter a giveaway</p>
       </div>
 
       <div className="promo-filters" role="tablist" aria-label="Vendor filters">
@@ -154,7 +155,7 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
 
       {!loading && visible.length === 0 ? (
         <p className="promo-empty">
-          No live promos yet. Link a vendor and ask them to publish a Bonus Credit or Deposit Bonus.
+          No live promos yet. Link a vendor and ask them to publish a Bonus Credit, Deposit Bonus, or Giveaway.
         </p>
       ) : null}
 
@@ -163,10 +164,14 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
           const pct =
             promo.goal > 0 ? Math.min(100, Math.round((promo.progress / promo.goal) * 100)) : 0
           const canAct =
-            promo.claimStatus === 'available' || promo.claimStatus === 'completed'
+            promo.type !== 'giveaway' &&
+            (promo.claimStatus === 'available' || promo.claimStatus === 'completed')
           return (
             <article key={promo.id} className="promo-card">
               <div className="promo-card-hero" style={{ background: promo.heroGradient }}>
+                {promo.imageUrl ? (
+                  <img src={promo.imageUrl} alt="" className="promo-card-hero-img" />
+                ) : null}
                 <span className="promo-card-badge">{promo.badge || 'PROMO'}</span>
                 <div className="promo-card-vendor">
                   <span className="promo-vendor-icon">{promo.vendorInitials}</span>
@@ -184,11 +189,26 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
                   </span>
                 </div>
                 <p className="promo-card-desc">
+                  {promo.gameTitle ? `${promo.gameTitle} only. ` : ''}
                   {promo.description ||
-                    (promo.type === 'deposit-bonus'
+                    (promo.type === 'giveaway'
+                      ? `$${promo.poolAmount || promo.rewardValue} giveaway · ${promo.winnerCount || 1} winner${(promo.winnerCount || 1) === 1 ? '' : 's'} · $${(promo.prizeEach || ((promo.poolAmount || promo.rewardValue) / Math.max(1, promo.winnerCount || 1))).toFixed(2)} each.`
+                      : promo.type === 'deposit-bonus'
                       ? `Load $${promo.minAmount}+ and get ${promo.rewardValue}% bonus credit.`
                       : `Load $${promo.minAmount}+ and get $${promo.rewardValue.toFixed(2)} credit.`)}
                 </p>
+                {promo.type === 'giveaway' ? (
+                  <div className="promo-giveaway-stats">
+                    <div>
+                      <span>Giveaway amount</span>
+                      <strong>${(promo.poolAmount || promo.rewardValue || 0).toFixed(0)}</strong>
+                    </div>
+                    <div>
+                      <span>Winners</span>
+                      <strong>{promo.winnerCount || 1}</strong>
+                    </div>
+                  </div>
+                ) : null}
 
                 {promo.claimStatus === 'active' || promo.claimStatus === 'completed' ? (
                   <div className="promo-progress">

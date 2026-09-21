@@ -20,7 +20,7 @@ const CATEGORIES: SupportCategory[] = [
   { id: 'billing', label: 'Billing & payouts' },
   { id: 'orders', label: 'Orders' },
   { id: 'games', label: 'Games' },
-  { id: 'promos', label: 'Promos' },
+  { id: 'promos', label: 'Promos and Giveaways' },
   { id: 'technical', label: 'Technical' },
   { id: 'other', label: 'Other' },
 ]
@@ -175,8 +175,11 @@ export default function HelpCenter({
               : await tapstackApi.supportTickets()
       const listed = next.tickets || []
       setTickets(listed)
+      const reportedOpen =
+        'openCount' in next && typeof next.openCount === 'number' ? next.openCount : undefined
       onOpenCount?.(
-        listed.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
+        reportedOpen ??
+          listed.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
       )
       if (next.categories?.length) setCategories(next.categories)
     } catch (err) {

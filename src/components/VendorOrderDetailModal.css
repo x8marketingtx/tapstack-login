@@ -388,6 +388,60 @@
   color: #b91c1c;
 }
 
+.vod-required {
+  color: #b91c1c;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.vod-staff-note {
+  width: 100%;
+  margin: 6px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font: inherit;
+  resize: vertical;
+}
+
+.vod-tag-row,
+.vod-tag-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.vod-tag-chip,
+.vod-tag-toggle {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.vod-tag-chip {
+  background: #f3e8ff;
+  color: #6d28d9;
+}
+
+.vod-tag-toggle {
+  border: 1px solid #ddd6fe;
+  background: #fff;
+  color: #6d28d9;
+  cursor: pointer;
+}
+
+.vod-tag-toggle.is-on {
+  background: #6d28d9;
+  color: #fff;
+  border-color: #6d28d9;
+}
+
+.vod-payout-tags {
+  margin: 8px 0 12px;
+}
+
 .vod-error {
   color: #b91c1c;
 }

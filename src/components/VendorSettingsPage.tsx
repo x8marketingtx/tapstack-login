@@ -1191,6 +1191,9 @@ function BillingTab() {
   const [vipPayinEnabled, setVipPayinEnabled] = useState(true)
   const [vipAutoPayin, setVipAutoPayin] = useState('500')
   const [vipStaffPayin, setVipStaffPayin] = useState('1000')
+  const [coverLoadbackFees, setCoverLoadbackFees] = useState(false)
+  const [loadbackFeePct, setLoadbackFeePct] = useState('100')
+  const [tipsEnabled, setTipsEnabled] = useState(true)
   const [payinCaps, setPayinCaps] = useState({
     auto: 500,
     staff: 1000,
@@ -1225,6 +1228,9 @@ function BillingTab() {
     if (games.vipAutoPayinThreshold != null) setVipAutoPayin(String(games.vipAutoPayinThreshold))
     if (games.vipStaffPayinThreshold != null) setVipStaffPayin(String(games.vipStaffPayinThreshold))
     if (games.gameRoomThreshold != null) setGameRoomThreshold(String(games.gameRoomThreshold))
+    if (typeof games.coverLoadbackFees === 'boolean') setCoverLoadbackFees(games.coverLoadbackFees)
+    if (games.loadbackFeePct != null) setLoadbackFeePct(String(games.loadbackFeePct))
+    if (typeof games.tipsEnabled === 'boolean') setTipsEnabled(games.tipsEnabled)
   }
 
   useEffect(() => {
@@ -1298,6 +1304,11 @@ function BillingTab() {
       vipAutoPayinThreshold: vipAutoValue,
       vipStaffPayinThreshold: Math.max(vipAutoValue, clamp(Number(vipStaffPayin) || 0, capStaff)),
       gameRoomThreshold: Math.max(0, Math.round((Number(gameRoomThreshold) || 0) * 100) / 100),
+      coverLoadbackFees,
+      loadbackFeePct: coverLoadbackFees
+        ? Math.max(0, Math.min(100, Math.round((Number(loadbackFeePct) || 0) * 100) / 100))
+        : 0,
+      tipsEnabled,
     }
 
     setSaving(true)
@@ -1503,17 +1514,17 @@ function BillingTab() {
             </svg>
           </span>
           <div>
-            <h3 className="vendor-settings-games-card-title">Payin Thresholds</h3>
+            <h3 className="vendor-settings-games-card-title">Autocomplete</h3>
             <p className="vendor-settings-games-card-desc">
-              TapStack defaults are ${money(String(payinCaps.auto))} auto and $
-              {money(String(payinCaps.staff))} staff. You can set lower limits for this store.
+              Set the maximum amount to autocomplete. TapStack still caps auto at $
+              {money(String(payinCaps.auto))} and staff at ${money(String(payinCaps.staff))}.
             </p>
           </div>
         </div>
 
         <div className="vendor-settings-redeem-row">
           <label className="vendor-settings-redeem-field">
-            <span className="vendor-settings-field-label">Auto-approve payins up to</span>
+            <span className="vendor-settings-field-label">Maximum amount to autocomplete</span>
             <div className="vendor-settings-money-input-wrap">
               <span className="vendor-settings-money-prefix">$</span>
               <input
@@ -1544,15 +1555,15 @@ function BillingTab() {
           </label>
         </div>
         <p className="vendor-settings-panel-help">
-          Loads at or below ${money(autoPayin)} credit automatically when the game is API-linked.
+          Loads at or below ${money(autoPayin)} autocomplete when the game is API-linked.
           Amounts up to ${money(staffPayin)} wait for staff approval. Larger payins are blocked.
         </p>
 
         <div className="vendor-settings-auto-list">
           <div className="vendor-settings-auto-item">
             <SettingsToggle
-              label="VIP payin override"
-              description="Let VIP customers use higher payin limits at this store"
+              label="Override autocomplete limit for VIPs"
+              description="Let VIP customers use a higher autocomplete amount at this store"
               checked={vipPayinEnabled}
               onChange={setVipPayinEnabled}
             />
@@ -1563,7 +1574,7 @@ function BillingTab() {
           <>
             <div className="vendor-settings-redeem-row">
               <label className="vendor-settings-redeem-field">
-                <span className="vendor-settings-field-label">VIP auto-approve up to</span>
+                <span className="vendor-settings-field-label">VIP autocomplete up to</span>
                 <div className="vendor-settings-money-input-wrap">
                   <span className="vendor-settings-money-prefix">$</span>
                   <input
@@ -1600,6 +1611,74 @@ function BillingTab() {
             </p>
           </>
         ) : null}
+      </section>
+
+      <section className="vendor-settings-panel">
+        <div className="vendor-settings-games-card-header">
+          <span className="vendor-settings-games-card-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 3v18M7 8h7.5a3.5 3.5 0 0 1 0 7H9"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <div>
+            <h3 className="vendor-settings-games-card-title">Loadback fees</h3>
+            <p className="vendor-settings-games-card-desc">
+              Cover the processing fee on customer loads from your TapStack balance.
+            </p>
+          </div>
+        </div>
+        <div className="vendor-settings-auto-list">
+          <div className="vendor-settings-auto-item">
+            <SettingsToggle
+              label="Cover customer loadback fees"
+              description="Give the initial processing fee back to clients when they load"
+              checked={coverLoadbackFees}
+              onChange={setCoverLoadbackFees}
+            />
+          </div>
+        </div>
+        {coverLoadbackFees ? (
+          <>
+            <label className="vendor-settings-redeem-field">
+              <span className="vendor-settings-field-label">Percent of the fee you cover</span>
+              <div className="vendor-settings-money-input-wrap">
+                <input
+                  type="number"
+                  className="vendor-settings-money-input"
+                  value={loadbackFeePct}
+                  onChange={(event) => setLoadbackFeePct(event.target.value)}
+                  min="0"
+                  max="100"
+                  step="1"
+                />
+                <span className="vendor-settings-money-prefix">%</span>
+              </div>
+            </label>
+            <p className="vendor-settings-panel-help">
+              {Number(loadbackFeePct) >= 100
+                ? 'You cover the full processing fee. Players are not charged extra on loads.'
+                : `You cover ${money(loadbackFeePct)}% of the processing fee. Players pay the rest.`}
+            </p>
+          </>
+        ) : null}
+      </section>
+
+      <section className="vendor-settings-panel">
+        <div className="vendor-settings-auto-list">
+          <div className="vendor-settings-auto-item">
+            <SettingsToggle
+              label="Allow players to tip this gameroom"
+              description="Players can send a wallet tip from the Game Room page"
+              checked={tipsEnabled}
+              onChange={setTipsEnabled}
+            />
+          </div>
+        </div>
       </section>
 
       <section className="vendor-settings-panel">

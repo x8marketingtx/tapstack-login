@@ -266,6 +266,7 @@ export type AdminFees = {
   maintenanceMode: boolean
   depositFeePct: number
   redeemFeePct: number
+  transferFeePct?: number
   playerRankUpgradeMo: number
   vendorGameAutomationMo: number
   autoPayinMax: number
@@ -435,6 +436,14 @@ export type VendorPromotion = {
   playerTags?: string[]
   playerTagLabels?: string[]
   audienceLabel?: string
+  winnerCount?: number
+  entryMode?: 'per_order' | 'total' | string
+  poolAmount?: number
+  prizeEach?: number
+  imageId?: number
+  imageUrl?: string
+  gameKey?: string
+  gameTitle?: string
 }
 
 export type VendorCoupon = {
@@ -452,6 +461,8 @@ export type VendorCoupon = {
   limitsLabel?: string
   startsAt?: string
   endsAt?: string
+  gameKey?: string
+  gameTitle?: string
 }
 
 export type EmailBlastAvailability = {
@@ -480,10 +491,16 @@ export type EmailBlastItem = {
 
 export const PLAYER_TAG_OPTIONS: { id: string; label: string }[] = [
   { id: 'vip', label: 'VIP' },
+  { id: 'affiliate', label: 'Affiliate' },
   { id: 'high-roller', label: 'High Roller' },
   { id: 'frequent', label: 'Frequent Player' },
   { id: 'new', label: 'New Player' },
   { id: 'regular', label: 'Regular' },
+]
+
+export const PAYOUT_TAG_OPTIONS: { id: string; label: string }[] = [
+  { id: 'vip', label: 'VIP' },
+  { id: 'affiliate', label: 'Affiliate' },
 ]
 
 export type PlayerPromo = {
@@ -509,6 +526,13 @@ export type PlayerPromo = {
   goal: number
   rewardAmount: number
   claimId?: string | null
+  winnerCount?: number
+  entryMode?: 'per_order' | 'total' | string
+  poolAmount?: number
+  prizeEach?: number
+  imageUrl?: string
+  gameKey?: string
+  gameTitle?: string
 }
 
 export type VendorOrderItem = {
@@ -533,8 +557,28 @@ export type VendorOrderItem = {
   error?: string
   mobileId?: string
   note?: string
+  staffNote?: string
+  playerTags?: string[]
+  payoutTags?: string[]
+  fromGameKey?: string
+  toGameKey?: string
+  sameVendorTransfer?: boolean
   attention?: boolean
   statusLabel?: string
+}
+
+export type VendorAffiliate = {
+  enabled: boolean
+  rateType: 'percent' | 'fixed' | string
+  rate: number
+  basis: 'deposit' | 'signup' | string
+  cadence: 'daily' | 'weekly' | 'monthly' | string
+  code: string
+  inviteCode?: string
+  shortlinkPath: string
+  pendingAmount: number
+  lifetimeAmount: number
+  lastFlushAt?: string
 }
 
 export type VendorCustomer = {
@@ -554,6 +598,7 @@ export type VendorCustomer = {
   tagLabels?: string[]
   vip?: boolean
   operatorVip?: boolean
+  affiliate?: VendorAffiliate
 }
 
 export type VendorGameAccount = {
@@ -867,7 +912,7 @@ export const tapstackApi = {
         '/customer/vendors',
       ),
     ),
-  linkVendor: (inviteCode: string) =>
+  linkVendor: (inviteCode: string, affiliateCode?: string) =>
     apiRequest<{
       ok: boolean
       vendor: ApiVendor
@@ -880,6 +925,7 @@ export const tapstackApi = {
         vendorCode: inviteCode.trim(),
         inviteCode: inviteCode.trim(),
         code: inviteCode.trim(),
+        ...(affiliateCode?.trim() ? { affiliateCode: affiliateCode.trim(), a: affiliateCode.trim() } : {}),
       },
     }),
   unlinkVendor: (vendorId: number | string) =>
@@ -1024,10 +1070,16 @@ export const tapstackApi = {
       accounts: VendorGameAccount[]
       orders: VendorOrderItem[]
     }>(`/vendor/orders/${id}`),
-  vendorOrderApprove: (id: number | string) =>
-    apiRequest<{ ok: boolean; status: string }>('/vendor/orders/' + id + '/approve', { method: 'POST' }),
-  vendorOrderReject: (id: number | string) =>
-    apiRequest<{ ok: boolean; status: string }>('/vendor/orders/' + id + '/reject', { method: 'POST' }),
+  vendorOrderApprove: (id: number | string, payload?: { staffNote: string; payoutTags?: string[] }) =>
+    apiRequest<{ ok: boolean; status: string }>('/vendor/orders/' + id + '/approve', {
+      method: 'POST',
+      body: payload ?? {},
+    }),
+  vendorOrderReject: (id: number | string, payload?: { staffNote: string; payoutTags?: string[] }) =>
+    apiRequest<{ ok: boolean; status: string }>('/vendor/orders/' + id + '/reject', {
+      method: 'POST',
+      body: payload ?? {},
+    }),
   vendorCustomers: (search = '') =>
     apiRequest<{
       ok: boolean
@@ -1049,6 +1101,7 @@ export const tapstackApi = {
       }
       accounts: VendorGameAccount[]
       orders: VendorOrderItem[]
+      affiliate?: VendorAffiliate
     }>(`/vendor/customers/${playerId}`),
   vendorAnalytics: (range = '7d') =>
     apiRequest<{
@@ -1119,6 +1172,10 @@ export const tapstackApi = {
     limitPerDay?: number
     limitTotal?: number
     playerTags?: string[]
+    winnerCount?: number
+    entryMode?: 'per_order' | 'total' | string
+    imageId?: number
+    gameKey?: string
   }) =>
     apiRequest<{ ok: boolean; promotion: VendorPromotion }>('/vendor/promos', {
       method: 'POST',
@@ -1140,6 +1197,10 @@ export const tapstackApi = {
       limitPerDay?: number
       limitTotal?: number
       playerTags?: string[]
+      winnerCount?: number
+      entryMode?: 'per_order' | 'total' | string
+      imageId?: number
+      gameKey?: string
     },
   ) =>
     apiRequest<{ ok: boolean; promotion: VendorPromotion }>(`/vendor/promos/${id}`, {
@@ -1167,6 +1228,7 @@ export const tapstackApi = {
     startTime?: string
     endDate?: string
     endTime?: string
+    gameKey?: string
   }) =>
     apiRequest<{ ok: boolean; coupon: VendorCoupon }>('/vendor/coupons', {
       method: 'POST',
@@ -1181,6 +1243,36 @@ export const tapstackApi = {
     apiRequest<{ ok: boolean }>(`/vendor/coupons/${id}`, {
       method: 'DELETE',
     }),
+  uploadPromoImage: async (file: File) => {
+    const base = getApiBase()
+    const token = getToken()
+    const body = new FormData()
+    body.append('file', file)
+    const qs =
+      token && !token.startsWith('demo:')
+        ? `?access_token=${encodeURIComponent(token)}`
+        : ''
+    const res = await fetch(`${base}/vendor/promos/image${qs}`, {
+      method: 'POST',
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+            'X-TapStack-Token': token,
+            Accept: 'application/json',
+          }
+        : { Accept: 'application/json' },
+      body,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new ApiError(
+        (data as { message?: string }).message || `Upload failed (${res.status})`,
+        res.status,
+        (data as { code?: string }).code,
+      )
+    }
+    return data as { ok: boolean; imageId: number; imageUrl: string }
+  },
   vendorEmailBlasts: () =>
     apiRequest<{
       ok?: boolean
@@ -1241,9 +1333,25 @@ export const tapstackApi = {
       playerId: string
       tags: string[]
       tagLabels: string[]
+      vip: boolean
+      operatorVip?: boolean
     }>(`/vendor/customers/${playerId}/tags`, {
-      method: 'POST',
+      method: 'PUT',
       body: { tags },
+    }),
+  vendorCustomerAffiliate: (
+    playerId: string | number,
+    payload: {
+      enabled: boolean
+      rateType: 'percent' | 'fixed' | string
+      rate: number
+      basis: 'deposit' | 'signup' | string
+      cadence: 'daily' | 'weekly' | 'monthly' | string
+    },
+  ) =>
+    apiRequest<{ ok: boolean; affiliate: VendorAffiliate }>(`/vendor/customers/${playerId}/affiliate`, {
+      method: 'POST',
+      body: payload,
     }),
   vendorSettings: () =>
     apiRequest<{
@@ -1376,6 +1484,10 @@ export const tapstackApi = {
       gameKey?: string
       formatted: string
       amount: number | null
+      payable?: number | null
+      redeemable?: number | null
+      payableFormatted?: string
+      redeemableFormatted?: string
     }>(`/customer/vendors/${vendorId}/games/${encodeURIComponent(gameKey)}/balance`),
   vendorGameCredentials: (vendorId: number | string, gameKey: string) =>
     apiRequest<{
@@ -1392,7 +1504,7 @@ export const tapstackApi = {
     }>(`/customer/vendors/${vendorId}/games/${encodeURIComponent(gameKey)}/credentials`),
   createVendorLoad: (
     vendorId: number | string,
-    payload: { gameKey: string; amount: number; mobileId?: string; note?: string },
+    payload: { gameKey: string; amount: number; mobileId?: string; note?: string; couponCode?: string },
   ) =>
     apiRequest<{
       ok: boolean
@@ -1401,6 +1513,12 @@ export const tapstackApi = {
       auto: boolean
       wallet?: { id: number; balance: number; formatted: string; points: number; currency: string }
     }>(`/customer/vendors/${vendorId}/loads`, { method: 'POST', body: payload }),
+  tipVendor: (vendorId: number | string, amount: number) =>
+    apiRequest<{
+      ok: boolean
+      amount: number
+      wallet?: { balance: number; formatted: string }
+    }>(`/customer/vendors/${vendorId}/tip`, { method: 'POST', body: { amount } }),
   createVendorRedeem: (
     vendorId: number | string,
     payload: { gameKey: string; amount: number; mobileId?: string; note?: string },
@@ -1412,6 +1530,18 @@ export const tapstackApi = {
       auto: boolean
       wallet?: { id: number; balance: number; formatted: string; points: number; currency: string }
     }>(`/customer/vendors/${vendorId}/redeems`, { method: 'POST', body: payload }),
+  createVendorTransfer: (
+    vendorId: number | string,
+    payload: { fromGameKey: string; toGameKey: string; amount: number; mobileId?: string; note?: string },
+  ) =>
+    apiRequest<{
+      ok: boolean
+      id: number
+      status: string
+      auto: boolean
+      sameVendorTransfer?: boolean
+      wallet?: { id: number; balance: number; formatted: string; points: number; currency: string }
+    }>(`/customer/vendors/${vendorId}/transfers`, { method: 'POST', body: payload }),
   customerVendorOrders: (vendorId: number | string) =>
     apiRequest<{
       ok: boolean
@@ -1480,6 +1610,43 @@ export const tapstackApi = {
     }),
   adminFinance: (range = '30d') =>
     apiRequest<AdminFinance>(`/admin/finance?range=${encodeURIComponent(range)}`),
+  adminGiveawayEligible: (date = '') =>
+    apiRequest<{
+      ok: boolean
+      date: string
+      count: number
+      eligible: Array<{
+        id: string
+        name: string
+        email?: string
+        loaded: number
+        loadedLabel: string
+        loads: number
+      }>
+      history?: Array<{
+        id: string
+        date: string
+        winnerCount: number
+        amount: number
+        total: number
+        winners?: Array<{ id: string; name: string; amount: number; amountLabel: string }>
+        sentAt?: string
+      }>
+    }>(`/admin/giveaway${date ? `?date=${encodeURIComponent(date)}` : ''}`),
+  adminGiveawaySend: (payload: {
+    date?: string
+    winnerCount: number
+    amount: number
+    playerIds?: Array<string | number>
+  }) =>
+    apiRequest<{
+      ok: boolean
+      date: string
+      winnerCount: number
+      amount: number
+      winners: Array<{ id: string; name: string; amount: number; amountLabel: string }>
+      reserveWallet?: string
+    }>('/admin/giveaway/send', { method: 'POST', body: payload }),
   adminFinanceUpdateFees: (fees: Partial<AdminFees>) =>
     apiRequest<{ ok: boolean; fees: AdminFees }>('/admin/finance/fees', {
       method: 'PUT',
@@ -1505,9 +1672,12 @@ export const tapstackApi = {
     apiRequest<{ ok: boolean }>('/admin/settings', { method: 'PUT', body: payload }),
 
   supportTickets: () =>
-    apiRequest<{ tickets: SupportTicket[]; categories: SupportCategory[]; supportEmail: string }>(
-      '/support/tickets',
-    ),
+    apiRequest<{
+      tickets: SupportTicket[]
+      categories: SupportCategory[]
+      supportEmail: string
+      openCount?: number
+    }>('/support/tickets'),
   supportTicket: (id: number | string) =>
     apiRequest<{ ticket: SupportTicket }>(`/support/tickets/${id}`),
   supportCreateTicket: (payload: { subject: string; message: string; category: string }) =>
@@ -1770,6 +1940,9 @@ export type VendorRedeemSettings = {
   vipAutoPayinThreshold: number
   vipStaffPayinThreshold: number
   gameRoomThreshold?: number
+  coverLoadbackFees?: boolean
+  loadbackFeePct?: number
+  tipsEnabled?: boolean
 }
 
 export type VendorGameRecord = {
@@ -1852,6 +2025,8 @@ export type ApiVendor = {
     platform?: string
     connected?: boolean
   }>
+  hasPublicPromo?: boolean
+  tipsEnabled?: boolean
 }
 
 export type CustomerDashboard = {

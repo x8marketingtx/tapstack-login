@@ -216,8 +216,19 @@
   cursor: pointer;
 }
 
-.vendor-promos-upload-input {
-  display: none;
+.vendor-promos-upload-preview {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.vendor-promo-list-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
 }
 
 .vendor-promos-textarea {
@@ -315,6 +326,7 @@
 }
 
 .vendor-promo-list-icon {
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;

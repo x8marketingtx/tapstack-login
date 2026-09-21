@@ -227,7 +227,7 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
         case 'giveaway':
           return `Tickets · Player · ${TITLE_BRAND}`
         case 'promos':
-          return `Promos · Player · ${TITLE_BRAND}`
+          return `Promos and Giveaways · Player · ${TITLE_BRAND}`
         case 'account':
           return `Account · Player · ${TITLE_BRAND}`
         default:
@@ -245,7 +245,7 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
         case 'analytics':
           return `Analytics · Vendor · ${TITLE_BRAND}`
         case 'promos':
-          return `Promos · Vendor · ${TITLE_BRAND}`
+          return `Promos and Giveaways · Vendor · ${TITLE_BRAND}`
         case 'settings':
           return `Settings · Vendor · ${TITLE_BRAND}`
         default:

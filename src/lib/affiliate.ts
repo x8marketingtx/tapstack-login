@@ -32,6 +32,7 @@ export function slugFromJoinUrl(url: string): string {
 
 const AFFILIATE_KEY = 'tapstack_affiliate_slug'
 const PENDING_VENDOR_JOIN_KEY = 'tapstack_pending_vendor_join'
+const PLAYER_AFFILIATE_REF_KEY = 'tapstack_player_affiliate_ref'
 /** @deprecated Cleared for legacy player-join behavior. */
 const PENDING_PLAYER_JOIN_KEY = 'tapstack_pending_player_join'
 
@@ -60,6 +61,36 @@ export function clearAffiliateSlug(): void {
     localStorage.removeItem(AFFILIATE_KEY)
   } catch {
     // ignore
+  }
+}
+
+export function setPlayerAffiliateRef(code: string): void {
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!clean) return
+  try {
+    sessionStorage.setItem(PLAYER_AFFILIATE_REF_KEY, clean)
+    localStorage.setItem(PLAYER_AFFILIATE_REF_KEY, clean)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPlayerAffiliateRef(): string {
+  try {
+    return (sessionStorage.getItem(PLAYER_AFFILIATE_REF_KEY) || localStorage.getItem(PLAYER_AFFILIATE_REF_KEY) || '')
+      .trim()
+      .toUpperCase()
+  } catch {
+    return ''
+  }
+}
+
+export function clearPlayerAffiliateRef(): void {
+  try {
+    sessionStorage.removeItem(PLAYER_AFFILIATE_REF_KEY)
+    localStorage.removeItem(PLAYER_AFFILIATE_REF_KEY)
+  } catch {
+    /* ignore */
   }
 }
 

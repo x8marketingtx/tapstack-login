@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ApiError,
   isApiConfigured,
+  PAYOUT_TAG_OPTIONS,
   tapstackApi,
   type VendorCustomer,
   type VendorGameAccount,
@@ -33,6 +34,8 @@ function typeLabel(type: string): string {
   if (type === 'auto-load') return 'Auto load'
   if (type === 'manual-load') return 'Manual load'
   if (type === 'redeem') return 'Redeem'
+  if (type === 'affiliate-payout') return 'Affiliate payout'
+  if (type === 'game-transfer') return 'Game move'
   return type || 'Order'
 }
 
@@ -48,6 +51,8 @@ export default function VendorOrderDetailModal({
   const [accounts, setAccounts] = useState<VendorGameAccount[]>([])
   const [revealPasswords, setRevealPasswords] = useState<Record<string, boolean>>({})
   const [copyNote, setCopyNote] = useState('')
+  const [staffNote, setStaffNote] = useState('')
+  const [payoutTags, setPayoutTags] = useState<string[]>([])
   const [actionBusy, setActionBusy] = useState<'complete' | 'reject' | null>(null)
   const [actionNote, setActionNote] = useState('')
 
@@ -57,6 +62,8 @@ export default function VendorOrderDetailModal({
     setLoading(true)
     setError('')
     setRevealPasswords({})
+    setStaffNote('')
+    setPayoutTags([])
     ;(async () => {
       try {
         const res = await tapstackApi.vendorOrderDetail(orderId)
@@ -64,6 +71,7 @@ export default function VendorOrderDetailModal({
         setOrder(res.order)
         setCustomer(res.customer)
         setAccounts(res.accounts || [])
+        setPayoutTags(res.order?.payoutTags || res.order?.playerTags || [])
       } catch (err) {
         if (cancelled) return
         setError(
@@ -98,8 +106,12 @@ export default function VendorOrderDetailModal({
   const status = String(order?.status || '').toLowerCase()
   const isManualActionable =
     Boolean(order) &&
-    (order?.type === 'manual-load' || order?.type === 'redeem') &&
+    (order?.type === 'manual-load' ||
+      order?.type === 'redeem' ||
+      order?.type === 'affiliate-payout' ||
+      order?.type === 'game-transfer') &&
     (status === 'pending' || status === 'failed')
+  const noteReady = staffNote.trim().length > 0
 
   async function copyText(label: string, value: string) {
     try {
@@ -113,11 +125,14 @@ export default function VendorOrderDetailModal({
   }
 
   async function completeOrder() {
-    if (!orderId || actionBusy) return
+    if (!orderId || actionBusy || !noteReady) return
     setActionBusy('complete')
     setActionNote('')
     try {
-      const res = await tapstackApi.vendorOrderApprove(orderId)
+      const res = await tapstackApi.vendorOrderApprove(orderId, {
+        staffNote: staffNote.trim(),
+        payoutTags,
+      })
       setOrder((current) => (current ? { ...current, status: res.status || 'approved' } : current))
       setActionNote('Order marked complete')
       onUpdated?.()
@@ -136,11 +151,14 @@ export default function VendorOrderDetailModal({
   }
 
   async function rejectOrder() {
-    if (!orderId || actionBusy) return
+    if (!orderId || actionBusy || !noteReady) return
     setActionBusy('reject')
     setActionNote('')
     try {
-      const res = await tapstackApi.vendorOrderReject(orderId)
+      const res = await tapstackApi.vendorOrderReject(orderId, {
+        staffNote: staffNote.trim(),
+        payoutTags,
+      })
       setOrder((current) => (current ? { ...current, status: res.status || 'rejected' } : current))
       setActionNote('Order rejected')
       onUpdated?.()
@@ -210,7 +228,11 @@ export default function VendorOrderDetailModal({
             <section className="vod-section">
               <div className="vod-section-head">
                 <h3>
-                  {order.type === 'redeem' ? 'Redeem details' : 'Load details'}
+                  {order.type === 'redeem'
+                    ? 'Redeem details'
+                    : order.type === 'affiliate-payout'
+                      ? 'Affiliate payout'
+                      : 'Load details'}
                 </h3>
                 {orderAccount?.hasPassword || orderAccount?.password ? (
                   <button
@@ -294,29 +316,81 @@ export default function VendorOrderDetailModal({
                   </div>
                 ) : null}
 
+                {(order.playerTags || []).length > 0 || (order.payoutTags || []).length > 0 ? (
+                  <div className="vod-tag-row">
+                    {(order.payoutTags || order.playerTags || []).map((tag) => (
+                      <span key={tag} className="vod-tag-chip">
+                        {PAYOUT_TAG_OPTIONS.find((item) => item.id === tag)?.label || tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
                 {isManualActionable ? (
-                  <div className="vod-actions">
+                  <>
+                    <label className="vod-label" htmlFor="vod-staff-note">
+                      Staff note <span className="vod-required">required</span>
+                    </label>
+                    <textarea
+                      id="vod-staff-note"
+                      className="vod-staff-note"
+                      rows={3}
+                      placeholder="Add a note for this completion or rejection"
+                      value={staffNote}
+                      onChange={(event) => setStaffNote(event.target.value)}
+                      required
+                    />
+                    {order.type === 'redeem' || order.type === 'game-transfer' ? (
+                      <div className="vod-payout-tags">
+                        <span className="vod-label">Payout tags</span>
+                        <div className="vod-tag-toggle-row">
+                          {PAYOUT_TAG_OPTIONS.map((tag) => {
+                            const active = payoutTags.includes(tag.id)
+                            return (
+                              <button
+                                key={tag.id}
+                                type="button"
+                                className={`vod-tag-toggle${active ? ' is-on' : ''}`}
+                                onClick={() =>
+                                  setPayoutTags((current) =>
+                                    current.includes(tag.id)
+                                      ? current.filter((id) => id !== tag.id)
+                                      : [...current, tag.id],
+                                  )
+                                }
+                              >
+                                {tag.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="vod-actions">
                     <button
                       type="button"
                       className="vod-complete-btn"
-                      disabled={Boolean(actionBusy)}
+                      disabled={Boolean(actionBusy) || !noteReady}
                       onClick={() => void completeOrder()}
                     >
                       {actionBusy === 'complete'
                         ? 'Completing…'
                         : order.type === 'redeem'
                           ? 'Complete redeem'
+                          : order.type === 'affiliate-payout'
+                            ? 'Approve payout'
                           : 'Complete order'}
                     </button>
                     <button
                       type="button"
                       className="vod-reject-btn"
-                      disabled={Boolean(actionBusy)}
+                      disabled={Boolean(actionBusy) || !noteReady}
                       onClick={() => void rejectOrder()}
                     >
                       {actionBusy === 'reject' ? 'Rejecting…' : 'Reject'}
                     </button>
                   </div>
+                  </>
                 ) : null}
                 {actionNote ? (
                   <p

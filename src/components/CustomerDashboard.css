@@ -569,6 +569,7 @@
 }
 
 .vendor-icon {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -578,6 +579,22 @@
   border-radius: 10px;
   font-size: 11px;
   font-weight: 700;
+}
+
+.vendor-promo-emoji {
+  position: absolute;
+  top: -7px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #fef3c7;
+  box-shadow: 0 0 0 2px #fff;
+  font-size: 11px;
+  line-height: 1;
 }
 
 .vendor-info {
