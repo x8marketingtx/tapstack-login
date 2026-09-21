@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
 import { gameArtUrl } from '../data/gameArt'
@@ -35,6 +35,65 @@ function saveFavoriteGames(vendorId: number | string | null | undefined, keys: s
   } catch {
     /* ignore */
   }
+}
+
+const REDEEMABLE_BALANCE_TOOLTIP =
+  'These are your redeemable winnings. Not your playable balance.'
+
+function RedeemableBalanceLabel() {
+  const [open, setOpen] = useState(false)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const tooltipId = useId()
+
+  useEffect(() => {
+    if (!open) return
+    function closeIfOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (rowRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', closeIfOutside)
+    document.addEventListener('touchstart', closeIfOutside)
+    return () => {
+      document.removeEventListener('mousedown', closeIfOutside)
+      document.removeEventListener('touchstart', closeIfOutside)
+    }
+  }, [open])
+
+  return (
+    <div
+      ref={rowRef}
+      className={`game-balance-label-row${open ? ' is-open' : ''}`}
+    >
+      <span className="game-balance-label">Redeemable Balance</span>
+      <button
+        type="button"
+        className="game-balance-info"
+        aria-label="About redeemable balance"
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2" />
+          <path
+            d="M7 6.2v3.6M7 4.4h.01"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      <span
+        id={tooltipId}
+        role="tooltip"
+        className="game-balance-tooltip"
+      >
+        {REDEEMABLE_BALANCE_TOOLTIP}
+      </span>
+    </div>
+  )
 }
 
 function credsStorageKey(vendorId: number | string, gameKey: string) {
@@ -195,6 +254,17 @@ export default function VendorPage({
   const [favoriteGames, setFavoriteGames] = useState<Set<string>>(() =>
     loadFavoriteGames(initialVendor.id),
   )
+  const [chatOpen, setChatOpen] = useState(false)
+  const chatUnread = 1
+
+  useEffect(() => {
+    if (!chatOpen) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setChatOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [chatOpen])
 
   useEffect(() => {
     setVendor(initialVendor)
@@ -882,17 +952,18 @@ export default function VendorPage({
                       </div>
                     </div>
 
-                    <div className="game-side">
+                    <div className="game-card-aside">
                       {game.mode === 'auto' ? (
                         <div className="game-balance-wrap">
-                          <span className="game-balance-label">Balance</span>
+                          <RedeemableBalanceLabel />
                           {showBalanceSkeleton ? (
-                            <span className="game-balance-skeleton" aria-label="Loading balance" />
+                            <span className="game-balance-skeleton" aria-label="Loading redeemable balance" />
                           ) : (
                             <span className="game-balance">{balanceText}</span>
                           )}
                         </div>
                       ) : null}
+                      <div className="game-side">
                       {game.mode === 'auto' ? (
                         connected ? (
                           <div className="game-actions">
@@ -1046,6 +1117,7 @@ export default function VendorPage({
                           </button>
                         </div>
                       )}
+                      </div>
                     </div>
                   </li>
                 )
@@ -1053,11 +1125,6 @@ export default function VendorPage({
             </ul>
           </section>
         </div>
-
-        <button type="button" className="chat-fab" aria-label="Chat">
-          💬
-          <span className="chat-fab-badge">1</span>
-        </button>
 
         {connectGame ? (
           <div className="connect-overlay" role="presentation" onClick={closeConnect}>
@@ -1495,6 +1562,97 @@ export default function VendorPage({
             </div>
           </div>
         ) : null}
+      </div>
+
+      {!chatOpen ? (
+        <button
+          type="button"
+          className="vendor-chat-tab"
+          aria-label="Open chat with vendor"
+          aria-expanded={false}
+          onClick={() => setChatOpen(true)}
+        >
+          <span className="vendor-chat-tab-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H9l-4.5 3.5V16H6.5A2.5 2.5 0 0 1 4 13.5v-7Z"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+          <span className="vendor-chat-tab-label">Chat</span>
+          {chatUnread > 0 ? (
+            <span className="vendor-chat-tab-badge" aria-hidden="true">
+              {chatUnread > 9 ? '9+' : chatUnread}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
+
+      <div className={`vendor-chat-drawer${chatOpen ? ' is-open' : ''}`} aria-hidden={!chatOpen}>
+        <button
+          type="button"
+          className="vendor-chat-backdrop"
+          aria-label="Close chat"
+          tabIndex={chatOpen ? 0 : -1}
+          onClick={() => setChatOpen(false)}
+        />
+        <aside
+          className="vendor-chat-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vendor-chat-title"
+        >
+          <header className="vendor-chat-header">
+            <div className="vendor-chat-header-copy">
+              <h2 id="vendor-chat-title" className="vendor-chat-title">
+                {vendor.name}
+              </h2>
+              <p className="vendor-chat-subtitle">Message your vendor</p>
+            </div>
+            <button
+              type="button"
+              className="vendor-chat-close"
+              aria-label="Close chat"
+              onClick={() => setChatOpen(false)}
+            >
+              ×
+            </button>
+          </header>
+
+          <div className="vendor-chat-thread">
+            <div className="vendor-chat-message vendor-chat-message--vendor">
+              <p>
+                Hi! Need help loading credits or redeeming? Send a message and we&apos;ll get back to
+                you shortly.
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="vendor-chat-composer"
+            onSubmit={(event) => {
+              event.preventDefault()
+            }}
+          >
+            <label className="vendor-chat-input-wrap">
+              <span className="sr-only">Message</span>
+              <input type="text" placeholder="Type a message…" autoComplete="off" />
+            </label>
+            <button type="submit" className="vendor-chat-send" aria-label="Send message">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 12 20 4l-3.5 8L20 20 4 12Z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </form>
+        </aside>
       </div>
 
       <GameLoadModal
