@@ -233,6 +233,16 @@ function App() {
     migrateLegacyHash()
     applyDocumentTitle(parseLocation())
 
+    const role = getSessionRole()
+    const token = getToken()
+    if (role && !token) {
+      clearSession()
+      clearVendorGamesCache()
+      setSessionRole(null)
+      navigate({ portal: 'login' }, 'replace')
+      setView('login')
+    }
+
     function syncFromLocation() {
       const role = getSessionRole()
       setSessionRole(role)

@@ -46,6 +46,70 @@ function copyText(text: string) {
   void navigator.clipboard?.writeText(text).catch(() => undefined)
 }
 
+const DEMO_DIST_SLUG = 'pacific-gaming'
+
+const DEMO_DIST_DASH: DashData = {
+  name: 'Pacific Gaming',
+  initials: 'PG',
+  vendorsTotal: 4,
+  vendorsActive: 3,
+  signupLink: `${DEMO_DIST_SLUG}`,
+  signupLinkDisplay: `tapstack.app/join/${DEMO_DIST_SLUG}`,
+  slug: DEMO_DIST_SLUG,
+  wallet: {
+    balance: 2840.5,
+    balanceFormatted: '$2,840.50',
+    pending: 420,
+    pendingFormatted: '$420.00',
+    currency: 'USDC',
+    commissions: 1280,
+    commissionsFormatted: '$1,280.00',
+    invoicesPaid: 960,
+    invoicesPaidFormatted: '$960.00',
+  },
+  earningsPeriod: {
+    amount: 312.4,
+    amountFormatted: '$312.40',
+    txCount: 48,
+    range: 'today',
+    vendorsCount: 3,
+  },
+  volumeIncentive: {
+    current: 42000,
+    target: 60000,
+    progressPct: 70,
+    currentFormatted: '$42,000.00',
+    targetFormatted: '$60,000.00',
+    remainingFormatted: '$18,000.00',
+    currentRate: '8%',
+    nextRate: '10%',
+    tiers: [
+      { label: 'Starter', rate: '6%', active: false },
+      { label: 'Growth', rate: '8%', active: true },
+      { label: 'Elite', rate: '10%', active: false },
+    ],
+  },
+  vendorEarnings: [],
+  activity: [],
+}
+
+const DEMO_DIST_VENDORS: VendorsData = {
+  vendors: [
+    {
+      id: '1',
+      name: 'Lucky Strike Arcade',
+      tier: 'Gold',
+      status: 'active',
+      deposits: '$12,400',
+      redeems: '$8,200',
+      tags: ['Auto'],
+    },
+  ],
+  total: 4,
+  active: 3,
+  range: '30d',
+}
+
 export default function DistributorDashboard({
   onLogout,
   onRoleMismatch,
@@ -223,11 +287,27 @@ export default function DistributorDashboard({
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      if (!isApiConfigured() || !getToken()) {
+      const token = getToken()
+      if (!token) {
         setLoading(false)
-        setError('Sign in as a distributor to continue.')
+        onLogout()
         return
       }
+
+      const useLiveApi = isApiConfigured() && !token.startsWith('demo:')
+      if (!useLiveApi) {
+        const user = getSessionUser()
+        if (user?.role === 'distributor') {
+          setProfile(profileFromUser(user))
+          setVerification(verificationFromUser(user))
+        }
+        setDash(DEMO_DIST_DASH)
+        setVendors(DEMO_DIST_VENDORS)
+        setError('')
+        setLoading(false)
+        return
+      }
+
       try {
         const me = await tapstackApi.me()
         if (!isMeForCurrentSession(me.user) || cancelled) return

@@ -565,8 +565,8 @@ const PLATFORM_FIELDS: Record<GamePlatform, PlatformField[]> = {
   'golden-dragon': [
     { key: 'username', label: 'Agent Username', type: 'text', required: true, placeholder: 'Agent username' },
     { key: 'password', label: 'Agent Password', type: 'password', required: true, placeholder: 'Agent password' },
-    { key: 'profileId', label: 'Profile ID', type: 'text', required: false, placeholder: 'Profile ID' },
-    { key: 'drawerNo', label: 'Drawer No', type: 'text', required: false, placeholder: '1' },
+    { key: 'profileId', label: 'Profile ID', type: 'text', required: true, placeholder: 'Profile ID' },
+    { key: 'drawerNo', label: 'Drawer No', type: 'text', required: true, placeholder: '1' },
   ],
   'magic-city': [
     { key: 'username', label: 'Agent Username', type: 'text', required: true, placeholder: 'Agent username' },
@@ -593,6 +593,15 @@ function emptyCredentials(): AgentCredentials {
     appId: '',
     appSecret: '',
   }
+}
+
+function AutoRequiredMark({ show }: { show: boolean }) {
+  if (!show) return null
+  return (
+    <span className="vendor-settings-modal-required" aria-hidden="true">
+      *
+    </span>
+  )
 }
 
 function credentialsForPlatform(platform: GamePlatform, values: AgentCredentials): AgentCredentials {
@@ -765,10 +774,11 @@ function GamesTab() {
 
   const isEditing = editingId !== null
   const activeCount = games.filter((game) => game.enabled).length
+  const autoCredentialsReady =
+    newMode === 'auto' &&
+    platformCredentialsReady(newPlatform, agentCreds, { allowEmptySecrets: isEditing })
   const canSubmit =
-    newName.trim().length > 0 &&
-    (newMode !== 'auto' ||
-      platformCredentialsReady(newPlatform, agentCreds, { allowEmptySecrets: isEditing }))
+    newName.trim().length > 0 && (newMode !== 'auto' || autoCredentialsReady)
 
   function resetGameForm() {
     setEditingId(null)
@@ -1015,12 +1025,15 @@ function GamesTab() {
                 <form className="vendor-settings-modal-form" onSubmit={handleSaveGame}>
                   <label className="vendor-settings-modal-label" htmlFor="game-modal-name">
                     Game name
+                    <AutoRequiredMark show={newMode === 'auto'} />
                   </label>
                   <input
                     id="game-modal-name"
                     className="vendor-settings-modal-input"
                     type="text"
                     placeholder="e.g. Neon Spinner"
+                    required={newMode === 'auto'}
+                    aria-required={newMode === 'auto'}
                     value={newName}
                     onChange={(event) => {
                       setNewName(event.target.value)
@@ -1031,10 +1044,13 @@ function GamesTab() {
 
                   <label className="vendor-settings-modal-label" htmlFor="game-modal-category">
                     Category
+                    <AutoRequiredMark show={newMode === 'auto'} />
                   </label>
                   <select
                     id="game-modal-category"
                     className="vendor-settings-modal-input"
+                    required={newMode === 'auto'}
+                    aria-required={newMode === 'auto'}
                     value={newCategory}
                     onChange={(event) => setNewCategory(event.target.value as GameCategory)}
                   >
@@ -1067,17 +1083,21 @@ function GamesTab() {
                   {newMode === 'auto' ? (
                     <div className="vendor-settings-modal-agent">
                       <p className="vendor-settings-modal-copy">
-                        Enter <strong>this vendor&apos;s</strong> platform credentials (same fields as Game
-                        Automation admin). Players connect their own accounts separately.
+                        Enter <strong>your platform&apos;s</strong> credentials (it is recommended to use a dedicated account
+                        and drawer, where applicable, for each automation. It greatly enhances overall
+                        experience). Players will connect their own accounts separately.
                         {isEditing ? ' Leave password fields blank to keep the current value.' : ''}
                       </p>
 
                       <label className="vendor-settings-modal-label" htmlFor="game-modal-platform">
                         Platform
+                        <AutoRequiredMark show />
                       </label>
                       <select
                         id="game-modal-platform"
                         className="vendor-settings-modal-input"
+                        required
+                        aria-required="true"
                         value={newPlatform}
                         onChange={(event) => {
                           setNewPlatform(event.target.value as GamePlatform)
@@ -1099,12 +1119,14 @@ function GamesTab() {
                           <div key={field.key}>
                             <label className="vendor-settings-modal-label" htmlFor={inputId}>
                               {field.label}
-                              {field.required && !(isEditing && isSecret) ? '' : ' (optional)'}
+                              <AutoRequiredMark show />
                             </label>
                             <input
                               id={inputId}
                               className="vendor-settings-modal-input"
                               type={field.type}
+                              required={!(isEditing && isSecret)}
+                              aria-required={!(isEditing && isSecret)}
                               autoComplete={field.type === 'password' ? 'new-password' : 'off'}
                               value={value}
                               placeholder={
