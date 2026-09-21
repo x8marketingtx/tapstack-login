@@ -471,6 +471,7 @@ function CustomerDetailView({
                 displayName: 'Alex Rivera',
                 email: demo.contact,
                 vendors: 1,
+                points: 120,
               },
               wallet: {
                 balance: demo.balance,

@@ -166,8 +166,11 @@ export default function HelpCenter({
             : inbox
               ? await tapstackApi.adminSupportTickets()
               : await tapstackApi.supportTickets()
-      setTickets(next.tickets || [])
-      onOpenCount?.(next.openCount ?? (next.tickets || []).filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length)
+      const listed = next.tickets || []
+      setTickets(listed)
+      onOpenCount?.(
+        listed.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
+      )
       if (next.categories?.length) setCategories(next.categories)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load tickets.')
