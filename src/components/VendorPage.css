@@ -1753,8 +1753,8 @@
 .vendor-chat-help {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 8px 16px 16px;
+  overflow: hidden;
+  padding: 0 0 8px;
   display: flex;
   flex-direction: column;
 }
@@ -1764,6 +1764,8 @@
   color: #6b7280;
   font-size: 13px;
 }
+
+.vendor-chat-messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

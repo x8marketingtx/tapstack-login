@@ -540,14 +540,14 @@
     padding-left: 28px;
     padding-right: 28px;
   }
-
-  .vendors-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-  }
 }
 
 @media (min-width: 900px) {
+  .vendors-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
   .games-home-desktop {
     display: grid;
     grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
@@ -583,7 +583,7 @@
   }
 
   .vendors-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .login-panel {
@@ -602,7 +602,7 @@
   }
 
   .vendors-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

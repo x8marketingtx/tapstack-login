@@ -43,6 +43,58 @@ const ANALYTICS_TABS: { id: AnalyticsTab; label: string; icon: string }[] = [
   { id: 'games', label: 'Games', icon: '🎮' },
 ]
 
+function playerTagsSummary(tags: string[]) {
+  if (!tags.length) return 'Select Tag'
+  return PLAYER_TAG_OPTIONS.filter((tag) => tags.includes(tag.id))
+    .map((tag) => tag.label)
+    .join(', ')
+}
+
+function PlayerTagsDropdown({
+  customer,
+  disabled,
+  onToggleTag,
+  compact = false,
+}: {
+  customer: CustomerRow
+  disabled?: boolean
+  onToggleTag: (tagId: string) => void
+  compact?: boolean
+}) {
+  const active = customer.tags || []
+
+  return (
+    <label
+      className={`vendor-player-tags-field${compact ? ' vendor-player-tags-field--compact' : ''}`}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <span className="vendor-player-tags-label">Player tags</span>
+      <select
+        className="vendor-player-tags-select"
+        value=""
+        disabled={disabled}
+        onChange={(event) => {
+          const tagId = event.target.value
+          if (tagId) onToggleTag(tagId)
+          event.target.value = ''
+        }}
+        aria-label={`Player tags for ${customer.name}`}
+      >
+        <option value="">{playerTagsSummary(active)}</option>
+        {PLAYER_TAG_OPTIONS.map((tag) => (
+          <option key={tag.id} value={tag.id}>
+            {active.includes(tag.id) ? 'Remove' : 'Add'} {tag.label}
+          </option>
+        ))}
+      </select>
+      {customer.operatorVip ? (
+        <span className="vendor-vip-chip vendor-vip-chip--inline">TapStack VIP</span>
+      ) : null}
+    </label>
+  )
+}
+
 function downloadCustomersCsv(customers: CustomerRow[]) {
   const header = ['Name', 'Username', 'Last activity', 'In', 'Out', 'Visits']
   const rows = customers.map((c) => [
@@ -305,17 +357,6 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                     {[shown.username, shown.meta].filter(Boolean).join(' · ')}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className={`vendor-vip-button ${
-                    shown.vip || (shown.tags || []).includes('vip') ? 'vendor-vip-button--on' : ''
-                  }`}
-                  aria-pressed={shown.vip || (shown.tags || []).includes('vip')}
-                  disabled={tagBusyId === shown.id}
-                  onClick={() => void toggleCustomerTag(shown, 'vip')}
-                >
-                  VIP
-                </button>
               </div>
               {shown.operatorVip ? (
                 <p className="vendor-customer-operator-vip">TapStack VIP override is on for this player.</p>
@@ -366,27 +407,11 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
             </section>
 
             <section className="vendor-customer-info-card">
-              <div className="vendor-customer-section-head">
-                <h3 className="vendor-customer-section-title">Player tags</h3>
-                <p className="vendor-customer-section-hint">Tap to turn on or off</p>
-              </div>
-              <div className="vendor-analytics-tag-picks vendor-analytics-tag-picks--detail" role="group" aria-label={`Tags for ${shown.name}`}>
-                {PLAYER_TAG_OPTIONS.filter((tag) => tag.id !== 'vip').map((tag) => {
-                  const active = (shown.tags || []).includes(tag.id)
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      className={`vendor-analytics-tag-pick ${active ? 'vendor-analytics-tag-pick--active' : ''}`}
-                      aria-pressed={active}
-                      disabled={tagBusyId === shown.id}
-                      onClick={() => void toggleCustomerTag(shown, tag.id)}
-                    >
-                      {tag.label}
-                    </button>
-                  )
-                })}
-              </div>
+              <PlayerTagsDropdown
+                customer={shown}
+                disabled={tagBusyId === shown.id}
+                onToggleTag={(tagId) => void toggleCustomerTag(shown, tagId)}
+              />
             </section>
 
             <section className="vendor-customer-info-card">
@@ -684,51 +709,12 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                     <p className="vendor-analytics-player-meta">
                       {[customer.username, customer.meta].filter(Boolean).join(' · ')}
                     </p>
-                    <div
-                      className="vendor-analytics-tag-picks"
-                      role="group"
-                      aria-label={`Tags for ${customer.name}`}
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        className={`vendor-vip-button vendor-vip-button--compact ${
-                          customer.vip || (customer.tags || []).includes('vip')
-                            ? 'vendor-vip-button--on'
-                            : ''
-                        }`}
-                        aria-pressed={customer.vip || (customer.tags || []).includes('vip')}
-                        disabled={tagBusyId === customer.id}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          void toggleCustomerTag(customer, 'vip')
-                        }}
-                      >
-                        VIP
-                      </button>
-                      {customer.operatorVip ? (
-                        <span className="vendor-vip-chip">TapStack</span>
-                      ) : null}
-                      {PLAYER_TAG_OPTIONS.filter((tag) => tag.id !== 'vip').map((tag) => {
-                        const active = (customer.tags || []).includes(tag.id)
-                        return (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            className={`vendor-analytics-tag-pick ${active ? 'vendor-analytics-tag-pick--active' : ''}`}
-                            aria-pressed={active}
-                            disabled={tagBusyId === customer.id}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void toggleCustomerTag(customer, tag.id)
-                            }}
-                          >
-                            {tag.label}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    <PlayerTagsDropdown
+                      customer={customer}
+                      compact
+                      disabled={tagBusyId === customer.id}
+                      onToggleTag={(tagId) => void toggleCustomerTag(customer, tagId)}
+                    />
                   </div>
                 </div>
                 <span className="vendor-analytics-in">{customer.inAmount}</span>

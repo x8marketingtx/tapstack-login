@@ -1670,6 +1670,51 @@
   color: #b45309;
 }
 
+.vendor-player-tags-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.vendor-player-tags-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9ca3af;
+  letter-spacing: 0.02em;
+}
+
+.vendor-player-tags-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.vendor-player-tags-field--compact {
+  margin-top: 6px;
+  max-width: 100%;
+}
+
+.vendor-player-tags-field--compact .vendor-player-tags-label {
+  font-size: 10px;
+}
+
+.vendor-player-tags-field--compact .vendor-player-tags-select {
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
+.vendor-vip-chip--inline {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 .vendor-analytics-tag-picks {
   display: flex;
   flex-wrap: wrap;

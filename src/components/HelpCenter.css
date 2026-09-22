@@ -301,3 +301,46 @@
 .help-center--embedded .help-head {
   margin-bottom: 10px;
 }
+
+.help-center--embedded.help-center--direct-chat {
+  flex: 1;
+  min-height: 0;
+  padding: 0 12px 8px;
+}
+
+.help-center--direct-chat .help-body {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+.help-center--direct-chat .help-body.help-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help-center--direct-chat .help-thread {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.help-center--direct-chat .help-reply {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.help-chat-intro {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.help-reply--chat-start {
+  margin-top: auto;
+}

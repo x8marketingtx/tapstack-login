@@ -141,6 +141,9 @@ function mapTxnsToActivities(txns: WalletTxn[]): ActivityRow[] {
   })
 }
 
+const VENDORS_MOBILE_PREVIEW = 4
+const VENDORS_MOBILE_MQ = '(max-width: 599px)'
+
 const DEMO_ACTIVITIES: ActivityRow[] = [
   {
     id: 'demo-1',
@@ -184,6 +187,29 @@ function GamesHome({
   onSeeAllActivity: () => void
 }) {
   const sortedVendors = sortVendorsByFavorite(vendors, favoriteKeys)
+  const [vendorsExpanded, setVendorsExpanded] = useState(false)
+  const [isMobileVendorList, setIsMobileVendorList] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(VENDORS_MOBILE_MQ).matches : false,
+  )
+
+  useEffect(() => {
+    const mq = window.matchMedia(VENDORS_MOBILE_MQ)
+    const sync = () => setIsMobileVendorList(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
+  useEffect(() => {
+    if (!isMobileVendorList) setVendorsExpanded(false)
+  }, [isMobileVendorList])
+
+  const hasMoreVendors = sortedVendors.length > VENDORS_MOBILE_PREVIEW
+  const visibleVendors =
+    isMobileVendorList && hasMoreVendors && !vendorsExpanded
+      ? sortedVendors.slice(0, VENDORS_MOBILE_PREVIEW)
+      : sortedVendors
+  const hiddenVendorCount = Math.max(0, sortedVendors.length - VENDORS_MOBILE_PREVIEW)
 
   return (
     <div className="games-home-desktop">
@@ -258,8 +284,9 @@ function GamesHome({
               <p className="vendors-empty-copy">Type a vendor name above and tap Go to add them.</p>
             </div>
           ) : (
+            <>
             <div className="vendors-grid">
-              {sortedVendors.map((vendor) => {
+              {visibleVendors.map((vendor) => {
                 const key = vendorStorageKey(vendor)
                 const favorited = favoriteKeys.has(key)
                 return (
@@ -329,6 +356,19 @@ function GamesHome({
                 )
               })}
             </div>
+            {isMobileVendorList && hasMoreVendors ? (
+              <button
+                type="button"
+                className="vendors-view-all"
+                aria-expanded={vendorsExpanded}
+                onClick={() => setVendorsExpanded((open) => !open)}
+              >
+                {vendorsExpanded
+                  ? 'Show less'
+                  : `View all (${hiddenVendorCount} more)`}
+              </button>
+            ) : null}
+            </>
           )}
         </section>
 

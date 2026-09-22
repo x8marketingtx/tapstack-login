@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
   getSessionRole,
@@ -12,7 +12,9 @@ import {
 } from '../api/client'
 import './HelpCenter.css'
 
-type HelpView = 'list' | 'compose' | 'detail'
+type HelpView = 'list' | 'compose' | 'detail' | 'chat-start'
+
+const DIRECT_CHAT_SUBJECT = 'Support Chat'
 export type HelpMode = 'submitter' | 'inbox' | 'store' | 'store-inbox'
 
 const CATEGORIES: SupportCategory[] = [
@@ -123,6 +125,7 @@ export default function HelpCenter({
   vendorId,
   vendorName,
   embedded = false,
+  directChat = false,
   onOpenCount,
 }: {
   mode: HelpMode
@@ -130,6 +133,8 @@ export default function HelpCenter({
   vendorId?: string | number
   vendorName?: string
   embedded?: boolean
+  /** Player ↔ store: open a single messenger thread (no ticket list / compose form). */
+  directChat?: boolean
   onOpenCount?: (count: number) => void
 }) {
   const demo = useDemoMode()
@@ -148,6 +153,8 @@ export default function HelpCenter({
   const store = mode === 'store' || mode === 'store-inbox'
   const storeInbox = mode === 'store-inbox'
   const partnerName = vendorName || 'this store'
+  const storeDirectChat = directChat && mode === 'store'
+  const directChatBooted = useRef(false)
 
   const openCount = useMemo(
     () => tickets.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
@@ -193,6 +200,30 @@ export default function HelpCenter({
     void loadList()
   }, [mode, demo, inbox, vendorId])
 
+  useEffect(() => {
+    directChatBooted.current = false
+  }, [mode, vendorId, directChat])
+
+  useEffect(() => {
+    if (!storeDirectChat || loading || directChatBooted.current) return
+    directChatBooted.current = true
+    const sorted = [...tickets].sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt || 0).getTime() -
+        new Date(a.updatedAt || a.createdAt || 0).getTime(),
+    )
+    const active = sorted.find(
+      (ticket) => ticket.status === 'open' || ticket.status === 'pending',
+    )
+    const thread = active || sorted[0]
+    if (thread && thread.status !== 'closed' && thread.status !== 'resolved') {
+      void openTicket(thread)
+      return
+    }
+    setView('chat-start')
+    setSelected(null)
+  }, [storeDirectChat, loading, tickets])
+
   async function openTicket(ticket: SupportTicket) {
     setError('')
     setReply('')
@@ -218,8 +249,16 @@ export default function HelpCenter({
     }
   }
 
-  async function submitTicket() {
+  async function submitTicket(initialMessage?: string) {
     if (busy) return
+    const body = (initialMessage ?? message).trim()
+    const ticketSubject = storeDirectChat ? DIRECT_CHAT_SUBJECT : subject.trim()
+    const ticketCategory = storeDirectChat ? 'other' : category
+    if (storeDirectChat) {
+      if (body.length < 1) return
+    } else if (ticketSubject.length < 3 || body.length < 10) {
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -230,15 +269,15 @@ export default function HelpCenter({
           vendorId: vendorId ? Number(vendorId) || undefined : undefined,
           vendorName: vendorName,
           channel: store ? 'store' : 'platform',
-          subject: subject.trim(),
-          category,
-          categoryLabel: categories.find((item) => item.id === category)?.label || 'Other',
+          subject: ticketSubject,
+          category: ticketCategory,
+          categoryLabel: categories.find((item) => item.id === ticketCategory)?.label || 'Other',
           status: 'open',
           statusLabel: 'Open',
           role: store ? 'player' : user?.role || 'vendor',
           authorName: user?.displayName || 'You',
           authorEmail: user?.email || '',
-          message: message.trim(),
+          message: body,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           replies: [],
@@ -250,19 +289,22 @@ export default function HelpCenter({
         setMessage('')
         setSelected(created)
         setView('detail')
+        onOpenCount?.(
+          next.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
+        )
         return
       }
       const next =
         mode === 'store' && vendorId
           ? await tapstackApi.customerVendorCreateSupport(vendorId, {
-              subject: subject.trim(),
-              message: message.trim(),
-              category,
+              subject: ticketSubject,
+              message: body,
+              category: ticketCategory,
             })
           : await tapstackApi.supportCreateTicket({
-              subject: subject.trim(),
-              message: message.trim(),
-              category,
+              subject: ticketSubject,
+              message: body,
+              category: ticketCategory,
             })
       setSubject('')
       setMessage('')
@@ -352,10 +394,14 @@ export default function HelpCenter({
     }
   }
 
-  const canSubmit = subject.trim().length >= 3 && message.trim().length >= 10 && !busy
+  const canSubmit = storeDirectChat
+    ? message.trim().length >= 1 && !busy
+    : subject.trim().length >= 3 && message.trim().length >= 10 && !busy
   const title =
     view === 'compose'
       ? 'New ticket'
+      : view === 'chat-start'
+        ? 'Support Chat'
       : view === 'detail'
         ? selected?.subject || 'Ticket'
         : storeInbox
@@ -374,20 +420,31 @@ export default function HelpCenter({
   }
 
   return (
-    <div className={`help-center${embedded ? ' help-center--embedded' : ''}`}>
+    <div
+      className={`help-center${embedded ? ' help-center--embedded' : ''}${storeDirectChat ? ' help-center--direct-chat' : ''}`}
+    >
+      {!(embedded && storeDirectChat) ? (
       <header className="help-head">
         <button
           type="button"
           className="help-back"
           onClick={() => {
-            if (view === 'list') onBack()
-            else {
+            if (view === 'list' || (storeDirectChat && view === 'chat-start')) onBack()
+            else if (storeDirectChat) {
+              setView('chat-start')
+              setSelected(null)
+              setError('')
+            } else {
               setView('list')
               setSelected(null)
               setError('')
             }
           }}
-          aria-label={view === 'list' ? 'Close help' : 'Back to tickets'}
+          aria-label={
+            view === 'list' || (storeDirectChat && !selected)
+              ? 'Close help'
+              : 'Back to tickets'
+          }
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <path
@@ -421,10 +478,11 @@ export default function HelpCenter({
           <span className="help-head-spacer" />
         )}
       </header>
+      ) : null}
 
       {error ? <p className="help-error">{error}</p> : null}
 
-      {view === 'list' ? (
+      {view === 'list' && !storeDirectChat ? (
         <div className="help-body">
           {loading ? <p className="help-empty">Loading tickets…</p> : null}
           {!loading && tickets.length === 0 ? (
@@ -474,7 +532,40 @@ export default function HelpCenter({
         </div>
       ) : null}
 
-      {view === 'compose' ? (
+      {view === 'chat-start' ? (
+        <div className="help-body help-chat-start">
+          {loading ? (
+            <p className="help-empty">Loading chat…</p>
+          ) : (
+            <>
+              <p className="help-chat-intro">
+                Message {partnerName} about loads, redeems, or your account. Replies show up here
+                in real time.
+              </p>
+              <form
+                className="help-reply help-reply--chat-start"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void submitTicket()
+                }}
+              >
+                <textarea
+                  className="help-input help-textarea"
+                  rows={4}
+                  value={message}
+                  placeholder={`Say hi to ${partnerName}…`}
+                  onChange={(event) => setMessage(event.target.value)}
+                />
+                <button type="submit" className="help-primary" disabled={!canSubmit}>
+                  {busy ? 'Sending…' : 'Send message'}
+                </button>
+              </form>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      {view === 'compose' && !storeDirectChat ? (
         <form
           className="help-body help-form"
           onSubmit={(event) => {
@@ -521,21 +612,23 @@ export default function HelpCenter({
 
       {view === 'detail' && selected ? (
         <div className="help-body help-detail">
-          <div className="help-detail-meta">
-            <span className={`help-status help-status--${selected.status}`}>
-              {statusLabelFor(selected.status, mode)}
-            </span>
-            <span>
-              {selected.categoryLabel}
-              {inbox ? ` · ${selected.role}` : ''} · {formatWhen(selected.createdAt)}
-            </span>
-            {inbox ? (
-              <p className="help-author">
-                {selected.authorName}
-                {selected.authorEmail ? ` · ${selected.authorEmail}` : ''}
-              </p>
-            ) : null}
-          </div>
+          {!storeDirectChat ? (
+            <div className="help-detail-meta">
+              <span className={`help-status help-status--${selected.status}`}>
+                {statusLabelFor(selected.status, mode)}
+              </span>
+              <span>
+                {selected.categoryLabel}
+                {inbox ? ` · ${selected.role}` : ''} · {formatWhen(selected.createdAt)}
+              </span>
+              {inbox ? (
+                <p className="help-author">
+                  {selected.authorName}
+                  {selected.authorEmail ? ` · ${selected.authorEmail}` : ''}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="help-thread">
             <article className={`help-bubble ${inbox ? 'help-bubble--them' : 'help-bubble--mine'}`}>
@@ -581,8 +674,30 @@ export default function HelpCenter({
             </div>
           ) : null}
 
-          {selected.status === 'closed' && !inbox ? (
+          {selected.status === 'closed' && !inbox && !storeDirectChat ? (
             <p className="help-empty">This ticket is closed. Start a new one if you still need help.</p>
+          ) : selected.status === 'closed' && storeDirectChat ? (
+            <form
+              className="help-reply"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const text = reply.trim()
+                if (!text) return
+                setReply('')
+                void submitTicket(text)
+              }}
+            >
+              <textarea
+                className="help-input help-textarea"
+                rows={2}
+                value={reply}
+                placeholder={`Message ${partnerName}…`}
+                onChange={(event) => setReply(event.target.value)}
+              />
+              <button type="submit" className="help-primary" disabled={busy || reply.trim().length < 1}>
+                {busy ? 'Sending…' : 'Send'}
+              </button>
+            </form>
           ) : (
             <form
               className="help-reply"
@@ -593,13 +708,25 @@ export default function HelpCenter({
             >
               <textarea
                 className="help-input help-textarea"
-                rows={3}
+                rows={storeDirectChat ? 2 : 3}
                 value={reply}
-                placeholder={storeInbox ? 'Reply to this player…' : inbox ? 'Reply to this partner…' : 'Add more detail…'}
+                placeholder={
+                  storeDirectChat
+                    ? `Message ${partnerName}…`
+                    : storeInbox
+                      ? 'Reply to this player…'
+                      : inbox
+                        ? 'Reply to this partner…'
+                        : 'Add more detail…'
+                }
                 onChange={(event) => setReply(event.target.value)}
               />
-              <button type="submit" className="help-primary" disabled={busy || reply.trim().length < 2}>
-                {busy ? 'Sending…' : 'Send reply'}
+              <button
+                type="submit"
+                className="help-primary"
+                disabled={busy || reply.trim().length < (storeDirectChat ? 1 : 2)}
+              >
+                {busy ? 'Sending…' : storeDirectChat ? 'Send' : 'Send reply'}
               </button>
             </form>
           )}

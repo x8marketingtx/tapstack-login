@@ -954,8 +954,8 @@ export default function VendorPage({
               </svg>
             </span>
             <span className="vendor-pending-btn-copy">
-              <strong>Support</strong>
-              <small>Message this store about loads, redeems, or your account</small>
+              <strong>Support Chat</strong>
+              <small>Chat with this store about loads, redeems, or your account</small>
             </span>
             {chatUnread > 0 ? (
               <span className="vendor-pending-btn-count">{chatUnread > 9 ? '9+' : chatUnread}</span>
@@ -1726,7 +1726,7 @@ export default function VendorPage({
         <button
           type="button"
           className="vendor-chat-backdrop"
-          aria-label="Close support"
+          aria-label="Close support chat"
           tabIndex={chatOpen ? 0 : -1}
           onClick={() => setChatOpen(false)}
         />
@@ -1739,14 +1739,14 @@ export default function VendorPage({
           <header className="vendor-chat-header">
             <div className="vendor-chat-header-copy">
               <h2 id="vendor-chat-title" className="vendor-chat-title">
-                {vendor.name}
+                Support Chat
               </h2>
-              <p className="vendor-chat-subtitle">Tickets with this store</p>
+              <p className="vendor-chat-subtitle">{vendor.name}</p>
             </div>
             <button
               type="button"
               className="vendor-chat-close"
-              aria-label="Close support"
+              aria-label="Close support chat"
               onClick={() => setChatOpen(false)}
             >
               ×
@@ -1759,6 +1759,7 @@ export default function VendorPage({
                 vendorId={vendor.id}
                 vendorName={vendor.name}
                 embedded
+                directChat
                 onBack={() => setChatOpen(false)}
                 onOpenCount={setChatUnread}
               />
