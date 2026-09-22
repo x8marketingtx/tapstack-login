@@ -58,6 +58,7 @@ function ProfileTab() {
   const [saveOk, setSaveOk] = useState(false)
   const [inviteCode, setInviteCode] = useState('')
   const [inviteCopied, setInviteCopied] = useState(false)
+  const [distributorName, setDistributorName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -114,6 +115,7 @@ function ProfileTab() {
         const fromSettings = pickInvite(p.inviteCode || p.code)
         const fromDash = pickInvite(dashRes?.store?.inviteCode || dashRes?.store?.code)
         setInviteCode(fromSettings || fromDash)
+        setDistributorName(String(p.distributorName || '').trim())
 
         setBusinessName(p.businessName || '')
         setEmail(p.email || '')
@@ -249,6 +251,20 @@ function ProfileTab() {
           </button>
         </div>
       </div>
+
+      {distributorName ? (
+        <section className="vendor-settings-info-card">
+          <div className="vendor-settings-info-block">
+            <p className="vendor-settings-info-label">AFFILIATE OF</p>
+            <div className="vendor-settings-readonly-field">
+              <span className="vendor-settings-readonly-value">{distributorName}</span>
+            </div>
+            <p className="vendor-settings-info-help">
+              You joined this distributor&apos;s network through their affiliate link.
+            </p>
+          </div>
+        </section>
+      ) : null}
 
       <section className="vendor-settings-info-card">
         <div className="vendor-settings-info-block">

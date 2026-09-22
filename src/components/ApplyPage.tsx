@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ApiError, isApiConfigured, tapstackApi } from '../api/client'
-import { clearAffiliateSlug, getAffiliateSlug } from '../lib/affiliate'
+import { clearAffiliateSlug, getAffiliateSlug, setVendorAffiliateWelcome } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -236,10 +236,21 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
       setSuccessMessage(
         res.message ||
           (res.approved
-            ? 'You are approved as a vendor. Check your email for login details.'
+            ? distributorName
+              ? `You're now an affiliate of ${distributorName}. Check your email for login details.`
+              : 'You are approved as a vendor. Check your email for login details.'
             : 'Thanks — our team will review your application soon.'),
       )
-      if (res.approved) clearAffiliateSlug()
+      if (res.approved) {
+        if (distributorName) {
+          setVendorAffiliateWelcome({
+            distributorName,
+            distributorId: res.distributorId,
+            alreadyJoined: false,
+          })
+        }
+        clearAffiliateSlug()
+      }
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not submit application. Try again.')
@@ -270,7 +281,11 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
         {submitted ? (
           <div className="apply-success">
             <p className="apply-success-title">
-              {approved ? 'You are a vendor' : 'Application submitted'}
+              {approved
+                ? distributorName
+                  ? `You're an affiliate of ${distributorName}`
+                  : 'You are a vendor'
+                : 'Application submitted'}
             </p>
             <p className="apply-success-text">
               {successMessage ||

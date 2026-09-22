@@ -1366,6 +1366,8 @@ export const tapstackApi = {
         address?: string
         initials?: string
         vendorId?: number
+        distributorId?: number | null
+        distributorName?: string | null
         emailAlerts?: boolean
         smsAlerts?: boolean
         withdrawalAlerts?: boolean
@@ -1879,6 +1881,7 @@ export const tapstackApi = {
       status?: string
       approved?: boolean
       vendorId?: number
+      distributorId?: number
       distributorName?: string
       message?: string
       email?: string

@@ -60,8 +60,39 @@ const VERIFY_ERROR_CODES = new Set([
   'tapstack_geo_blocked',
 ])
 
-export function emptyVerification(overrides: Partial<VerificationState> = {}): VerificationState {
+/** Location / geo checks. Unset or any value other than false/0/off/no stays enabled. */
+export function isLocationVerificationEnabled(): boolean {
+  const raw = String(import.meta.env.VITE_LOCATION_VERIFICATION ?? 'true').trim().toLowerCase()
+  return raw !== 'false' && raw !== '0' && raw !== 'off' && raw !== 'no'
+}
+
+function applyLocationEnv(state: VerificationState): VerificationState {
+  if (isLocationVerificationEnabled()) return state
+  const identityOk = Boolean(state.identityVerified) || state.status === 'verified'
+  const required =
+    state.required !== false && state.pluginReady && state.status !== 'disabled'
+  const skippedGeo = Boolean(state.geoBlocked) || state.locationRequired
   return {
+    ...state,
+    locationRequired: false,
+    locationStatus: 'passed',
+    locationLink: null,
+    geoBlocked: false,
+    geoReason: null,
+    geoType: null,
+    canSpend: required ? identityOk : true,
+    message: skippedGeo
+      ? identityOk
+        ? 'Your identity is verified.'
+        : required
+          ? state.message
+          : 'Identity verification is not required for this account.'
+      : state.message,
+  }
+}
+
+export function emptyVerification(overrides: Partial<VerificationState> = {}): VerificationState {
+  return applyLocationEnv({
     status: 'disabled',
     identityVerified: false,
     locationRequired: false,
@@ -83,7 +114,7 @@ export function emptyVerification(overrides: Partial<VerificationState> = {}): V
     required: false,
     message: '',
     ...overrides,
-  }
+  })
 }
 
 export function verificationFromUser(user?: TapstackUser | null): VerificationState {

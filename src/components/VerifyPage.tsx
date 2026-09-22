@@ -50,7 +50,7 @@ export default function VerifyPage({
   const [documentType, setDocumentType] = useState('DriversLicense')
   const autoLocateStarted = useRef(false)
 
-  function applyState(next: CustomerVerifyState | VerificationState) {
+  function applyState(next: CustomerVerifyState | VerificationState): VerificationState {
     const mapped = emptyVerification({
       ...next,
       required: next.required !== false,
@@ -60,6 +60,7 @@ export default function VerifyPage({
     const token = getToken()
     const user = token ? syncUserVerification(mapped) : null
     if (user) onUserUpdate?.(user)
+    return mapped
   }
 
   async function refresh() {
@@ -97,8 +98,8 @@ export default function VerifyPage({
       void tapstackApi
         .customerVerifyStatus()
         .then((next) => {
-          applyState(next)
-          if (next.canSpend) {
+          const mapped = applyState(next)
+          if (mapped.canSpend) {
             window.clearInterval(timer)
           }
         })

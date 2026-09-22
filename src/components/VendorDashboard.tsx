@@ -28,6 +28,11 @@ import {
   type VerificationState,
 } from '../lib/verify'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
+import {
+  consumePendingVendorJoin,
+  consumeVendorAffiliateWelcome,
+  type VendorAffiliateWelcome,
+} from '../lib/affiliate'
 import './VendorDashboard.css'
 
 const DEMO_VENDOR_PROFILE: PlayerProfile = {
@@ -578,6 +583,7 @@ export default function VendorDashboard({
   const [pendingNotifications, setPendingNotifications] = useState<VendorNotification[]>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [affiliateWelcome, setAffiliateWelcome] = useState<VendorAffiliateWelcome | null>(null)
 
   function syncFromRoute() {
     const route = parseLocation()
@@ -590,6 +596,17 @@ export default function VendorDashboard({
   useEffect(() => {
     window.addEventListener('popstate', syncFromRoute)
     return () => window.removeEventListener('popstate', syncFromRoute)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void consumePendingVendorJoin().finally(() => {
+      if (cancelled) return
+      setAffiliateWelcome(consumeVendorAffiliateWelcome())
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -991,6 +1008,48 @@ export default function VendorDashboard({
           handleTabChange('orders')
         }}
       />
+
+      {affiliateWelcome ? (
+        <div
+          className="vendor-affiliate-overlay"
+          role="presentation"
+          onClick={() => setAffiliateWelcome(null)}
+        >
+          <div
+            className="vendor-affiliate-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vendor-affiliate-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="vendor-affiliate-icon" aria-hidden="true">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M20 7.5 9.75 17.5 4 12"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <h2 id="vendor-affiliate-title" className="vendor-affiliate-title">
+              {affiliateWelcome.alreadyJoined ? "You're an affiliate" : "You're now an affiliate"}
+            </h2>
+            <p className="vendor-affiliate-name">{affiliateWelcome.distributorName}</p>
+            <p className="vendor-affiliate-copy">
+              Your gameroom is linked to their distributor network.
+            </p>
+            <button
+              type="button"
+              className="vendor-affiliate-btn"
+              onClick={() => setAffiliateWelcome(null)}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <TopUpModal
         open={topUpOpen}

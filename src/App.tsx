@@ -26,6 +26,7 @@ import {
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
 import { consumePendingVendorJoin } from './lib/affiliate'
+import { isLocationVerificationEnabled } from './lib/verify'
 import {
   applyDocumentTitle,
   migrateLegacyHash,
@@ -313,8 +314,9 @@ function App() {
 
   const checkLocationAccess = useCallback(async (): Promise<boolean> => {
     const token = getToken()
-    if (!isApiConfigured() || token?.startsWith('demo:')) {
+    if (!isApiConfigured() || token?.startsWith('demo:') || !isLocationVerificationEnabled()) {
       setLocationGate('ok')
+      setLocationBlock(null)
       return true
     }
     const started = Date.now()

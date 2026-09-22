@@ -6,7 +6,7 @@ import {
   isApiConfigured,
   tapstackApi,
 } from '../api/client'
-import { setAffiliateSlug, setPendingVendorJoin } from '../lib/affiliate'
+import { setAffiliateSlug, setPendingVendorJoin, setVendorAffiliateWelcome } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -77,7 +77,12 @@ export default function JoinPage({
           )
           if (isApiConfigured() && !token.startsWith('demo:')) {
             try {
-              await tapstackApi.vendorJoinDistributor(clean)
+              const joined = await tapstackApi.vendorJoinDistributor(clean)
+              setVendorAffiliateWelcome({
+                distributorName: joined.distributorName || distributorName || 'your distributor',
+                distributorId: joined.distributorId,
+                alreadyJoined: Boolean(joined.alreadyJoined),
+              })
             } catch (err) {
               // No store yet → send them through apply with affiliate preserved.
               if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
@@ -87,6 +92,8 @@ export default function JoinPage({
               }
               throw err
             }
+          } else if (distributorName) {
+            setVendorAffiliateWelcome({ distributorName, alreadyJoined: false })
           }
           if (cancelled) return
           onVendorJoined()
@@ -107,7 +114,7 @@ export default function JoinPage({
         }
 
         // Logged out (or admin): continue as vendor signup/login under this affiliate.
-        setPendingVendorJoin(clean)
+        setPendingVendorJoin(clean, distributorName)
         setMessage(
           distributorName
             ? `Sign in or apply as a vendor to join ${distributorName}…`

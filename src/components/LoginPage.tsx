@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
 import { ApiError, applyAuthSession, clearSession, isApiConfigured, setDemoSession, tapstackApi } from '../api/client'
+import { getPendingVendorJoin, getPendingVendorJoinName } from '../lib/affiliate'
 import { LegalLinks, type LegalDoc } from './LegalPage'
 import SmsConsentCheckbox, { SmsShareNote } from './SmsConsentCheckbox'
 import { TapStackLogo } from './TapStackLogo'
@@ -129,6 +130,10 @@ function PortalLogin({
   onOpenLegal: (doc: LegalDoc, section?: string) => void
 }) {
   const copy = PORTAL_COPY[portalType]
+  const pendingAffiliate =
+    portalType === 'vendor' && getPendingVendorJoin()
+      ? getPendingVendorJoinName() || 'a distributor'
+      : ''
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -192,7 +197,11 @@ function PortalLogin({
           <img src={tapstackIcon} alt="" className="tapstack-icon" aria-hidden="true" />
           <TapStackLogo height={56} />
         </div>
-        <p className="subtitle">{copy.subtitle}</p>
+        <p className="subtitle">
+          {pendingAffiliate
+            ? `Sign in to become an affiliate of ${pendingAffiliate}`
+            : copy.subtitle}
+        </p>
       </div>
 
       <div className="login-panel">
