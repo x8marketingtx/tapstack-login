@@ -1,4 +1,12 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
 import { gameArtUrl } from '../data/gameArt'
@@ -42,15 +50,9 @@ const REDEEMABLE_BALANCE_TOOLTIP =
   'These are your redeemable winnings. Not your playable balance.'
 const PAYABLE_BALANCE_TOOLTIP = 'Credits you can play with in this game.'
 
-function GameBalanceLabel({
-  label,
-  tooltip,
-}: {
-  label: string
-  tooltip: string
-}) {
+function GameBalanceInfo({ label, tooltip }: { label: string; tooltip: string }) {
   const [open, setOpen] = useState(false)
-  const rowRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const tooltipId = useId()
 
   useEffect(() => {
@@ -58,7 +60,7 @@ function GameBalanceLabel({
     function closeIfOutside(event: MouseEvent | TouchEvent) {
       const target = event.target
       if (!(target instanceof Node)) return
-      if (rowRef.current?.contains(target)) return
+      if (wrapRef.current?.contains(target)) return
       setOpen(false)
     }
     document.addEventListener('mousedown', closeIfOutside)
@@ -70,11 +72,7 @@ function GameBalanceLabel({
   }, [open])
 
   return (
-    <div
-      ref={rowRef}
-      className={`game-balance-label-row${open ? ' is-open' : ''}`}
-    >
-      <span className="game-balance-label">{label}</span>
+    <div ref={wrapRef} className={`game-balance-info-wrap${open ? ' is-open' : ''}`}>
       <button
         type="button"
         className="game-balance-info"
@@ -93,23 +91,33 @@ function GameBalanceLabel({
           />
         </svg>
       </button>
-      <span
-        id={tooltipId}
-        role="tooltip"
-        className="game-balance-tooltip"
-      >
+      <span id={tooltipId} role="tooltip" className="game-balance-tooltip">
         {tooltip}
       </span>
     </div>
   )
 }
 
-function PayableBalanceLabel() {
-  return <GameBalanceLabel label="Payable Balance" tooltip={PAYABLE_BALANCE_TOOLTIP} />
-}
-
-function RedeemableBalanceLabel() {
-  return <GameBalanceLabel label="Redeemable Balance" tooltip={REDEEMABLE_BALANCE_TOOLTIP} />
+function GameBalanceBlock({
+  label,
+  tooltip,
+  children,
+  align = 'right',
+}: {
+  label: string
+  tooltip: string
+  children: ReactNode
+  align?: 'left' | 'right'
+}) {
+  return (
+    <div className={`game-balance-wrap game-balance-wrap--${align}`}>
+      <span className="game-balance-label">{label}</span>
+      <div className="game-balance-value-row">
+        {children}
+        <GameBalanceInfo label={label} tooltip={tooltip} />
+      </div>
+    </div>
+  )
 }
 
 function credsStorageKey(vendorId: number | string, gameKey: string) {
@@ -1066,29 +1074,35 @@ export default function VendorPage({
                       </div>
                     </div>
 
-                    <div className="game-card-aside">
-                      <div className="game-balance-stack">
-                        <div className="game-balance-wrap">
-                          <PayableBalanceLabel />
-                          {showBalanceSkeleton ? (
-                            <span className="game-balance-skeleton" aria-label="Loading payable balance" />
-                          ) : (
-                            <span className="game-balance">
-                              {balanceState?.payableFormatted || balanceText}
-                            </span>
-                          )}
-                        </div>
-                        <div className="game-balance-wrap">
-                          <RedeemableBalanceLabel />
-                          {showBalanceSkeleton ? (
-                            <span className="game-balance-skeleton" aria-label="Loading redeemable balance" />
-                          ) : (
-                            <span className="game-balance">
-                              {balanceState?.redeemableFormatted || balanceText}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                    <div className="game-balance-redeem">
+                      <GameBalanceBlock label="Redeemable Balance" tooltip={REDEEMABLE_BALANCE_TOOLTIP}>
+                        {showBalanceSkeleton ? (
+                          <span className="game-balance-skeleton" aria-label="Loading redeemable balance" />
+                        ) : (
+                          <span className="game-balance">
+                            {balanceState?.redeemableFormatted || balanceText}
+                          </span>
+                        )}
+                      </GameBalanceBlock>
+                    </div>
+
+                    <div className="game-balance-payable">
+                      <GameBalanceBlock
+                        label="Payable Balance"
+                        tooltip={PAYABLE_BALANCE_TOOLTIP}
+                        align="left"
+                      >
+                        {showBalanceSkeleton ? (
+                          <span className="game-balance-skeleton" aria-label="Loading payable balance" />
+                        ) : (
+                          <span className="game-balance">
+                            {balanceState?.payableFormatted || balanceText}
+                          </span>
+                        )}
+                      </GameBalanceBlock>
+                    </div>
+
+                    <div className="game-card-actions">
                       <div className="game-side">
                       {game.mode === 'auto' ? (
                         connected ? (
