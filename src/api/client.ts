@@ -1805,6 +1805,11 @@ export const tapstackApi = {
         deposits: string
         redeems: string
         tags: string[]
+        isAffiliate?: boolean
+        /** Legacy / WP snake_case */
+        is_affiliate?: boolean
+        joinedViaAffiliate?: boolean
+        affiliateSlug?: string
       }>
       total?: number
       active?: number
@@ -1824,6 +1829,16 @@ export const tapstackApi = {
         volume: string
         redeemed: string
         share: number
+      }>
+      byAffiliate?: Array<{
+        id: string
+        name: string
+        earnings: string
+        volume: string
+        redeemed: string
+        share: number
+        vendorsReferred?: number
+        status?: string
       }>
       range?: string
     }>(`/distributor/analytics?range=${encodeURIComponent(range)}`),

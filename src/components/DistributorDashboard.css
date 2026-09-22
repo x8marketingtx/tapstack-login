@@ -388,6 +388,24 @@
   margin: 0;
 }
 
+.dist-section-lead {
+  margin: -4px 0 14px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dist-by-affiliate-card h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dist-bar--affiliate > span {
+  background: linear-gradient(90deg, #8b5cf6, #6366f1);
+}
+
 .dist-section-title {
   display: inline-flex;
   align-items: center;
@@ -430,11 +448,44 @@
 .dist-vendor-card,
 .dist-invoice-card,
 .dist-by-vendor-card {
+  position: relative;
   padding: 16px;
   border-radius: 18px;
   background: #fff;
   border: 1px solid #eef2f7;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.dist-vendor-card--affiliate {
+  border-color: #ddd6fe;
+  background: linear-gradient(180deg, #faf5ff 0%, #fff 48%);
+}
+
+.dist-vendor-affiliate-mark {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.28);
+}
+
+.dist-tag--affiliate {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  color: #6d28d9;
+  font-weight: 700;
+}
+
+.dist-vendor-card--affiliate .dist-vendor-card-top {
+  padding-right: 32px;
 }
 
 .dist-earnings-amount {

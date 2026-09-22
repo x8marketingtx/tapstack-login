@@ -34,13 +34,138 @@ type SettingsData = Awaited<ReturnType<typeof tapstackApi.distributorSettings>>
 type EarningsRange = 'today' | '7d' | '30d' | 'custom'
 type AnalyticsRange = '7d' | '30d' | '90d' | 'custom'
 type SettingsSub = 'profile' | 'alerts' | 'security'
-type AnalyticsSub = 'overview' | 'byVendor'
+type AnalyticsSub = 'overview' | 'byVendor' | 'byAffiliate'
 type InvoiceFilter = 'all' | 'draft' | 'sent' | 'paid' | 'overdue'
 
 function money(value?: string | number | null) {
   if (typeof value === 'number') return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   if (typeof value === 'string' && value.trim()) return value.startsWith('$') ? value : `$${value}`
   return '$0.00'
+}
+
+type DistributorVendorRow = NonNullable<VendorsData>['vendors'][number]
+
+function parseVendorTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((tag) => {
+      if (typeof tag === 'string') return tag
+      if (tag && typeof tag === 'object' && 'label' in tag) {
+        return String((tag as { label?: string }).label || '')
+      }
+      return String(tag)
+    })
+    .filter(Boolean)
+}
+
+function vendorIsAffiliate(vendor: DistributorVendorRow & Record<string, unknown>) {
+  if (vendor.isAffiliate === true) return true
+  if (vendor.is_affiliate === true) return true
+  if (vendor.affiliate === true) return true
+  if (vendor.isAffiliateVendor === true) return true
+  if (vendor.joinedViaAffiliate === true) return true
+  if (vendor.linkedViaAffiliate === true) return true
+  if (String(vendor.referralSource || vendor.source || vendor.joinSource || '')
+    .toLowerCase()
+    .includes('affiliate')) {
+    return true
+  }
+  if (vendor.affiliateSlug || vendor.distributorAffiliateId || vendor.affiliateId) return true
+  const affiliateObj = vendor.affiliate
+  if (affiliateObj && typeof affiliateObj === 'object') {
+    const rec = affiliateObj as { enabled?: boolean; active?: boolean }
+    if (rec.enabled === true || rec.active === true) return true
+  }
+  return (vendor.tags || []).some((tag) => /affiliate/i.test(String(tag)))
+}
+
+function unwrapVendorsPayload(data: VendorsData & Record<string, unknown>): VendorsData {
+  const list =
+    data.vendors ??
+    data.networkVendors ??
+    data.network_vendors ??
+    (Array.isArray(data.items) ? data.items : [])
+  return {
+    ...data,
+    vendors: Array.isArray(list) ? (list as VendorsData['vendors']) : [],
+    total: data.total ?? data.vendorsTotal,
+    active: data.active ?? data.activeCount,
+  }
+}
+
+function normalizeDistributorVendors(data: VendorsData): VendorsData {
+  const unwrapped = unwrapVendorsPayload(data as VendorsData & Record<string, unknown>)
+  return {
+    ...unwrapped,
+    vendors: (unwrapped.vendors || []).map((raw) => {
+      const row = raw as DistributorVendorRow & Record<string, unknown>
+      const tags = parseVendorTags(row.tags)
+      const normalized: DistributorVendorRow = {
+        id: String(row.id ?? row.vendorId ?? row.userId ?? ''),
+        name: String(row.name || row.gameroomName || row.businessName || 'Vendor'),
+        tier: String(row.tier || row.plan || '—'),
+        status: String(row.status || 'active'),
+        deposits: String(row.deposits ?? row.depositsFormatted ?? '—'),
+        redeems: String(row.redeems ?? row.redeemsFormatted ?? '—'),
+        tags,
+        isAffiliate: vendorIsAffiliate({ ...row, tags }),
+      }
+      return normalized
+    }),
+  }
+}
+
+function enrichVendorsAffiliateHints(
+  vendors: DistributorVendorRow[],
+  dash: DashData | null,
+  analytics: AnalyticsData | null,
+): DistributorVendorRow[] {
+  const affiliateIds = new Set<string>()
+  const affiliateNames = new Set<string>()
+
+  for (const row of dash?.vendorEarnings || []) {
+    if (row.badge && /affiliate/i.test(row.badge)) {
+      affiliateIds.add(String(row.id))
+      affiliateNames.add(row.name.trim().toLowerCase())
+    }
+  }
+
+  for (const row of analytics?.byAffiliate || []) {
+    affiliateIds.add(String(row.id))
+    affiliateNames.add(row.name.trim().toLowerCase())
+  }
+
+  if (!affiliateIds.size && !affiliateNames.size) return vendors
+
+  return vendors.map((vendor) => {
+    if (vendor.isAffiliate) return vendor
+    const key = vendor.name.trim().toLowerCase()
+    const match = affiliateIds.has(String(vendor.id)) || affiliateNames.has(key)
+    return match ? { ...vendor, isAffiliate: true } : vendor
+  })
+}
+
+function VendorAffiliateMark() {
+  return (
+    <span className="dist-vendor-affiliate-mark" title="Affiliate vendor" aria-label="Affiliate vendor">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M10 13a5 5 0 0 0 7.54.54l2.5-2.5a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M14 11a5 5 0 0 0-7.54-.54l-2.5 2.5a5 5 0 0 0 7.07 7.07l1.71-1.71"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  )
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -96,7 +221,31 @@ const DEMO_DIST_DASH: DashData = {
       { label: 'Elite', rate: '10%', active: false },
     ],
   },
-  vendorEarnings: [],
+  vendorEarnings: [
+    {
+      id: '1',
+      name: 'Lucky Strike Arcade',
+      amount: 620,
+      amountFormatted: '$620.00',
+      fill: 72,
+      badge: 'Affiliate',
+    },
+    {
+      id: '2',
+      name: 'Victory Valley',
+      amount: 410,
+      amountFormatted: '$410.00',
+      fill: 48,
+    },
+    {
+      id: '3',
+      name: 'Ocean Sluggerz',
+      amount: 290,
+      amountFormatted: '$290.00',
+      fill: 34,
+      badge: 'Affiliate',
+    },
+  ],
   activity: [],
 }
 
@@ -109,11 +258,115 @@ const DEMO_DIST_VENDORS: VendorsData = {
       status: 'active',
       deposits: '$12,400',
       redeems: '$8,200',
-      tags: ['Auto'],
+      tags: ['Auto', 'Affiliate'],
+      isAffiliate: true,
+    },
+    {
+      id: '2',
+      name: 'Victory Valley',
+      tier: 'Pro',
+      status: 'active',
+      deposits: '$9,800',
+      redeems: '$6,100',
+      tags: ['Marketing'],
+    },
+    {
+      id: '3',
+      name: 'Ocean Sluggerz',
+      tier: 'Standard',
+      status: 'active',
+      deposits: '$7,200',
+      redeems: '$4,900',
+      tags: ['Promos'],
+      isAffiliate: true,
     },
   ],
   total: 4,
   active: 3,
+  range: '30d',
+}
+
+const DEMO_DIST_ANALYTICS: AnalyticsData = {
+  totalEarned: '$12,480.00',
+  thisMonth: '$1,920.00',
+  distributorCut: '$312.40',
+  addOnFees: '$960.00',
+  monthlyEarnings: [
+    { month: 'Apr', amount: 980 },
+    { month: 'May', amount: 1120 },
+    { month: 'Jun', amount: 1340 },
+    { month: 'Jul', amount: 1180 },
+    { month: 'Aug', amount: 1560 },
+    { month: 'Sep', amount: 1920 },
+  ],
+  byVendor: [
+    {
+      id: 'v1',
+      name: 'Lucky Strike Arcade',
+      earnings: '$620.00',
+      volume: '$12,400',
+      redeemed: '$8,200',
+      share: 42,
+    },
+    {
+      id: 'v2',
+      name: 'Victory Valley',
+      earnings: '$410.00',
+      volume: '$9,800',
+      redeemed: '$6,100',
+      share: 28,
+    },
+    {
+      id: 'v3',
+      name: 'Ocean Sluggerz',
+      earnings: '$290.00',
+      volume: '$7,200',
+      redeemed: '$4,900',
+      share: 20,
+    },
+  ],
+  byAffiliate: [
+    {
+      id: 'v1',
+      name: 'Lucky Strike Arcade',
+      earnings: '$480.00',
+      volume: '$12,400',
+      redeemed: '$8,200',
+      share: 38,
+      vendorsReferred: 1,
+      status: 'active',
+    },
+    {
+      id: 'a1',
+      name: 'West Coast Promotions',
+      earnings: '$480.00',
+      volume: '$14,600',
+      redeemed: '$3,800',
+      share: 38,
+      vendorsReferred: 2,
+      status: 'active',
+    },
+    {
+      id: 'a2',
+      name: 'Metro Arcade Partners',
+      earnings: '$320.00',
+      volume: '$9,400',
+      redeemed: '$2,650',
+      share: 26,
+      vendorsReferred: 1,
+      status: 'active',
+    },
+    {
+      id: 'a3',
+      name: 'Direct / organic signup',
+      earnings: '$180.00',
+      volume: '$5,400',
+      redeemed: '$1,900',
+      share: 14,
+      vendorsReferred: 1,
+      status: 'active',
+    },
+  ],
   range: '30d',
 }
 
@@ -275,14 +528,27 @@ export default function DistributorDashboard({
   }
 
   async function loadVendors(range: EarningsRange = vendorsRange) {
-    const data = await tapstackApi.distributorVendors(range)
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) {
+      setVendors(normalizeDistributorVendors(DEMO_DIST_VENDORS))
+      return
+    }
+    const data = normalizeDistributorVendors(await tapstackApi.distributorVendors(range))
     setVendors(data)
   }
 
   async function loadAnalytics(range: AnalyticsRange = analyticsRange) {
     const mapped = range === '90d' ? '30d' : range
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) {
+      setAnalytics({ ...DEMO_DIST_ANALYTICS, range: mapped })
+      return
+    }
     const data = await tapstackApi.distributorAnalytics(mapped)
-    setAnalytics(data)
+    setAnalytics({
+      ...data,
+      byAffiliate: data.byAffiliate ?? [],
+    })
   }
 
   async function loadInvoices() {
@@ -313,7 +579,7 @@ export default function DistributorDashboard({
           setVerification(verificationFromUser(user))
         }
         setDash(DEMO_DIST_DASH)
-        setVendors(DEMO_DIST_VENDORS)
+        setVendors(normalizeDistributorVendors(DEMO_DIST_VENDORS))
         setError('')
         setLoading(false)
         return
@@ -356,6 +622,10 @@ export default function DistributorDashboard({
 
   useEffect(() => {
     if (loading) return
+    if (tab === 'vendors') {
+      if (!vendors) void loadVendors(vendorsRange).catch(() => undefined)
+      if (!analytics) void loadAnalytics(analyticsRange).catch(() => undefined)
+    }
     if (tab === 'analytics' && !analytics) void loadAnalytics(analyticsRange).catch(() => undefined)
     if (tab === 'invoices' && !invoices) void loadInvoices().catch(() => undefined)
     if (tab === 'settings' && !settings) void loadSettings().catch(() => undefined)
@@ -363,11 +633,11 @@ export default function DistributorDashboard({
   }, [tab, loading])
 
   const filteredVendors = useMemo(() => {
-    const list = vendors?.vendors || []
+    let list = enrichVendorsAffiliateHints(vendors?.vendors || [], dash, analytics)
     const q = vendorQuery.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((v) => v.name.toLowerCase().includes(q))
-  }, [vendors, vendorQuery])
+    if (q) list = list.filter((v) => v.name.toLowerCase().includes(q))
+    return list
+  }, [vendors, vendorQuery, dash, analytics])
 
   const filteredInvoices = useMemo(() => {
     const list = invoices?.invoices || []
@@ -515,7 +785,11 @@ export default function DistributorDashboard({
               />
             ) : null}
 
-            {tab === 'vendors' ? (
+            {tab === 'vendors' && !vendors ? (
+              <p className="dist-empty">{loading ? 'Loading vendors…' : 'No vendor data yet.'}</p>
+            ) : null}
+
+            {tab === 'vendors' && vendors ? (
               <VendorsView
                 vendors={filteredVendors}
                 total={vendors?.total ?? vendorsTotal}
@@ -817,8 +1091,14 @@ function VendorsView({
       </div>
 
       <div className="dist-vendor-cards">
-        {vendors.map((v) => (
-          <article key={v.id} className="dist-vendor-card">
+        {vendors.map((v) => {
+          const isAffiliate = Boolean(v.isAffiliate) || vendorIsAffiliate(v as DistributorVendorRow & Record<string, unknown>)
+          return (
+          <article
+            key={v.id}
+            className={`dist-vendor-card${isAffiliate ? ' dist-vendor-card--affiliate' : ''}`}
+          >
+            {isAffiliate ? <VendorAffiliateMark /> : null}
             <div className="dist-vendor-card-top">
               <div>
                 <h3>
@@ -841,14 +1121,20 @@ function VendorsView({
               </div>
             </div>
             <div className="dist-tag-row">
-              {(v.tags?.length ? v.tags : ['Withdrawals', v.tier === 'Pro' ? 'Marketing' : 'Promos']).map((tag) => (
+              {isAffiliate ? (
+                <span className="dist-tag dist-tag--affiliate">Affiliate</span>
+              ) : null}
+              {(v.tags?.length ? v.tags : ['Withdrawals', v.tier === 'Pro' ? 'Marketing' : 'Promos'])
+                .filter((tag) => !isAffiliate || !/affiliate/i.test(tag))
+                .map((tag) => (
                 <span key={tag} className="dist-tag">
                   {tag}
                 </span>
               ))}
             </div>
           </article>
-        ))}
+          )
+        })}
         {!vendors.length ? (
           <p className="dist-empty">
             No vendors in your network yet. Share your affiliate link from Settings so vendors can join.
@@ -883,6 +1169,13 @@ function AnalyticsView({
         </button>
         <button type="button" className={sub === 'byVendor' ? 'is-active' : ''} onClick={() => onSub('byVendor')}>
           By Vendor
+        </button>
+        <button
+          type="button"
+          className={sub === 'byAffiliate' ? 'is-active' : ''}
+          onClick={() => onSub('byAffiliate')}
+        >
+          By Affiliate
         </button>
       </div>
 
@@ -940,7 +1233,9 @@ function AnalyticsView({
             Export Revenue Report (CSV)
           </button>
         </>
-      ) : (
+      ) : null}
+
+      {sub === 'byVendor' ? (
         <section className="dist-section">
           <div className="dist-section-head">
             <h2>Per-Vendor Breakdown</h2>
@@ -974,7 +1269,66 @@ function AnalyticsView({
             {!data.byVendor?.length ? <p className="dist-empty">No vendor analytics yet.</p> : null}
           </div>
         </section>
-      )}
+      ) : null}
+
+      {sub === 'byAffiliate' ? (
+        <section className="dist-section">
+          <div className="dist-section-head">
+            <h2>Connected Affiliates</h2>
+            <button type="button" className="dist-btn dist-btn--ghost dist-btn--sm">
+              CSV
+            </button>
+          </div>
+          <p className="dist-section-lead">
+            Performance from affiliates linked to your distributor network — referred vendor volume and your
+            share of commission.
+          </p>
+          <div className="dist-by-vendor dist-by-affiliate">
+            {(data.byAffiliate || []).map((row) => (
+              <article key={row.id} className="dist-by-vendor-card dist-by-affiliate-card">
+                <div className="dist-by-vendor-top">
+                  <h3>
+                    {row.name}
+                    {row.status ? (
+                      <span
+                        className={`dist-badge ${row.status === 'active' ? 'dist-badge--ok' : 'dist-badge--warn'}`}
+                      >
+                        {row.status === 'active' ? 'Active' : row.status}
+                      </span>
+                    ) : null}
+                  </h3>
+                  <strong>{row.earnings}</strong>
+                </div>
+                <div className="dist-bar dist-bar--affiliate">
+                  <span style={{ width: `${Math.max(6, row.share || 0)}%` }} />
+                </div>
+                <div className="dist-by-vendor-meta">
+                  <span>
+                    Volume <b>{row.volume}</b>
+                  </span>
+                  <span>
+                    Redeemed <b>{row.redeemed}</b>
+                  </span>
+                  {row.vendorsReferred != null ? (
+                    <span>
+                      Vendors <b>{row.vendorsReferred}</b>
+                    </span>
+                  ) : null}
+                  <span>
+                    Share <b>{row.share}%</b>
+                  </span>
+                </div>
+              </article>
+            ))}
+            {!data.byAffiliate?.length ? (
+              <p className="dist-empty">
+                No connected affiliates yet. Affiliates who join through your network will appear here with
+                volume and earnings.
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }
