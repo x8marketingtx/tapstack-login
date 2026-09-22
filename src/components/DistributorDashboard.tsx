@@ -43,8 +43,14 @@ function money(value?: string | number | null) {
   return '$0.00'
 }
 
-function copyText(text: string) {
-  void navigator.clipboard?.writeText(text).catch(() => undefined)
+async function copyText(text: string): Promise<boolean> {
+  if (!text.trim()) return false
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
 }
 
 const DEMO_DIST_SLUG = 'pacific-gaming'
@@ -1057,6 +1063,7 @@ function SettingsView({
   onToggleAlert: (key: string, value: boolean) => void
   onLogout: () => void
 }) {
+  const [affiliateCopied, setAffiliateCopied] = useState(false)
   const profile = settings.profile
   const alerts = settings.alerts || {}
   const alertRows: Array<{ key: string; label: string; desc: string; group: string }> = [
@@ -1101,12 +1108,24 @@ function SettingsView({
               <input readOnly value={affiliateLinkDisplay || affiliateLink || ''} />
               <button
                 type="button"
-                className="dist-btn dist-btn--primary dist-btn--sm"
-                onClick={() => copyText(affiliateLink || '')}
+                className={`dist-btn dist-btn--primary dist-btn--sm${affiliateCopied ? ' dist-btn--copied' : ''}`}
+                onClick={() => {
+                  void (async () => {
+                    const ok = await copyText(affiliateLink || '')
+                    if (!ok) return
+                    setAffiliateCopied(true)
+                    window.setTimeout(() => setAffiliateCopied(false), 2000)
+                  })()
+                }}
               >
-                Copy
+                {affiliateCopied ? 'Copied!' : 'Copy'}
               </button>
             </div>
+            {affiliateCopied ? (
+              <p className="dist-copy-confirm" role="status" aria-live="polite">
+                Link copied to clipboard
+              </p>
+            ) : null}
             <p className="dist-muted">
               Share this link in your marketing — vendors who sign up through it are automatically added to your
               network.

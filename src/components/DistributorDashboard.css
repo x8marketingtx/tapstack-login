@@ -791,6 +791,18 @@
   margin-bottom: 8px;
 }
 
+.dist-copy-confirm {
+  margin: -2px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #047857;
+}
+
+.dist-btn--copied {
+  background: #059669;
+  border-color: #059669;
+}
+
 .dist-affiliate-row input,
 .dist-field input {
   width: 100%;
