@@ -50,6 +50,8 @@ type VolumeTier = { label: string; rate: string; active: boolean }
 
 type VendorHomeExtras = {
   roleLabel?: string
+  proActive?: boolean
+  proPrice?: string
   signupLink?: string
   signupLinkDisplay?: string
   volumeLabel?: string
@@ -265,6 +267,7 @@ function VendorHome({
   extras,
   onTopUp,
   onProfileClick,
+  onGoPro,
 }: {
   walletBalance: string
   storeName: string
@@ -276,6 +279,7 @@ function VendorHome({
   extras?: VendorHomeExtras
   onTopUp: () => void
   onProfileClick: () => void
+  onGoPro?: () => void
 }) {
   const [copied, setCopied] = useState(false)
   const signupLink = extras?.signupLink || ''
@@ -302,6 +306,7 @@ function VendorHome({
           <div className="vendor-store-text">
             <span className="vendor-store-name">
               {storeName}
+              {extras?.proActive ? <span className="vendor-store-pro-badge">Pro</span> : null}
               {extras?.roleLabel ? (
                 <span className="vendor-store-role-badge">{extras.roleLabel}</span>
               ) : null}
@@ -314,6 +319,19 @@ function VendorHome({
           </div>
         </button>
       </section>
+
+      {onGoPro && !extras?.proActive ? (
+        <button type="button" className="vendor-go-pro-card" onClick={onGoPro}>
+          <div className="vendor-go-pro-copy">
+            <p className="vendor-go-pro-kicker">TapStack Pro</p>
+            <p className="vendor-go-pro-title">Upgrade to Pro</p>
+            <p className="vendor-go-pro-meta">
+              Monthly membership{extras?.proPrice ? ` · ${extras.proPrice}/mo` : ''}
+            </p>
+          </div>
+          <span className="vendor-go-pro-btn">Go Pro</span>
+        </button>
+      ) : null}
 
       {showSignup ? (
         <section className="vendor-invite-card">
@@ -552,7 +570,12 @@ export default function VendorDashboard({
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [walletBalance, setWalletBalance] = useState('$0.00')
   const [inviteCode, setInviteCode] = useState('')
-  const [homeExtras] = useState<VendorHomeExtras | undefined>(undefined)
+  const [homeExtras, setHomeExtras] = useState<VendorHomeExtras | undefined>(undefined)
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'games' | 'billing'>(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tab') === 'billing' || params.has('pro')) return 'billing'
+    return 'profile'
+  })
   const [recentTx, setRecentTx] = useState<
     Array<{ id?: number; name: string; meta: string; amount: string; tone?: string }>
   >([])
@@ -641,6 +664,7 @@ export default function VendorDashboard({
   }
 
   function handleTabChange(tab: VendorTab) {
+    if (tab !== 'settings') setSettingsTab('profile')
     if (needsVerification(verification)) {
       setActiveTab(tab)
       setShowVerify(true)
@@ -768,6 +792,13 @@ export default function VendorDashboard({
 
         const code = dash?.store?.inviteCode || dash?.store?.code || ''
         if (code) setInviteCode(String(code).toUpperCase())
+        if (dash?.store?.membership) {
+          setHomeExtras((prev) => ({
+            ...prev,
+            proActive: Boolean(dash.store?.membership?.active),
+            proPrice: dash.store?.membership?.priceFormatted,
+          }))
+        }
 
         if (Array.isArray(dash?.recentTx)) {
           setRecentTx(dash.recentTx)
@@ -982,13 +1013,17 @@ export default function VendorDashboard({
                   setTopUpOpen(true)
                 }}
                 onProfileClick={openProfile}
+                onGoPro={() => {
+                  setSettingsTab('billing')
+                  handleTabChange('settings')
+                }}
               />
             )}
             {activeTab === 'orders' && <VendorOrdersPage />}
             {activeTab === 'analytics' && <VendorAnalyticsPage />}
             {activeTab === 'promos' && <VendorPromosPage />}
             <div hidden={activeTab !== 'settings'}>
-              <VendorSettingsPage />
+              <VendorSettingsPage initialTab={settingsTab} />
             </div>
           </>
         )}

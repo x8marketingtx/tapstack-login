@@ -1187,6 +1187,7 @@ function FinanceFeesTab({
   const [transferFee, setTransferFee] = useState('2')
   const [playerRankUpgrade, setPlayerRankUpgrade] = useState('9.99')
   const [vendorGameAutomation, setVendorGameAutomation] = useState('999')
+  const [vendorProMembership, setVendorProMembership] = useState('49.99')
   const [autoPayinMax, setAutoPayinMax] = useState('500')
   const [staffPayinMax, setStaffPayinMax] = useState('1000')
   const [gameRoomThreshold, setGameRoomThreshold] = useState('3000')
@@ -1209,6 +1210,7 @@ function FinanceFeesTab({
     setTransferFee(String(fees.transferFeePct ?? fees.depositFeePct ?? 2))
     setPlayerRankUpgrade(String(fees.playerRankUpgradeMo ?? 9.99))
     setVendorGameAutomation(String(fees.vendorGameAutomationMo ?? 999))
+    setVendorProMembership(String(fees.vendorProMembershipMo ?? 49.99))
     setAutoPayinMax(String(fees.autoPayinMax ?? 500))
     setStaffPayinMax(String(fees.staffPayinMax ?? 1000))
     setGameRoomThreshold(String(fees.gameRoomThreshold ?? 3000))
@@ -1260,12 +1262,13 @@ function FinanceFeesTab({
     const transferFeePct = Number(transferFee)
     const playerRankUpgradeMo = Number(playerRankUpgrade)
     const vendorGameAutomationMo = Number(vendorGameAutomation)
+    const vendorProMembershipMo = Number(vendorProMembership)
     const autoPayin = Number(autoPayinMax)
     const staffPayin = Number(staffPayinMax)
     const roomThreshold = Number(gameRoomThreshold)
     const roomDays = Number(gameRoomWindowDays)
     if (
-      ![depositFeePct, redeemFeePct, transferFeePct, playerRankUpgradeMo, vendorGameAutomationMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
+      ![depositFeePct, redeemFeePct, transferFeePct, playerRankUpgradeMo, vendorGameAutomationMo, vendorProMembershipMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
         (n) => Number.isFinite(n) && n >= 0,
       )
     ) {
@@ -1302,6 +1305,7 @@ function FinanceFeesTab({
       transferFeePct,
       playerRankUpgradeMo,
       vendorGameAutomationMo,
+      vendorProMembershipMo,
       autoPayinMax: autoPayin,
       staffPayinMax: staffPayin,
       gameRoomThreshold: roomThreshold,
@@ -1538,7 +1542,7 @@ function FinanceFeesTab({
 
       <section className="admin-finance-fees-card">
         <h2 className="admin-finance-fees-section-title">SUBSCRIPTION PRICING</h2>
-        <p className="admin-finance-fees-section-desc">Two subscription tiers on the platform</p>
+        <p className="admin-finance-fees-section-desc">Player and vendor monthly plans</p>
 
         <label className="admin-finance-fees-subscription-field">
           <span className="admin-finance-fees-subscription-label">
@@ -1582,6 +1586,29 @@ function FinanceFeesTab({
               onChange={(event) => markDirty(setVendorGameAutomation)(event.target.value)}
               min="0"
               step="1"
+            />
+          </div>
+        </label>
+
+        <label className="admin-finance-fees-subscription-field">
+          <span className="admin-finance-fees-subscription-label">
+            <span className="admin-finance-fees-subscription-label-main">
+              Vendor Pro Membership ($/mo)
+            </span>
+            <span className="admin-finance-fees-subscription-label-desc">
+              {' '}
+              — Monthly Soap subscription vendors pay from Billing
+            </span>
+          </span>
+          <div className="admin-finance-fees-money-wrap">
+            <span className="admin-finance-fees-money-prefix">$</span>
+            <input
+              type="number"
+              className="admin-finance-fees-money-input"
+              value={vendorProMembership}
+              onChange={(event) => markDirty(setVendorProMembership)(event.target.value)}
+              min="0"
+              step="0.01"
             />
           </div>
         </label>

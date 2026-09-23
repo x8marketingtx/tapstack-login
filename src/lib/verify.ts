@@ -60,6 +60,18 @@ const VERIFY_ERROR_CODES = new Set([
   'tapstack_geo_blocked',
 ])
 
+const IDENTITY_VERIFY_ERROR_CODES = new Set([
+  'tapstack_verify_required',
+  'tapstack_verify_pending',
+  'tapstack_verify_review',
+  'tapstack_verify_blocked',
+])
+
+const LOCATION_VERIFY_ERROR_CODES = new Set([
+  'tapstack_location_required',
+  'tapstack_geo_blocked',
+])
+
 /** Location / geo checks. Unset or any value other than false/0/off/no stays enabled. */
 export function isLocationVerificationEnabled(): boolean {
   const raw = String(import.meta.env.VITE_LOCATION_VERIFICATION ?? 'true').trim().toLowerCase()
@@ -232,6 +244,14 @@ export function geoBlockHint(state: VerificationState): string {
 
 export function isVerifyApiError(err: unknown): boolean {
   return err instanceof ApiError && Boolean(err.code && VERIFY_ERROR_CODES.has(err.code))
+}
+
+/** Open the Verify screen for identity KYC, or location when that check is enabled. */
+export function shouldOpenVerifyFromApiError(err: unknown): boolean {
+  if (!(err instanceof ApiError) || !err.code) return false
+  if (IDENTITY_VERIFY_ERROR_CODES.has(err.code)) return true
+  if (LOCATION_VERIFY_ERROR_CODES.has(err.code)) return isLocationVerificationEnabled()
+  return false
 }
 
 export function rememberVerifyReturn(path = window.location.pathname): void {

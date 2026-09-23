@@ -269,6 +269,7 @@ export type AdminFees = {
   transferFeePct?: number
   playerRankUpgradeMo: number
   vendorGameAutomationMo: number
+  vendorProMembershipMo?: number
   autoPayinMax: number
   staffPayinMax: number
   gameRoomThreshold: number
@@ -579,6 +580,8 @@ export type VendorAffiliate = {
   pendingAmount: number
   lifetimeAmount: number
   lastFlushAt?: string
+  vendorId?: number
+  vendorName?: string
 }
 
 export type VendorCustomer = {
@@ -938,6 +941,19 @@ export const tapstackApi = {
       method: 'POST',
       body: { vendorId: Number(vendorId), id: Number(vendorId) },
     }),
+  customerAffiliates: () =>
+    apiRequest<{ ok?: boolean; affiliates: VendorAffiliate[] }>('/customer/affiliates'),
+  customerLeaveAffiliate: (vendorId: number | string) =>
+    apiRequest<{
+      ok: boolean
+      vendorId: number
+      affiliate?: VendorAffiliate
+      affiliates?: VendorAffiliate[]
+      message?: string
+    }>(`/customer/vendors/${encodeURIComponent(String(vendorId))}/affiliate/leave`, {
+      method: 'POST',
+      body: {},
+    }),
   customerVendor: (vendorId: number | string) =>
     apiRequest<{ vendor: ApiVendor }>(`/customer/vendors/${vendorId}`),
   customerActivity: () => apiRequest<{ activity: unknown[] }>('/customer/activity'),
@@ -1011,7 +1027,14 @@ export const tapstackApi = {
 
   vendorDashboard: () =>
     apiRequest<{
-      store?: { id?: number; name?: string; initials?: string; inviteCode?: string; code?: string }
+      store?: {
+        id?: number
+        name?: string
+        initials?: string
+        inviteCode?: string
+        code?: string
+        membership?: VendorMembership
+      }
       wallet?: { balance?: string; amount?: number; currency?: string }
       monthlyVolume?: {
         current?: number
@@ -1386,6 +1409,7 @@ export const tapstackApi = {
         gameRoomThreshold?: number
         gameRoomWindowDays?: number
       }
+      membership?: VendorMembership
     }>('/vendor/settings'),
   saveVendorSettings: (payload: Record<string, unknown>) =>
     apiRequest<{
@@ -1396,6 +1420,18 @@ export const tapstackApi = {
     }>('/vendor/settings', {
       method: 'PUT',
       body: payload,
+    }),
+  vendorMembership: () =>
+    apiRequest<{ ok?: boolean; membership: VendorMembership }>('/vendor/membership'),
+  vendorSubscribePro: (returnUrl?: string) =>
+    apiRequest<{
+      ok: boolean
+      url: string
+      checkoutId?: string
+      membership?: VendorMembership
+    }>('/vendor/membership/subscribe', {
+      method: 'POST',
+      body: returnUrl ? { returnUrl } : {},
     }),
   uploadVendorBanner: async (file: File) => {
     const base = getApiBase()
@@ -1809,12 +1845,26 @@ export const tapstackApi = {
         /** Legacy / WP snake_case */
         is_affiliate?: boolean
         joinedViaAffiliate?: boolean
+        joinedAt?: string
         affiliateSlug?: string
       }>
       total?: number
       active?: number
       range?: string
     }>(`/distributor/vendors?range=${encodeURIComponent(range)}`),
+  distributorRemoveVendor: (vendorId: number | string) =>
+    apiRequest<{ ok: boolean; vendorId: number; message?: string }>(
+      `/distributor/vendors/${encodeURIComponent(String(vendorId))}/remove`,
+      { method: 'POST', body: {} },
+    ),
+  vendorLeaveDistributor: () =>
+    apiRequest<{
+      ok: boolean
+      vendorId: number
+      distributorId?: number
+      distributorName?: string
+      message?: string
+    }>('/vendor/network/leave', { method: 'POST', body: {} }),
   distributorAnalytics: (range = '30d') =>
     apiRequest<{
       totalEarned: string
@@ -1839,7 +1889,9 @@ export const tapstackApi = {
         share: number
         vendorsReferred?: number
         status?: string
+        joinedAt?: string
       }>
+      affiliatesTotal?: number
       range?: string
     }>(`/distributor/analytics?range=${encodeURIComponent(range)}`),
   distributorInvoices: () =>
@@ -1961,6 +2013,22 @@ export type VendorRedeemSettings = {
   coverLoadbackFees?: boolean
   loadbackFeePct?: number
   tipsEnabled?: boolean
+}
+
+export type VendorMembership = {
+  enabled: boolean
+  configured: boolean
+  name: string
+  sku?: string
+  price: number
+  priceFormatted: string
+  interval: 'month' | string
+  intervalCount: number
+  status: 'none' | 'active' | 'past_due' | 'canceled' | string
+  active: boolean
+  renewsAt?: string
+  currentPeriodEnd?: string
+  subscriptionId?: string
 }
 
 export type VendorGameRecord = {

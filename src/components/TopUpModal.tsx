@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ApiError } from '../api/client'
-import { isVerifyApiError } from '../lib/verify'
+import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { openWertTopUp, type TopUpOwnerType } from '../api/wert'
 import './TopUpModal.css'
 
@@ -65,7 +65,7 @@ export default function TopUpModal({
         },
       })
     } catch (err) {
-      if (isVerifyApiError(err)) {
+      if (shouldOpenVerifyFromApiError(err)) {
         onVerifyRequired?.()
       }
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not start payment.')

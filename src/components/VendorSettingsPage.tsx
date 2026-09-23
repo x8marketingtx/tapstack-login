@@ -8,6 +8,7 @@ import {
   tapstackApi,
   type RedeemApprovalMode,
   type VendorGameRecord,
+  type VendorMembership,
   type VendorRedeemSettings,
 } from '../api/client'
 import './VendorSettingsPage.css'
@@ -51,7 +52,7 @@ function SettingsToggle({
   )
 }
 
-function ProfileTab() {
+function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [loading, setLoading] = useState(isApiConfigured())
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -80,6 +81,9 @@ function ProfileTab() {
   const [passwordBusy, setPasswordBusy] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [passwordOk, setPasswordOk] = useState('')
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const [leaveBusy, setLeaveBusy] = useState(false)
+  const [leaveError, setLeaveError] = useState('')
 
   const accentColors = [
     { id: 'purple', value: '#7c3aed' },
@@ -252,19 +256,126 @@ function ProfileTab() {
         </div>
       </div>
 
+      {onGoBilling ? (
+        <button type="button" className="vendor-settings-go-pro-banner" onClick={onGoBilling}>
+          <span>
+            <strong>TapStack Pro</strong>
+            <span> Monthly membership for your store</span>
+          </span>
+          <span className="vendor-settings-go-pro-banner-btn">Go Pro</span>
+        </button>
+      ) : null}
+
       {distributorName ? (
         <section className="vendor-settings-info-card">
           <div className="vendor-settings-info-block">
             <p className="vendor-settings-info-label">AFFILIATE OF</p>
             <div className="vendor-settings-readonly-field">
               <span className="vendor-settings-readonly-value">{distributorName}</span>
+              <button
+                type="button"
+                className="vendor-settings-leave-btn"
+                aria-label={`Leave ${distributorName}'s network`}
+                onClick={() => {
+                  setLeaveError('')
+                  setConfirmLeave(true)
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             </div>
             <p className="vendor-settings-info-help">
-              You joined this distributor&apos;s network through their affiliate link.
+              You joined this distributor&apos;s network through their affiliate link. Remove the
+              connection anytime.
             </p>
+            {leaveError ? <p className="vendor-settings-save-error">{leaveError}</p> : null}
           </div>
         </section>
       ) : null}
+
+      {confirmLeave
+        ? createPortal(
+            <div
+              className="ts-leave-overlay"
+              role="presentation"
+              onClick={() => {
+                if (!leaveBusy) setConfirmLeave(false)
+              }}
+            >
+              <div
+                className="ts-leave-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="vendor-leave-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span className="ts-leave-icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <h2 id="vendor-leave-title" className="ts-leave-title">
+                  Leave {distributorName}?
+                </h2>
+                <p className="ts-leave-copy">
+                  You&apos;ll leave this distributor&apos;s network. Your vendor account stays active.
+                </p>
+                <div className="ts-leave-actions">
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--ghost"
+                    disabled={leaveBusy}
+                    onClick={() => setConfirmLeave(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--danger"
+                    disabled={leaveBusy}
+                    onClick={() => {
+                      void (async () => {
+                        setLeaveBusy(true)
+                        setLeaveError('')
+                        try {
+                          await tapstackApi.vendorLeaveDistributor()
+                          setDistributorName('')
+                          setConfirmLeave(false)
+                        } catch (err) {
+                          setLeaveError(
+                            err instanceof ApiError
+                              ? err.message
+                              : 'Could not leave this distributor network.',
+                          )
+                          setConfirmLeave(false)
+                        } finally {
+                          setLeaveBusy(false)
+                        }
+                      })()
+                    }}
+                  >
+                    {leaveBusy ? 'Leaving…' : 'Leave'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
 
       <section className="vendor-settings-info-card">
         <div className="vendor-settings-info-block">
@@ -1224,6 +1335,9 @@ function BillingTab() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [saveOk, setSaveOk] = useState(false)
+  const [membership, setMembership] = useState<VendorMembership | null>(null)
+  const [subscribeBusy, setSubscribeBusy] = useState(false)
+  const [subscribeError, setSubscribeError] = useState('')
 
   function applyGames(games: Partial<VendorRedeemSettings> | null | undefined) {
     if (!games) return
@@ -1258,6 +1372,17 @@ function BillingTab() {
       setLoading(true)
       try {
         if (demo) {
+          setMembership({
+            enabled: true,
+            configured: false,
+            name: 'TapStack Pro',
+            price: 49.99,
+            priceFormatted: '$49.99',
+            interval: 'month',
+            intervalCount: 1,
+            status: 'none',
+            active: false,
+          })
           try {
             const raw = localStorage.getItem('tapstack_vendor_redeem_settings')
             if (raw) applyGames(JSON.parse(raw) as VendorRedeemSettings)
@@ -1268,6 +1393,7 @@ function BillingTab() {
           const settings = await tapstackApi.vendorSettings().catch(() => null)
           if (!cancelled) {
             applyGames(settings?.games)
+            if (settings?.membership) setMembership(settings.membership)
             if (settings?.payinCaps) {
               setPayinCaps({
                 auto: settings.payinCaps.auto,
@@ -1297,6 +1423,52 @@ function BillingTab() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('pro') || !isApiConfigured() || getToken()?.startsWith('demo:')) return
+    let cancelled = false
+    let attempts = 0
+    const tick = async () => {
+      attempts += 1
+      try {
+        const res = await tapstackApi.vendorMembership()
+        if (cancelled) return
+        setMembership(res.membership)
+        if (res.membership.active || attempts >= 6) return
+        window.setTimeout(() => void tick(), 2000)
+      } catch {
+        /* keep last */
+      }
+    }
+    void tick()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleSubscribe() {
+    setSubscribeError('')
+    const token = getToken()
+    if (!isApiConfigured() || token?.startsWith('demo:')) {
+      setSubscribeError('Connect Soap in WordPress TapStack settings to start Pro checkout.')
+      return
+    }
+    setSubscribeBusy(true)
+    try {
+      const returnUrl = `${window.location.origin}/vendor/settings?pro=1`
+      const res = await tapstackApi.vendorSubscribePro(returnUrl)
+      if (res.url) {
+        window.location.assign(res.url)
+        return
+      }
+      setSubscribeError('Soap did not return a checkout URL.')
+    } catch (err) {
+      setSubscribeError(err instanceof ApiError ? err.message : 'Could not start Pro checkout.')
+    } finally {
+      setSubscribeBusy(false)
+    }
+  }
 
   async function handleSave() {
     const min = Math.max(0, Number(minRedeem) || 0)
@@ -1366,9 +1538,63 @@ function BillingTab() {
       <div className="vendor-settings-games-toolbar">
         <div>
           <h2 className="vendor-settings-games-heading">Billing</h2>
-          <p className="vendor-settings-games-meta">Redeems, pay-ins, and automation</p>
+          <p className="vendor-settings-games-meta">Membership, redeems, pay-ins, and automation</p>
         </div>
       </div>
+
+      {membership && membership.enabled ? (
+        <section className="vendor-settings-panel vendor-settings-subscription-panel">
+          <div className="vendor-settings-subscription-header">
+            <div>
+              <h3 className="vendor-settings-games-card-title">{membership.name}</h3>
+              <p className="vendor-settings-games-card-desc">
+                Monthly vendor membership billed through Soap. Price is set by TapStack.
+              </p>
+            </div>
+            <span
+              className={`vendor-settings-subscription-status${membership.active ? '' : ' vendor-settings-subscription-status--idle'}`}
+            >
+              {membership.active ? 'Pro active' : 'Not subscribed'}
+            </span>
+          </div>
+
+          <article
+            className={`vendor-settings-plan-tier${membership.active ? ' vendor-settings-plan-tier--current' : ''}`}
+          >
+            <div>
+              <p className="vendor-settings-plan-name">{membership.name}</p>
+              <p className="vendor-settings-plan-desc">
+                {membership.active
+                  ? membership.renewsAt
+                    ? `Renews ${membership.renewsAt}`
+                    : 'Your store is on Pro.'
+                  : 'Pro badge on your store and monthly membership billing.'}
+              </p>
+            </div>
+            <div className="vendor-settings-plan-price-wrap">
+              <span className="vendor-settings-plan-price">{membership.priceFormatted}/mo</span>
+              {membership.active ? <span className="vendor-settings-plan-current">Current plan</span> : null}
+            </div>
+          </article>
+
+          {subscribeError ? <p className="vendor-settings-modal-error">{subscribeError}</p> : null}
+
+          {!membership.active ? (
+            <button
+              type="button"
+              className="vendor-settings-save-btn"
+              disabled={subscribeBusy || loading || !membership.configured}
+              onClick={() => void handleSubscribe()}
+            >
+              {subscribeBusy
+                ? 'Opening checkout…'
+                : membership.configured
+                  ? `Go Pro — ${membership.priceFormatted}/mo`
+                  : 'Checkout not configured'}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="vendor-settings-panel">
         <div className="vendor-settings-games-card-header">
@@ -1798,14 +2024,25 @@ function BillingTab() {
 
 export default function VendorSettingsPage({
   portal: _portal = 'vendor',
+  initialTab,
 }: {
   portal?: 'vendor' | 'distributor'
+  initialTab?: SettingsTab
 }) {
-  return <VendorStoreSettingsPage />
+  return <VendorStoreSettingsPage initialTab={initialTab} />
 }
 
-function VendorStoreSettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
+function VendorStoreSettingsPage({ initialTab }: { initialTab?: SettingsTab }) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    if (initialTab) return initialTab
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tab') === 'billing' || params.has('pro')) return 'billing'
+    return 'profile'
+  })
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab)
+  }, [initialTab])
 
   return (
     <div className="vendor-settings-page">
@@ -1828,7 +2065,7 @@ function VendorStoreSettingsPage() {
       </div>
 
       <div role="tabpanel" hidden={activeTab !== 'profile'}>
-        <ProfileTab />
+        <ProfileTab onGoBilling={() => setActiveTab('billing')} />
       </div>
       <div role="tabpanel" hidden={activeTab !== 'games'}>
         <GamesTab />

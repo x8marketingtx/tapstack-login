@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ApiError,
   applyAuthSession,
@@ -10,6 +11,7 @@ import {
   type SessionRole,
   type TapstackUser,
   type TicketTier,
+  type VendorAffiliate,
 } from '../api/client'
 import { normalizeTicketTier, tierBadgeClass, tierLabel } from '../data/tiers'
 import {
@@ -738,6 +740,8 @@ export default function ProfilePage({
         </button>
       </form>
 
+      {expectedRole === 'player' ? <PlayerAffiliateConnections /> : null}
+
       <button
         type="button"
         className="profile-logout-btn"
@@ -747,5 +751,171 @@ export default function ProfilePage({
         {loggingOut ? 'Signing out…' : 'Log out'}
       </button>
     </div>
+  )
+}
+
+function PlayerAffiliateConnections() {
+  const [affiliates, setAffiliates] = useState<VendorAffiliate[]>([])
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [confirm, setConfirm] = useState<VendorAffiliate | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    tapstackApi
+      .customerAffiliates()
+      .then((res) => {
+        if (!cancelled) setAffiliates(Array.isArray(res.affiliates) ? res.affiliates : [])
+      })
+      .catch(() => {
+        if (!cancelled) setAffiliates([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!isApiConfigured()) return null
+  if (!loading && affiliates.length === 0) return null
+
+  async function leaveConfirmed() {
+    const vendorId = confirm?.vendorId
+    if (!vendorId) return
+    setLeaving(true)
+    setError('')
+    try {
+      const res = await tapstackApi.customerLeaveAffiliate(vendorId)
+      setAffiliates(
+        Array.isArray(res.affiliates)
+          ? res.affiliates
+          : affiliates.filter((row) => Number(row.vendorId) !== Number(vendorId)),
+      )
+      setConfirm(null)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not leave this affiliate program.')
+      setConfirm(null)
+    } finally {
+      setLeaving(false)
+    }
+  }
+
+  return (
+    <>
+      <section className="profile-card">
+        <div className="profile-card-head">
+          <div>
+            <h3 className="profile-card-title">Affiliate programs</h3>
+            <p className="profile-card-sub">Gamerooms you earn affiliate payouts from</p>
+          </div>
+        </div>
+
+        {loading ? <p className="profile-card-sub">Loading…</p> : null}
+
+        <ul className="profile-affiliate-list">
+          {affiliates.map((row) => {
+            const name = row.vendorName || 'Gameroom'
+            return (
+              <li key={String(row.vendorId || row.code)} className="profile-affiliate-row">
+                <div className="profile-affiliate-copy">
+                  <span className="profile-affiliate-name">{name}</span>
+                  <span className="profile-affiliate-meta">
+                    {row.rateType === 'fixed' ? `$${row.rate.toFixed(2)}` : `${row.rate}%`} per{' '}
+                    {row.basis}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="profile-affiliate-leave"
+                  aria-label={`Leave ${name} affiliate program`}
+                  onClick={() => {
+                    setError('')
+                    setConfirm(row)
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        {error ? <p className="profile-edit-error">{error}</p> : null}
+      </section>
+
+      {confirm
+        ? createPortal(
+            <div
+              className="ts-leave-overlay"
+              role="presentation"
+              onClick={() => {
+                if (!leaving) setConfirm(null)
+              }}
+            >
+              <div
+                className="ts-leave-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="player-leave-aff-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span className="ts-leave-icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <h2 id="player-leave-aff-title" className="ts-leave-title">
+                  Leave {confirm.vendorName || 'this program'}?
+                </h2>
+                <p className="ts-leave-copy">
+                  You&apos;ll stop earning affiliate payouts from this gameroom. Your player account
+                  stays active.
+                </p>
+                <div className="ts-leave-actions">
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--ghost"
+                    disabled={leaving}
+                    onClick={() => setConfirm(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--danger"
+                    disabled={leaving}
+                    onClick={() => void leaveConfirmed()}
+                  >
+                    {leaving ? 'Leaving…' : 'Leave'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   )
 }

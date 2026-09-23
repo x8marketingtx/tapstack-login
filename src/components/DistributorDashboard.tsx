@@ -37,10 +37,49 @@ type SettingsSub = 'profile' | 'alerts' | 'security'
 type AnalyticsSub = 'overview' | 'byVendor' | 'byAffiliate'
 type InvoiceFilter = 'all' | 'draft' | 'sent' | 'paid' | 'overdue'
 
+type AffiliateRow = NonNullable<NonNullable<AnalyticsData>['byAffiliate']>[number]
+
 function money(value?: string | number | null) {
   if (typeof value === 'number') return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   if (typeof value === 'string' && value.trim()) return value.startsWith('$') ? value : `$${value}`
   return '$0.00'
+}
+
+function moneyNumber(value?: string | number | null): number {
+  if (typeof value === 'number') return value
+  if (typeof value !== 'string') return 0
+  const n = Number(value.replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+function affiliatesFromNetwork(
+  analytics: AnalyticsData | null,
+  vendors: DistributorVendorRow[],
+): AffiliateRow[] {
+  const raw = analytics as (AnalyticsData & { by_affiliate?: AffiliateRow[] }) | null
+  const fromApi = (raw?.byAffiliate || raw?.by_affiliate || []).filter(
+    (row) => row && String(row.id || row.name || '').trim() !== '',
+  )
+  if (fromApi.length) return fromApi
+  if (!vendors.length) return []
+
+  const statsById = new Map((analytics?.byVendor || []).map((row) => [String(row.id), row]))
+  return vendors
+    .map((vendor) => {
+      const stats = statsById.get(String(vendor.id))
+      return {
+        id: String(vendor.id),
+        name: vendor.name,
+        earnings: stats?.earnings || '$0.00',
+        volume: stats?.volume || vendor.deposits,
+        redeemed: stats?.redeemed || vendor.redeems,
+        share: stats?.share || 0,
+        status: vendor.status,
+        vendorsReferred: 1,
+        joinedAt: vendor.joinedAt,
+      }
+    })
+    .sort((a, b) => moneyNumber(b.earnings) - moneyNumber(a.earnings))
 }
 
 type DistributorVendorRow = NonNullable<VendorsData>['vendors'][number]
@@ -88,8 +127,8 @@ function unwrapVendorsPayload(data: VendorsData & Record<string, unknown>): Vend
   return {
     ...data,
     vendors: Array.isArray(list) ? (list as VendorsData['vendors']) : [],
-    total: data.total ?? data.vendorsTotal,
-    active: data.active ?? data.activeCount,
+    total: typeof data.total === 'number' ? data.total : Number(data.vendorsTotal) || undefined,
+    active: typeof data.active === 'number' ? data.active : Number(data.activeCount) || undefined,
   }
 }
 
@@ -108,7 +147,9 @@ function normalizeDistributorVendors(data: VendorsData): VendorsData {
         deposits: String(row.deposits ?? row.depositsFormatted ?? '—'),
         redeems: String(row.redeems ?? row.redeemsFormatted ?? '—'),
         tags,
-        isAffiliate: vendorIsAffiliate({ ...row, tags }),
+        isAffiliate: vendorIsAffiliate({ ...row, tags }) || Boolean(row.joinedViaAffiliate),
+        joinedViaAffiliate: Boolean(row.joinedViaAffiliate),
+        joinedAt: String(row.joinedAt || ''),
       }
       return normalized
     }),
@@ -544,10 +585,17 @@ export default function DistributorDashboard({
       setAnalytics({ ...DEMO_DIST_ANALYTICS, range: mapped })
       return
     }
-    const data = await tapstackApi.distributorAnalytics(mapped)
+    const data = (await tapstackApi.distributorAnalytics(mapped)) as AnalyticsData & {
+      by_affiliate?: NonNullable<AnalyticsData>['byAffiliate']
+    }
+    const byAffiliate = Array.isArray(data.byAffiliate)
+      ? data.byAffiliate
+      : Array.isArray(data.by_affiliate)
+        ? data.by_affiliate
+        : []
     setAnalytics({
       ...data,
-      byAffiliate: data.byAffiliate ?? [],
+      byAffiliate,
     })
   }
 
@@ -639,6 +687,11 @@ export default function DistributorDashboard({
     return list
   }, [vendors, vendorQuery, dash, analytics])
 
+  const affiliateRows = useMemo(
+    () => affiliatesFromNetwork(analytics, vendors?.vendors || []),
+    [analytics, vendors],
+  )
+
   const filteredInvoices = useMemo(() => {
     const list = invoices?.invoices || []
     if (invoiceFilter === 'all') return list
@@ -669,6 +722,35 @@ export default function DistributorDashboard({
       await tapstackApi.distributorSaveSettings({ alerts: next })
     } catch {
       // keep local toggle; refresh on next load
+    }
+  }
+
+  async function removeVendorFromNetwork(vendor: DistributorVendorRow) {
+    const token = getToken()
+    setBusy(true)
+    setNotice('')
+    try {
+      if (!isApiConfigured() || token?.startsWith('demo:')) {
+        setVendors((prev) => {
+          if (!prev) return prev
+          const nextList = prev.vendors.filter((row) => row.id !== vendor.id)
+          return {
+            ...prev,
+            vendors: nextList,
+            total: nextList.length,
+            active: nextList.filter((row) => row.status === 'active').length,
+          }
+        })
+        setNotice(`${vendor.name} was removed from your network.`)
+        return
+      }
+      const res = await tapstackApi.distributorRemoveVendor(vendor.id)
+      setNotice(res.message || `${vendor.name} was removed from your network.`)
+      await Promise.all([loadVendors(vendorsRange), loadHome(earningsRange).catch(() => undefined)])
+    } catch (err) {
+      setNotice(err instanceof ApiError ? err.message : 'Could not remove this vendor.')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -805,6 +887,7 @@ export default function DistributorDashboard({
                     /* keep prior */
                   }
                 }}
+                onRemove={removeVendorFromNetwork}
                 affiliateLink={affiliate.url}
               />
             ) : null}
@@ -812,6 +895,7 @@ export default function DistributorDashboard({
             {tab === 'analytics' && analytics ? (
               <AnalyticsView
                 data={analytics}
+                affiliates={affiliateRows}
                 sub={analyticsSub}
                 onSub={setAnalyticsSub}
                 range={analyticsRange}
@@ -1039,6 +1123,7 @@ function VendorsView({
   query,
   onQuery,
   onRange,
+  onRemove,
   affiliateLink,
 }: {
   vendors: NonNullable<VendorsData>['vendors']
@@ -1048,8 +1133,22 @@ function VendorsView({
   query: string
   onQuery: (q: string) => void
   onRange: (range: EarningsRange) => void
+  onRemove: (vendor: DistributorVendorRow) => Promise<void> | void
   affiliateLink: string
 }) {
+  const [confirmVendor, setConfirmVendor] = useState<DistributorVendorRow | null>(null)
+  const [removing, setRemoving] = useState(false)
+
+  async function confirmRemove() {
+    if (!confirmVendor) return
+    setRemoving(true)
+    try {
+      await onRemove(confirmVendor)
+      setConfirmVendor(null)
+    } finally {
+      setRemoving(false)
+    }
+  }
   return (
     <div className="dist-stack">
       <div className="dist-title-row">
@@ -1098,7 +1197,6 @@ function VendorsView({
             key={v.id}
             className={`dist-vendor-card${isAffiliate ? ' dist-vendor-card--affiliate' : ''}`}
           >
-            {isAffiliate ? <VendorAffiliateMark /> : null}
             <div className="dist-vendor-card-top">
               <div>
                 <h3>
@@ -1108,6 +1206,25 @@ function VendorsView({
                   </span>
                 </h3>
                 <p className="dist-muted">{v.tier}</p>
+              </div>
+              <div className="dist-vendor-card-actions">
+                {isAffiliate ? <VendorAffiliateMark /> : null}
+                <button
+                  type="button"
+                  className="dist-vendor-trash-btn"
+                  aria-label={`Remove ${v.name} from your network`}
+                  onClick={() => setConfirmVendor(v)}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
               </div>
             </div>
             <div className="dist-vendor-metrics">
@@ -1141,18 +1258,74 @@ function VendorsView({
           </p>
         ) : null}
       </div>
+
+      {confirmVendor ? (
+        <div
+          className="dist-confirm-overlay"
+          role="presentation"
+          onClick={() => {
+            if (!removing) setConfirmVendor(null)
+          }}
+        >
+          <div
+            className="dist-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dist-remove-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="dist-confirm-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <h2 id="dist-remove-title" className="dist-confirm-title">
+              Remove {confirmVendor.name}?
+            </h2>
+            <p className="dist-confirm-copy">
+              They’ll leave your distributor network. Their vendor account stays active.
+            </p>
+            <div className="dist-confirm-actions">
+              <button
+                type="button"
+                className="dist-btn dist-btn--ghost"
+                disabled={removing}
+                onClick={() => setConfirmVendor(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="dist-btn dist-btn--danger"
+                disabled={removing}
+                onClick={() => void confirmRemove()}
+              >
+                {removing ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
 
 function AnalyticsView({
   data,
+  affiliates,
   sub,
   onSub,
   range,
   onRange,
 }: {
   data: AnalyticsData
+  affiliates: AffiliateRow[]
   sub: AnalyticsSub
   onSub: (s: AnalyticsSub) => void
   range: AnalyticsRange
@@ -1274,28 +1447,25 @@ function AnalyticsView({
       {sub === 'byAffiliate' ? (
         <section className="dist-section">
           <div className="dist-section-head">
-            <h2>Connected Affiliates</h2>
+            <h2>Connected Affiliates{affiliates.length ? ` (${affiliates.length})` : ''}</h2>
             <button type="button" className="dist-btn dist-btn--ghost dist-btn--sm">
               CSV
             </button>
           </div>
           <p className="dist-section-lead">
-            Performance from affiliates linked to your distributor network — referred vendor volume and your
-            share of commission.
+            Every vendor who joined your network through your affiliate link.
           </p>
           <div className="dist-by-vendor dist-by-affiliate">
-            {(data.byAffiliate || []).map((row) => (
-              <article key={row.id} className="dist-by-vendor-card dist-by-affiliate-card">
+            {affiliates.map((row) => (
+              <article key={row.id || row.name} className="dist-by-vendor-card dist-by-affiliate-card">
                 <div className="dist-by-vendor-top">
                   <h3>
                     {row.name}
-                    {row.status ? (
-                      <span
-                        className={`dist-badge ${row.status === 'active' ? 'dist-badge--ok' : 'dist-badge--warn'}`}
-                      >
-                        {row.status === 'active' ? 'Active' : row.status}
-                      </span>
-                    ) : null}
+                    <span
+                      className={`dist-badge ${row.status === 'restricted' ? 'dist-badge--warn' : 'dist-badge--ok'}`}
+                    >
+                      {row.status === 'restricted' ? 'Restricted' : 'Active'}
+                    </span>
                   </h3>
                   <strong>{row.earnings}</strong>
                 </div>
@@ -1309,21 +1479,21 @@ function AnalyticsView({
                   <span>
                     Redeemed <b>{row.redeemed}</b>
                   </span>
-                  {row.vendorsReferred != null ? (
+                  <span>
+                    Share <b>{row.share || 0}%</b>
+                  </span>
+                  {row.joinedAt ? (
                     <span>
-                      Vendors <b>{row.vendorsReferred}</b>
+                      Joined <b>{row.joinedAt}</b>
                     </span>
                   ) : null}
-                  <span>
-                    Share <b>{row.share}%</b>
-                  </span>
                 </div>
               </article>
             ))}
-            {!data.byAffiliate?.length ? (
+            {!affiliates.length ? (
               <p className="dist-empty">
-                No connected affiliates yet. Affiliates who join through your network will appear here with
-                volume and earnings.
+                No affiliates in your network yet. Share your join link and vendors who sign up will show
+                here.
               </p>
             ) : null}
           </div>

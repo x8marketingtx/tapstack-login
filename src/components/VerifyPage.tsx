@@ -16,6 +16,7 @@ import {
   geoBlockTitle,
   isFullPageGeoBlock,
   isHardGeoBlock,
+  isLocationVerificationEnabled,
   needsVerification,
   portalBlockType,
   statusLabel,
@@ -182,6 +183,7 @@ export default function VerifyPage({
 
   useEffect(() => {
     if (loading || !isApiConfigured() || autoLocateStarted.current) return
+    if (!isLocationVerificationEnabled()) return
     if (state.geoBlocked) return
     if (isHardGeoBlock(state)) return
     if (!state.locationRequired || state.locationStatus === 'passed') return

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, getToken, isApiConfigured, tapstackApi } from '../api/client'
-import { isVerifyApiError } from '../lib/verify'
+import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { decodeIcon } from '../data/vendors'
 import { openWertTopUp } from '../api/wert'
 import './GameLoadModal.css'
@@ -55,6 +55,18 @@ export type GameLoadTarget = {
   gameBalance?: string
   payableBalance?: string
   redeemableBalance?: string
+  playerMobileId?: string
+}
+
+function savedMobileId(vendorId: number | string, gameKey: string): string {
+  try {
+    const raw = localStorage.getItem(`tapstack_game_creds:${vendorId}:${gameKey}`)
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { mobileId?: string }
+    return String(parsed?.mobileId || '').trim()
+  } catch {
+    return ''
+  }
 }
 
 export type GameTransferIntent = 'load' | 'redeem' | 'move'
@@ -97,6 +109,7 @@ export default function GameLoadModal({
   const [mobileId, setMobileId] = useState('')
   const [note, setNote] = useState('')
   const [couponCode, setCouponCode] = useState('')
+  const [attempted, setAttempted] = useState(false)
   const [destGameKey, setDestGameKey] = useState('')
   const [walletFormatted, setWalletFormatted] = useState(cashBalance)
   const [gameBalance, setGameBalance] = useState(game?.redeemableBalance || game?.gameBalance || '—')
@@ -110,8 +123,10 @@ export default function GameLoadModal({
   useEffect(() => {
     if (!open || !game) return
     setAmount('25')
-    setMobileId('')
+    setMobileId(game.playerMobileId || savedMobileId(vendorId, game.gameKey))
     setNote('')
+    setCouponCode('')
+    setAttempted(false)
     setDestGameKey('')
     setError('')
     setStatus('')
@@ -158,7 +173,7 @@ export default function GameLoadModal({
     return () => {
       cancelled = true
     }
-  }, [open, game, cashBalance, vendorId, intent])
+  }, [open, game?.gameKey, vendorId, intent])
 
   if (!open || !game) return null
 
@@ -181,18 +196,22 @@ export default function GameLoadModal({
     Number.isFinite(numericAmount) &&
     Number.isFinite(availableGame) &&
     numericAmount > availableGame
+  const missingMobile = isManual && !isMove && !mobileId.trim()
   const canSubmit =
     Number.isFinite(numericAmount) &&
     numericAmount >= 1 &&
     !exceedsGame &&
     (!isMove || Boolean(destGame)) &&
-    (!isManual || isMove || mobileId.trim().length > 0) &&
     !submitting &&
     isApiConfigured()
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const activeGame: GameLoadTarget = target
+    if (missingMobile) {
+      setAttempted(true)
+      return
+    }
     if (!canSubmit || exceedsGame) return
     if ((isRedeem || isMove) && hasKnownGameBalance && numericAmount > availableGame) {
       setError('Amount exceeds your game balance.')
@@ -306,7 +325,7 @@ export default function GameLoadModal({
       onSuccess?.({ cashBalance: nextCash, gameBalance: nextGame })
     } catch (err) {
       setStatus('')
-      if (isVerifyApiError(err)) {
+      if (shouldOpenVerifyFromApiError(err)) {
         onVerifyRequired?.()
       }
       setError(
@@ -514,9 +533,15 @@ export default function GameLoadModal({
                     autoComplete="username"
                     placeholder="Enter game Mobile ID or username"
                     value={mobileId}
-                    onChange={(event) => setMobileId(event.target.value)}
-                    required
+                    onChange={(event) => {
+                      setMobileId(event.target.value)
+                      if (attempted) setAttempted(false)
+                    }}
+                    aria-invalid={attempted && missingMobile}
                   />
+                  {attempted && missingMobile ? (
+                    <p className="game-load-error">Mobile ID / username is required.</p>
+                  ) : null}
 
                   <label className="game-load-label" htmlFor="game-load-note">
                     Note <span className="game-load-optional">(optional)</span>
@@ -539,11 +564,13 @@ export default function GameLoadModal({
                   </label>
                   <input
                     id="game-load-coupon"
-                    className="game-load-input"
+                    className="game-load-text-input"
+                    type="text"
                     value={couponCode}
                     onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
                     placeholder="Game-exclusive or store code"
                     autoCapitalize="characters"
+                    autoComplete="off"
                   />
                 </>
               ) : null}
@@ -570,9 +597,6 @@ export default function GameLoadModal({
               ) : null}
               {exceedsGame ? (
                 <p className="game-load-error">Amount exceeds your game balance.</p>
-              ) : null}
-              {isManual && !isMove && !mobileId.trim() ? (
-                <p className="game-load-error">Mobile ID / username is required.</p>
               ) : null}
               {status ? <p className="game-load-status">{status}</p> : null}
               {error ? <p className="game-load-error">{error}</p> : null}

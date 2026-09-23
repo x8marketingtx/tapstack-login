@@ -621,6 +621,7 @@ export default function VendorPage({
       gameBalance: gameBalances[gameKey]?.formatted,
       payableBalance: gameBalances[gameKey]?.payableFormatted,
       redeemableBalance: gameBalances[gameKey]?.redeemableFormatted,
+      playerMobileId: vendor.id ? loadLocalCreds(vendor.id, gameKey)?.mobileId : undefined,
     })
   }
 

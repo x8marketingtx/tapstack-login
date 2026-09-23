@@ -177,6 +177,18 @@
   letter-spacing: -0.02em;
 }
 
+.vendor-store-pro-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #6d28d9;
+  background: #ede9fe;
+}
+
 .vendor-store-role-badge {
   display: inline-flex;
   align-items: center;
@@ -198,6 +210,64 @@
 .vendor-store-invite-hint {
   font-size: 12px;
   color: #6b7280;
+}
+
+.vendor-go-pro-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  border: 1px solid #ddd6fe;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 55%, #6d28d9 100%);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vendor-go-pro-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vendor-go-pro-kicker,
+.vendor-go-pro-title,
+.vendor-go-pro-meta {
+  margin: 0;
+}
+
+.vendor-go-pro-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ddd6fe;
+}
+
+.vendor-go-pro-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.vendor-go-pro-meta {
+  font-size: 12px;
+  color: #e9e5ff;
+}
+
+.vendor-go-pro-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #6d28d9;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .vendor-invite-card {

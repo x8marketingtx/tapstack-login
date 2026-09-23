@@ -120,7 +120,7 @@ export const RETURNS_POLICY_SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: '17. Subscriptions and Recurring Charges',
     body: [
-      'We do not currently offer subscriptions or recurring charges. If offered in the future, the checkout flow and supplemental terms will disclose price, billing frequency, cancellation mechanics, and refund treatment before enrollment; unless stated otherwise, cancellation stops future renewals and does not retroactively refund a billing period already provided, except where required by law.',
+      'Vendor Pro is a monthly membership billed through our payment processor. Price and billing frequency are shown before you enroll. Canceling stops future renewals and does not retroactively refund a billing period already provided, except where required by law or processor rules. Player Gold Coin packages, Digital Items, and wallet loads remain one-time purchases as described elsewhere in this Policy.',
     ],
   },
   {

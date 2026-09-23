@@ -239,6 +239,11 @@
   outline: none;
 }
 
+.game-load-text-input[aria-invalid='true'] {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
 .game-load-text-input:focus,
 .game-load-textarea:focus {
   border-color: color-mix(in srgb, var(--vendor-accent, #2563eb) 45%, #cbd5e1);
