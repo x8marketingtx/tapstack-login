@@ -1,6 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ApiError, isApiConfigured, tapstackApi } from '../api/client'
-import { clearAffiliateSlug, getAffiliateSlug, setVendorAffiliateWelcome } from '../lib/affiliate'
+import {
+  clearAffiliateSlug,
+  clearPendingVendorJoin,
+  getPendingVendorJoin,
+  getPendingVendorJoinName,
+  setVendorAffiliateWelcome,
+} from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -171,27 +177,40 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
   const [successMessage, setSuccessMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [affiliateSlug, setAffiliateSlugState] = useState(() => getAffiliateSlug())
-  const [distributorName, setDistributorName] = useState('')
+  const [affiliateSlug, setAffiliateSlugState] = useState(() => getPendingVendorJoin())
+  const [distributorName, setDistributorName] = useState(() => getPendingVendorJoinName())
 
   useEffect(() => {
-    const slug = getAffiliateSlug()
+    const slug = getPendingVendorJoin()
     setAffiliateSlugState(slug)
-    if (!slug || !isApiConfigured()) return
+    if (!slug) {
+      setDistributorName('')
+      return
+    }
+    const storedName = getPendingVendorJoinName()
+    if (storedName) setDistributorName(storedName)
+    if (!isApiConfigured()) return
     let cancelled = false
     ;(async () => {
       try {
         const res = await tapstackApi.resolveJoin(slug)
         if (cancelled) return
-        setDistributorName(res.distributorName || '')
+        setDistributorName(res.distributorName || storedName || '')
       } catch {
-        if (!cancelled) setDistributorName('')
+        if (!cancelled) setDistributorName(storedName || '')
       }
     })()
     return () => {
       cancelled = true
     }
   }, [])
+
+  function applyIndependently() {
+    clearPendingVendorJoin()
+    clearAffiliateSlug()
+    setAffiliateSlugState('')
+    setDistributorName('')
+  }
 
   const hasOnlinePresence =
     facebookPage.trim().length > 0 ||
@@ -239,7 +258,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
             ? distributorName
               ? `You're now an affiliate of ${distributorName}. Check your email for login details.`
               : 'You are approved as a vendor. Check your email for login details.'
-            : 'Thanks — our team will review your application soon.'),
+            : `Thanks, ${fullName.trim()}. We sent a confirmation to ${email.trim()}. Your vendor account is pending approval — we’ll email you again when you’re approved.`),
       )
       if (res.approved) {
         if (distributorName) {
@@ -249,8 +268,9 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
             alreadyJoined: false,
           })
         }
-        clearAffiliateSlug()
       }
+      clearPendingVendorJoin()
+      clearAffiliateSlug()
       setSubmitted(true)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not submit application. Try again.')
@@ -272,10 +292,18 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
         <section className="apply-intro">
           <h1 className="apply-title">Apply for an Account</h1>
           <p className="apply-subtitle">
-            {distributorName
-              ? `Join ${distributorName}'s vendor network — fill out the form below.`
+            {affiliateSlug
+              ? `Join ${distributorName || 'this distributor'}'s vendor network — fill out the form below.`
               : 'Fill out the form below and our team will be in touch.'}
           </p>
+          {affiliateSlug && !submitted ? (
+            <p className="apply-join-note">
+              This application is from a distributor invite.{' '}
+              <button type="button" className="apply-join-skip" onClick={applyIndependently}>
+                Apply independently instead
+              </button>
+            </p>
+          ) : null}
         </section>
 
         {submitted ? (
@@ -285,7 +313,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
                 ? distributorName
                   ? `You're an affiliate of ${distributorName}`
                   : 'You are a vendor'
-                : 'Application submitted'}
+                : 'Pending approval'}
             </p>
             <p className="apply-success-text">
               {successMessage ||
@@ -479,11 +507,11 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
               </div>
             </section>
 
-            <p className="apply-referral-code">
-              {affiliateSlug
-                ? `Distributor signup: ${affiliateSlug}${distributorName ? ` · ${distributorName}` : ''}`
-                : 'Referral code: none'}
-            </p>
+            {affiliateSlug ? (
+              <p className="apply-referral-code">
+                Distributor invite: {distributorName || affiliateSlug}
+              </p>
+            ) : null}
 
             {error ? <p className="apply-error">{error}</p> : null}
 

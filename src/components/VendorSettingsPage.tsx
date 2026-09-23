@@ -26,14 +26,16 @@ function SettingsToggle({
   onChange,
   label,
   description,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   label: string
   description: string
+  disabled?: boolean
 }) {
   return (
-    <div className="vendor-settings-toggle-row">
+    <div className={`vendor-settings-toggle-row${disabled ? ' vendor-settings-toggle-row--disabled' : ''}`}>
       <div>
         <p className="vendor-settings-toggle-label">{label}</p>
         <p className="vendor-settings-toggle-desc">{description}</p>
@@ -43,10 +45,32 @@ function SettingsToggle({
         role="switch"
         aria-checked={checked}
         aria-label={label}
+        disabled={disabled}
         className={`vendor-settings-toggle ${checked ? 'vendor-settings-toggle--on' : ''}`}
-        onClick={() => onChange(!checked)}
+        onClick={() => {
+          if (!disabled) onChange(!checked)
+        }}
       >
         <span className="vendor-settings-toggle-knob" />
+      </button>
+    </div>
+  )
+}
+
+function ProAccessOverlay({
+  locked,
+  onUpgrade,
+}: {
+  locked: boolean
+  onUpgrade: () => void
+}) {
+  if (!locked) return null
+  return (
+    <div className="vendor-settings-pro-lock-overlay">
+      <p className="vendor-settings-pro-lock-overlay-kicker">TapStack Pro</p>
+      <p className="vendor-settings-pro-lock-overlay-title">Upgrade to access this</p>
+      <button type="button" className="vendor-settings-pro-lock-overlay-btn" onClick={onUpgrade}>
+        Upgrade to Pro
       </button>
     </div>
   )
@@ -809,6 +833,7 @@ function fromApiGames(games: VendorGameRecord[]): VendorGame[] {
 /** Session cache — load once, reuse across tab switches; update after saves. */
 let vendorGamesCache: VendorGame[] | null = null
 let vendorGamesCacheError = ''
+let vendorMembershipCache: VendorMembership | null = null
 let vendorGamesInflight: Promise<VendorGame[]> | null = null
 
 function rememberVendorGames(games: VendorGame[], error = '') {
@@ -841,7 +866,17 @@ async function loadVendorGames(force = false): Promise<{ games: VendorGame[]; er
 
   vendorGamesInflight = tapstackApi
     .vendorGames()
-    .then((res) => {
+    .then(async (res) => {
+      if (res.membership) {
+        vendorMembershipCache = res.membership
+      } else {
+        try {
+          const billed = await tapstackApi.vendorMembership()
+          vendorMembershipCache = billed.membership
+        } catch {
+          /* keep previous cache */
+        }
+      }
       const games = fromApiGames(res.games || [])
       rememberVendorGames(games, '')
       return games
@@ -873,11 +908,12 @@ export function clearVendorGamesCache(): void {
   vendorGamesInflight = null
 }
 
-function GamesTab() {
+function GamesTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [games, setGames] = useState<VendorGame[]>(() => vendorGamesCache || [])
   const [loading, setLoading] = useState(() => isApiConfigured() && vendorGamesCache === null)
   const [saving, setSaving] = useState(false)
   const [listError, setListError] = useState(() => vendorGamesCacheError)
+  const [membership, setMembership] = useState<VendorMembership | null>(() => vendorMembershipCache)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
@@ -895,6 +931,7 @@ function GamesTab() {
       if (cancelled) return
       setGames(next)
       setListError(error)
+      if (vendorMembershipCache) setMembership(vendorMembershipCache)
       setLoading(false)
     })
     return () => {
@@ -904,11 +941,19 @@ function GamesTab() {
 
   const isEditing = editingId !== null
   const activeCount = games.filter((game) => game.enabled).length
+  const proActive = Boolean(membership?.active)
+  const autoLocked = newMode === 'auto' && !proActive
   const autoCredentialsReady =
     newMode === 'auto' &&
+    proActive &&
     platformCredentialsReady(newPlatform, agentCreds, { allowEmptySecrets: isEditing })
   const canSubmit =
     newName.trim().length > 0 && (newMode !== 'auto' || autoCredentialsReady)
+
+  function goUpgrade() {
+    closeGameModal()
+    onGoBilling?.()
+  }
 
   function resetGameForm() {
     setEditingId(null)
@@ -977,6 +1022,10 @@ function GamesTab() {
     const title = newName.trim()
     if (!title) {
       setFormError('Enter a game name.')
+      return
+    }
+    if (newMode === 'auto' && !proActive) {
+      setFormError('Game automation is included with TapStack Pro. Upgrade your plan to use Auto mode.')
       return
     }
     if (
@@ -1203,14 +1252,38 @@ function GamesTab() {
                         role="radio"
                         aria-checked={newMode === option.id}
                         className={`vendor-settings-modal-mode-btn ${newMode === option.id ? 'vendor-settings-modal-mode-btn--active' : ''}`}
-                        onClick={() => setNewMode(option.id)}
+                        onClick={() => {
+                          setNewMode(option.id)
+                          if (formError) setFormError('')
+                        }}
                       >
                         {option.label}
+                        {option.id === 'auto' && !proActive ? (
+                          <span className="vendor-settings-modal-pro-chip">Pro</span>
+                        ) : null}
                       </button>
                     ))}
                   </div>
 
-                  {newMode === 'auto' ? (
+                  {autoLocked ? (
+                    <div className="vendor-settings-modal-upgrade">
+                      <p className="vendor-settings-modal-upgrade-kicker">TapStack Pro</p>
+                      <h3 className="vendor-settings-modal-upgrade-title">Upgrade your plan to use Auto</h3>
+                      <p className="vendor-settings-modal-upgrade-copy">
+                        Auto mode uses your platform agent account to load and redeem credits for connected
+                        players. It&apos;s included with{' '}
+                        {membership?.priceFormatted
+                          ? `${membership.name || 'TapStack Pro'} (${membership.priceFormatted}/mo)`
+                          : membership?.name || 'TapStack Pro'}
+                        .
+                      </p>
+                      <button type="button" className="vendor-settings-modal-upgrade-btn" onClick={goUpgrade}>
+                        Upgrade to Pro
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {newMode === 'auto' && proActive ? (
                     <div className="vendor-settings-modal-agent">
                       <p className="vendor-settings-modal-copy">
                         Enter <strong>your platform&apos;s</strong> credentials (it is recommended to use a dedicated account
@@ -1293,7 +1366,11 @@ function GamesTab() {
                         Delete
                       </button>
                     ) : null}
-                    <button type="submit" className="vendor-settings-modal-submit" disabled={!canSubmit || saving}>
+                    <button
+                      type="submit"
+                      className="vendor-settings-modal-submit"
+                      disabled={!canSubmit || saving || autoLocked}
+                    >
                       {saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Game'}
                     </button>
                   </div>
@@ -1532,6 +1609,13 @@ function BillingTab() {
     approval === 'auto'
       ? `Redemptions at or below $${money(autoThreshold)} are approved automatically. Larger requests are blocked.`
       : `Redemptions at or below $${money(autoThreshold)} are approved automatically. Amounts above that (up to $${money(maxRedeem)}) wait in Pending Redeems.`
+  const proLocked = !membership?.active
+  const scrollToPro = () => {
+    document.querySelector('.vendor-settings-subscription-panel')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }
 
   return (
     <div className="vendor-settings-content">
@@ -1651,7 +1735,11 @@ function BillingTab() {
         </p>
       </section>
 
-      <section className="vendor-settings-panel">
+      <section
+        className={`vendor-settings-panel${proLocked ? ' vendor-settings-panel--locked' : ''}`}
+        aria-disabled={proLocked}
+      >
+        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-games-card-header">
           <span className="vendor-settings-games-card-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -1707,8 +1795,11 @@ function BillingTab() {
                 type="button"
                 role="radio"
                 aria-checked={active}
+                disabled={proLocked}
                 className={`vendor-settings-mode-card ${active ? 'vendor-settings-mode-card--active' : ''}`}
-                onClick={() => setApproval(mode.id)}
+                onClick={() => {
+                  if (!proLocked) setApproval(mode.id)
+                }}
               >
                 <span className="vendor-settings-mode-radio" aria-hidden="true" />
                 <span>
@@ -1732,6 +1823,8 @@ function BillingTab() {
                 onChange={(event) => setAutoThreshold(event.target.value)}
                 min="0"
                 step="1"
+                readOnly={proLocked}
+                disabled={proLocked}
               />
             </div>
             <span className="vendor-settings-panel-help">{thresholdHelp}</span>
@@ -1743,7 +1836,11 @@ function BillingTab() {
         )}
       </section>
 
-      <section className="vendor-settings-panel">
+      <section
+        className={`vendor-settings-panel${proLocked ? ' vendor-settings-panel--locked' : ''}`}
+        aria-disabled={proLocked}
+      >
+        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-games-card-header">
           <span className="vendor-settings-games-card-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -1777,6 +1874,8 @@ function BillingTab() {
                 min="0"
                 max={payinCaps.auto}
                 step="1"
+                readOnly={proLocked}
+                disabled={proLocked}
               />
             </div>
           </label>
@@ -1792,6 +1891,8 @@ function BillingTab() {
                 min="0"
                 max={payinCaps.staff}
                 step="1"
+                readOnly={proLocked}
+                disabled={proLocked}
               />
             </div>
           </label>
@@ -1808,6 +1909,7 @@ function BillingTab() {
               description="Let VIP customers use a higher autocomplete amount at this store"
               checked={vipPayinEnabled}
               onChange={setVipPayinEnabled}
+              disabled={proLocked}
             />
           </div>
         </div>
@@ -1827,6 +1929,8 @@ function BillingTab() {
                     min="0"
                     max={payinCaps.auto}
                     step="1"
+                    readOnly={proLocked}
+                    disabled={proLocked}
                   />
                 </div>
               </label>
@@ -1842,6 +1946,8 @@ function BillingTab() {
                     min="0"
                     max={payinCaps.staff}
                     step="1"
+                    readOnly={proLocked}
+                    disabled={proLocked}
                   />
                 </div>
               </label>
@@ -1966,7 +2072,11 @@ function BillingTab() {
         ) : null}
       </section>
 
-      <section className="vendor-settings-panel">
+      <section
+        className={`vendor-settings-panel${proLocked ? ' vendor-settings-panel--locked' : ''}`}
+        aria-disabled={proLocked}
+      >
+        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-games-card-header">
           <span className="vendor-settings-games-card-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -1994,6 +2104,7 @@ function BillingTab() {
               description="Credit games instantly on deposit"
               checked={autoLoads}
               onChange={setAutoLoads}
+              disabled={proLocked}
             />
           </div>
         </div>
@@ -2068,7 +2179,7 @@ function VendorStoreSettingsPage({ initialTab }: { initialTab?: SettingsTab }) {
         <ProfileTab onGoBilling={() => setActiveTab('billing')} />
       </div>
       <div role="tabpanel" hidden={activeTab !== 'games'}>
-        <GamesTab />
+        <GamesTab onGoBilling={() => setActiveTab('billing')} />
       </div>
       <div role="tabpanel" hidden={activeTab !== 'billing'}>
         <BillingTab />

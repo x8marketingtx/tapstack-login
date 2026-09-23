@@ -79,20 +79,31 @@ export function consumeVendorAffiliateWelcome(): VendorAffiliateWelcome | null {
   }
 }
 
+function forgetStaleLocalJoin(): void {
+  try {
+    localStorage.removeItem(AFFILIATE_KEY)
+    localStorage.removeItem(PENDING_VENDOR_JOIN_KEY)
+    localStorage.removeItem(PENDING_VENDOR_JOIN_NAME_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
 export function setAffiliateSlug(slug: string): void {
   const clean = slug.trim().toLowerCase()
   if (!clean) return
   try {
+    forgetStaleLocalJoin()
     sessionStorage.setItem(AFFILIATE_KEY, clean)
-    localStorage.setItem(AFFILIATE_KEY, clean)
   } catch {
     // ignore storage failures
   }
 }
 
 export function getAffiliateSlug(): string {
+  forgetStaleLocalJoin()
   try {
-    return (sessionStorage.getItem(AFFILIATE_KEY) || localStorage.getItem(AFFILIATE_KEY) || '').trim()
+    return (sessionStorage.getItem(AFFILIATE_KEY) || '').trim()
   } catch {
     return ''
   }
@@ -101,7 +112,7 @@ export function getAffiliateSlug(): string {
 export function clearAffiliateSlug(): void {
   try {
     sessionStorage.removeItem(AFFILIATE_KEY)
-    localStorage.removeItem(AFFILIATE_KEY)
+    forgetStaleLocalJoin()
   } catch {
     // ignore
   }
@@ -142,14 +153,14 @@ export function setPendingVendorJoin(slug: string, distributorName = ''): void {
   const clean = slug.trim().toLowerCase()
   if (!clean) return
   try {
+    forgetStaleLocalJoin()
     sessionStorage.setItem(PENDING_VENDOR_JOIN_KEY, clean)
-    localStorage.setItem(PENDING_VENDOR_JOIN_KEY, clean)
     const name = distributorName.trim()
     if (name) {
       sessionStorage.setItem(PENDING_VENDOR_JOIN_NAME_KEY, name)
-      localStorage.setItem(PENDING_VENDOR_JOIN_NAME_KEY, name)
+    } else {
+      sessionStorage.removeItem(PENDING_VENDOR_JOIN_NAME_KEY)
     }
-    // Clear any legacy player-join pending state.
     sessionStorage.removeItem(PENDING_PLAYER_JOIN_KEY)
     localStorage.removeItem(PENDING_PLAYER_JOIN_KEY)
   } catch {
@@ -159,24 +170,18 @@ export function setPendingVendorJoin(slug: string, distributorName = ''): void {
 }
 
 export function getPendingVendorJoin(): string {
+  forgetStaleLocalJoin()
   try {
-    return (
-      sessionStorage.getItem(PENDING_VENDOR_JOIN_KEY) ||
-      localStorage.getItem(PENDING_VENDOR_JOIN_KEY) ||
-      ''
-    ).trim()
+    return (sessionStorage.getItem(PENDING_VENDOR_JOIN_KEY) || '').trim()
   } catch {
     return ''
   }
 }
 
 export function getPendingVendorJoinName(): string {
+  forgetStaleLocalJoin()
   try {
-    return (
-      sessionStorage.getItem(PENDING_VENDOR_JOIN_NAME_KEY) ||
-      localStorage.getItem(PENDING_VENDOR_JOIN_NAME_KEY) ||
-      ''
-    ).trim()
+    return (sessionStorage.getItem(PENDING_VENDOR_JOIN_NAME_KEY) || '').trim()
   } catch {
     return ''
   }

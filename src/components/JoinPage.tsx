@@ -6,7 +6,7 @@ import {
   isApiConfigured,
   tapstackApi,
 } from '../api/client'
-import { setAffiliateSlug, setPendingVendorJoin, setVendorAffiliateWelcome } from '../lib/affiliate'
+import { setPendingVendorJoin, setVendorAffiliateWelcome } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -39,17 +39,15 @@ export default function JoinPage({
       return
     }
 
-    setAffiliateSlug(clean)
-
     let cancelled = false
     ;(async () => {
       try {
         let distributorName = ''
+        const joinSlug = clean
         if (isApiConfigured()) {
           const res = await tapstackApi.resolveJoin(clean)
           if (cancelled) return
           distributorName = res.distributorName || ''
-          setAffiliateSlug(res.slug || clean)
         }
 
         const token = getToken()
@@ -77,7 +75,7 @@ export default function JoinPage({
           )
           if (isApiConfigured() && !token.startsWith('demo:')) {
             try {
-              const joined = await tapstackApi.vendorJoinDistributor(clean)
+              const joined = await tapstackApi.vendorJoinDistributor(joinSlug)
               setVendorAffiliateWelcome({
                 distributorName: joined.distributorName || distributorName || 'your distributor',
                 distributorId: joined.distributorId,
@@ -87,6 +85,7 @@ export default function JoinPage({
               // No store yet → send them through apply with affiliate preserved.
               if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
                 if (cancelled) return
+                setPendingVendorJoin(joinSlug, distributorName)
                 onVendorApply()
                 return
               }
@@ -114,7 +113,7 @@ export default function JoinPage({
         }
 
         // Logged out (or admin): continue as vendor signup/login under this affiliate.
-        setPendingVendorJoin(clean, distributorName)
+        setPendingVendorJoin(joinSlug, distributorName)
         setMessage(
           distributorName
             ? `Sign in or apply as a vendor to join ${distributorName}…`

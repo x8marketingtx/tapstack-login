@@ -1469,6 +1469,8 @@ export const tapstackApi = {
       games: VendorGameRecord[]
       platforms: Record<string, string>
       automationAvailable: boolean
+      membership?: VendorMembership
+      proActive?: boolean
     }>('/vendor/games'),
   saveVendorGames: (games: VendorGameRecord[]) =>
     apiRequest<{ ok: boolean; games: VendorGameRecord[]; vendorId?: number }>('/vendor/games', {
