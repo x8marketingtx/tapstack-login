@@ -54,12 +54,7 @@ import {
   vendorPathId,
 } from '../lib/routing'
 import { clearPlayerAffiliateRef, detectNewPlayerAffiliates, getPlayerAffiliateRef, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
-import {
-  invalidateVendorBalanceCache,
-  readCachedVendorTotals,
-  writeCachedGameBalance,
-  writeCachedVendorTotals,
-} from '../lib/vendorBalanceCache'
+import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
 import './CustomerDashboard.css'
 
 function vendorStorageKey(vendor: Pick<Vendor, 'id' | 'code' | 'name'>): string {
@@ -359,7 +354,8 @@ function GamesHome({
     const token = getToken()
     const canFetch = isApiConfigured() && Boolean(token) && !token?.startsWith('demo:')
 
-    const cachedReady: Record<
+    clearVendorBalanceCache()
+    const nextTotals: Record<
       string,
       { status: 'loading' | 'ready'; playable: number; redeemable: number }
     > = {}
@@ -367,18 +363,13 @@ function GamesHome({
     for (const vendor of vendors) {
       const key = vendorStorageKey(vendor)
       if (!canFetch || vendor.id == null || String(vendor.id).startsWith('local-')) {
-        cachedReady[key] = { status: 'ready', playable: 0, redeemable: 0 }
+        nextTotals[key] = { status: 'ready', playable: 0, redeemable: 0 }
         continue
       }
-      const cached = readCachedVendorTotals(key)
-      if (cached) {
-        cachedReady[key] = { status: 'ready', playable: cached.playable, redeemable: cached.redeemable }
-      } else {
-        cachedReady[key] = { status: 'loading', playable: 0, redeemable: 0 }
-        toFetch.push(vendor)
-      }
+      nextTotals[key] = { status: 'loading', playable: 0, redeemable: 0 }
+      toFetch.push(vendor)
     }
-    setVendorTotals(cachedReady)
+    setVendorTotals(nextTotals)
 
     if (toFetch.length === 0) {
       return () => {
@@ -402,8 +393,7 @@ function GamesHome({
             )
             let playable = 0
             let redeemable = 0
-            connectedAuto.forEach((game, index) => {
-              const balance = balances[index]
+            balances.forEach((balance) => {
               if (!balance) return
               const payable =
                 typeof balance.payable === 'number'
@@ -415,15 +405,7 @@ function GamesHome({
                   : parseMoney(balance.redeemableFormatted)
               playable += payable
               redeemable += redeem
-              writeCachedGameBalance(vendor.id!, game.id, {
-                payable,
-                redeemable: redeem,
-                payableFormatted: balance.payableFormatted || balance.formatted || formatMoney(payable),
-                redeemableFormatted:
-                  balance.redeemableFormatted || balance.formatted || formatMoney(redeem),
-              })
             })
-            writeCachedVendorTotals(key, playable, redeemable)
             return [key, { status: 'ready' as const, playable, redeemable }] as const
           } catch {
             return [key, { status: 'ready' as const, playable: 0, redeemable: 0 }] as const
@@ -1344,9 +1326,6 @@ export default function CustomerDashboard({
             }
           }}
           onGameTransferSuccess={() => {
-            if (selectedVendor) {
-              invalidateVendorBalanceCache(vendorStorageKey(selectedVendor), selectedVendor.id)
-            }
             setVendorBalanceEpoch((value) => value + 1)
           }}
         />
@@ -1556,10 +1535,6 @@ export default function CustomerDashboard({
           onClose={() => setHomeTransfer(null)}
           onSuccess={({ cashBalance: nextCash }) => {
             setCashBalance(nextCash)
-            invalidateVendorBalanceCache(
-              vendorStorageKey(homeTransfer.vendor),
-              homeTransfer.vendor.id,
-            )
             setVendorBalanceEpoch((value) => value + 1)
             if (shouldLoadFromApi) {
               void tapstackApi

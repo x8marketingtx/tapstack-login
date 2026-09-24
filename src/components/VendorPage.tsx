@@ -11,11 +11,7 @@ import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
 import { gameArtUrl } from '../data/gameArt'
 import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
-import {
-  invalidateVendorBalanceCache,
-  readCachedGameBalance,
-  writeCachedGameBalance,
-} from '../lib/vendorBalanceCache'
+import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import type { PlayerProfile } from './ProfilePage'
@@ -406,23 +402,7 @@ export default function VendorPage({
   async function refreshGameBalance(
     vendorId: number | string,
     gameKey: string,
-    force = false,
   ) {
-    if (!force) {
-      const cached = readCachedGameBalance(vendorId, gameKey)
-      if (cached) {
-        setGameBalances((current) => ({
-          ...current,
-          [gameKey]: {
-            status: 'ready',
-            formatted: cached.redeemableFormatted,
-            payableFormatted: cached.payableFormatted,
-            redeemableFormatted: cached.redeemableFormatted,
-          },
-        }))
-        return
-      }
-    }
     setGameBalances((current) => ({
       ...current,
       [gameKey]: { status: 'loading', formatted: current[gameKey]?.formatted || '' },
@@ -431,12 +411,6 @@ export default function VendorPage({
       const res = await tapstackApi.vendorGameBalance(vendorId, gameKey)
       const payableFormatted = res.payableFormatted || res.formatted || '—'
       const redeemableFormatted = res.redeemableFormatted || res.formatted || '—'
-      writeCachedGameBalance(vendorId, gameKey, {
-        payable: typeof res.payable === 'number' ? res.payable : 0,
-        redeemable: typeof res.redeemable === 'number' ? res.redeemable : 0,
-        payableFormatted,
-        redeemableFormatted,
-      })
       setGameBalances((current) => ({
         ...current,
         [gameKey]: {
@@ -482,6 +456,7 @@ export default function VendorPage({
     }
 
     let cancelled = false
+    clearVendorBalanceCache()
     ;(async () => {
       setGamesLoading(true)
       setConnectionResolved(false)
@@ -516,21 +491,10 @@ export default function VendorPage({
           for (const game of remoteGames) {
             nextConnected[game.id] = Boolean(game.connected)
             if (game.title) nextConnected[game.title] = Boolean(game.connected)
-            const listed = typeof game.balance === 'string' && game.balance ? game.balance : ''
             if (game.mode === 'auto' && game.connected) {
-              const cached = readCachedGameBalance(vendor.id!, game.id)
-              if (cached) {
-                nextBalances[game.id] = {
-                  status: 'ready',
-                  formatted: cached.redeemableFormatted,
-                  payableFormatted: cached.payableFormatted,
-                  redeemableFormatted: cached.redeemableFormatted,
-                }
-              } else {
-                nextBalances[game.id] = {
-                  status: 'loading',
-                  formatted: listed || '',
-                }
+              nextBalances[game.id] = {
+                status: 'loading',
+                formatted: '',
               }
             } else {
               nextBalances[game.id] = {
@@ -567,10 +531,7 @@ export default function VendorPage({
           const vendorId = vendor.id!
           void Promise.all(
             remoteGames
-              .filter(
-                (game) =>
-                  game.mode === 'auto' && game.connected && !readCachedGameBalance(vendorId, game.id),
-              )
+              .filter((game) => game.mode === 'auto' && game.connected)
               .map((game) => refreshGameBalance(vendorId, game.id)),
           )
         }
@@ -1847,12 +1808,9 @@ export default function VendorPage({
         onSuccess={({ cashBalance: nextCash, gameBalance }) => {
           setWalletBalance(nextCash)
           onCashBalanceChange?.(nextCash)
-          if (vendor.id != null) {
-            invalidateVendorBalanceCache(`id:${vendor.id}`, vendor.id)
-          }
           onGameTransferSuccess?.()
           if (loadGame?.gameKey && vendor.id) {
-            void refreshGameBalance(vendor.id, loadGame.gameKey, true)
+            void refreshGameBalance(vendor.id, loadGame.gameKey)
           } else if (loadGame?.gameKey && gameBalance) {
             setGameBalances((current) => ({
               ...current,

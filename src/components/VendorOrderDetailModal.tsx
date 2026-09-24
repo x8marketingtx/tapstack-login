@@ -367,7 +367,12 @@ export default function VendorOrderDetailModal({
                           : 'Completing this sends the credits (and any promo extra) to the player\u2019s game.'}
                       </p>
                     ) : null}
-                    <label className="vod-label" htmlFor="vod-staff-note">
+                    {order.type === 'manual-load' || order.type === 'auto-load' ? (
+                      <p className="vod-auto-hint">
+                        Reject &amp; refund returns the player&apos;s paid amount (and load fee) to their TapStack wallet.
+                      </p>
+                    ) : null}
+                    <label htmlFor="vod-staff-note">
                       Staff note <span className="vod-required">required</span>
                     </label>
                     <textarea
@@ -433,7 +438,7 @@ export default function VendorOrderDetailModal({
                       disabled={Boolean(actionBusy) || !noteReady}
                       onClick={() => void rejectOrder()}
                     >
-                      {actionBusy === 'reject' ? 'Rejecting…' : 'Reject'}
+                      {actionBusy === 'reject' ? 'Rejecting…' : 'Reject & refund'}
                     </button>
                     )}
                   </div>
