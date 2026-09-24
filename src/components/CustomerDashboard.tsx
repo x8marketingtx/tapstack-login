@@ -511,7 +511,7 @@ function GamesHome({
           <p className="vendors-subtitle">
             {vendors.length === 0
               ? 'Add a vendor by name to get started'
-              : 'Tap to view games & manage your Game IDs.'}
+              : 'Tap to view games & manage your Game IDs'}
           </p>
 
           {vendors.length === 0 ? (
