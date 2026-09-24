@@ -236,13 +236,20 @@
   background: #fff;
 }
 
-.vendor-settings-panel--locked {
+.vendor-settings-panel-lock-body {
   position: relative;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.vendor-settings-panel--locked > :not(.vendor-settings-pro-lock-overlay) {
-  opacity: 0.28;
+.vendor-settings-panel--locked .vendor-settings-panel-lock-body {
+  overflow: hidden;
+  min-height: 132px;
+}
+
+.vendor-settings-panel--locked .vendor-settings-panel-lock-body > :not(.vendor-settings-pro-lock-overlay) {
+  opacity: 0.16;
   pointer-events: none;
   user-select: none;
 }

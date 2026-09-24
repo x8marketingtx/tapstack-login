@@ -1862,18 +1862,74 @@
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 720px) {
   .game-card {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'main main'
+      'payable redeemable'
+      'actions actions';
     gap: 10px 12px;
+    padding: 12px;
+  }
+
+  .game-card-main {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .game-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.25;
+  }
+
+  .game-balance-payable {
+    justify-self: start;
+    align-self: start;
+  }
+
+  .game-balance-redeem {
+    justify-self: end;
+    align-self: start;
+  }
+
+  .game-card-actions,
+  .game-side,
+  .game-actions {
+    width: 100%;
+    justify-self: stretch;
   }
 
   .game-side {
     flex-direction: row;
     align-items: center;
-    justify-content: flex-end;
-    width: 100%;
+    justify-content: stretch;
   }
 
+  .game-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .game-btn {
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 4px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .game-connect--side {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 560px) {
   .vendor-avatar {
     display: none;
   }

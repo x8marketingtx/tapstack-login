@@ -11,6 +11,11 @@ import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
 import { gameArtUrl } from '../data/gameArt'
 import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
+import {
+  invalidateVendorBalanceCache,
+  readCachedGameBalance,
+  writeCachedGameBalance,
+} from '../lib/vendorBalanceCache'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import type { PlayerProfile } from './ProfilePage'
@@ -214,6 +219,7 @@ type VendorPageProps = {
   onLogoClick?: () => void
   onTopUp?: () => void
   onCashBalanceChange?: (balance: string) => void
+  onGameTransferSuccess?: () => void
   onRequireVerified?: () => boolean
   verification?: VerificationState
   onOpenVerify?: () => void
@@ -231,6 +237,7 @@ export default function VendorPage({
   onLogoClick,
   onTopUp,
   onCashBalanceChange,
+  onGameTransferSuccess,
   onRequireVerified,
   verification,
   onOpenVerify,
@@ -396,20 +403,47 @@ export default function VendorPage({
     }
   }, [gameMenuKey])
 
-  async function refreshGameBalance(vendorId: number | string, gameKey: string) {
+  async function refreshGameBalance(
+    vendorId: number | string,
+    gameKey: string,
+    force = false,
+  ) {
+    if (!force) {
+      const cached = readCachedGameBalance(vendorId, gameKey)
+      if (cached) {
+        setGameBalances((current) => ({
+          ...current,
+          [gameKey]: {
+            status: 'ready',
+            formatted: cached.redeemableFormatted,
+            payableFormatted: cached.payableFormatted,
+            redeemableFormatted: cached.redeemableFormatted,
+          },
+        }))
+        return
+      }
+    }
     setGameBalances((current) => ({
       ...current,
       [gameKey]: { status: 'loading', formatted: current[gameKey]?.formatted || '' },
     }))
     try {
       const res = await tapstackApi.vendorGameBalance(vendorId, gameKey)
+      const payableFormatted = res.payableFormatted || res.formatted || '—'
+      const redeemableFormatted = res.redeemableFormatted || res.formatted || '—'
+      writeCachedGameBalance(vendorId, gameKey, {
+        payable: typeof res.payable === 'number' ? res.payable : 0,
+        redeemable: typeof res.redeemable === 'number' ? res.redeemable : 0,
+        payableFormatted,
+        redeemableFormatted,
+      })
       setGameBalances((current) => ({
         ...current,
         [gameKey]: {
           status: res.live || res.connected ? 'ready' : 'unavailable',
-          formatted: res.redeemableFormatted || res.formatted || '—',
-          payableFormatted: res.payableFormatted || res.formatted || '—',
-          redeemableFormatted: res.redeemableFormatted || res.formatted || '—',
+          formatted: redeemableFormatted,
+          payableFormatted,
+          redeemableFormatted,
         },
       }))
     } catch {
@@ -482,11 +516,21 @@ export default function VendorPage({
           for (const game of remoteGames) {
             nextConnected[game.id] = Boolean(game.connected)
             if (game.title) nextConnected[game.title] = Boolean(game.connected)
-            const cached = typeof game.balance === 'string' && game.balance ? game.balance : ''
+            const listed = typeof game.balance === 'string' && game.balance ? game.balance : ''
             if (game.mode === 'auto' && game.connected) {
-              nextBalances[game.id] = {
-                status: 'loading',
-                formatted: cached || '',
+              const cached = readCachedGameBalance(vendor.id!, game.id)
+              if (cached) {
+                nextBalances[game.id] = {
+                  status: 'ready',
+                  formatted: cached.redeemableFormatted,
+                  payableFormatted: cached.payableFormatted,
+                  redeemableFormatted: cached.redeemableFormatted,
+                }
+              } else {
+                nextBalances[game.id] = {
+                  status: 'loading',
+                  formatted: listed || '',
+                }
               }
             } else {
               nextBalances[game.id] = {
@@ -523,7 +567,10 @@ export default function VendorPage({
           const vendorId = vendor.id!
           void Promise.all(
             remoteGames
-              .filter((game) => game.mode === 'auto' && game.connected)
+              .filter(
+                (game) =>
+                  game.mode === 'auto' && game.connected && !readCachedGameBalance(vendorId, game.id),
+              )
               .map((game) => refreshGameBalance(vendorId, game.id)),
           )
         }
@@ -1089,12 +1136,12 @@ export default function VendorPage({
 
                     <div className="game-balance-payable">
                       <GameBalanceBlock
-                        label="Payable Balance"
+                        label="Playable Balance"
                         tooltip={PAYABLE_BALANCE_TOOLTIP}
                         align="left"
                       >
                         {showBalanceSkeleton ? (
-                          <span className="game-balance-skeleton" aria-label="Loading payable balance" />
+                          <span className="game-balance-skeleton" aria-label="Loading playable balance" />
                         ) : (
                           <span className="game-balance">
                             {balanceState?.payableFormatted || balanceText}
@@ -1800,7 +1847,13 @@ export default function VendorPage({
         onSuccess={({ cashBalance: nextCash, gameBalance }) => {
           setWalletBalance(nextCash)
           onCashBalanceChange?.(nextCash)
-          if (loadGame?.gameKey && gameBalance) {
+          if (vendor.id != null) {
+            invalidateVendorBalanceCache(`id:${vendor.id}`, vendor.id)
+          }
+          onGameTransferSuccess?.()
+          if (loadGame?.gameKey && vendor.id) {
+            void refreshGameBalance(vendor.id, loadGame.gameKey, true)
+          } else if (loadGame?.gameKey && gameBalance) {
             setGameBalances((current) => ({
               ...current,
               [loadGame.gameKey]: { status: 'ready', formatted: gameBalance },

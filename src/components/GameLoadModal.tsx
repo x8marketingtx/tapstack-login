@@ -442,7 +442,7 @@ export default function GameLoadModal({
                 </div>
               ) : null}
               <div className="game-load-balance-card">
-                <span className="game-load-balance-label">Payable</span>
+                <span className="game-load-balance-label">Playable</span>
                 <strong className="game-load-balance-value">
                   {loadingWallet ? '…' : payableBalance}
                 </strong>

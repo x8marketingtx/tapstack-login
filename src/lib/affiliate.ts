@@ -1,5 +1,5 @@
 /** Public app origin for share/join links (no trailing slash). Falls back to window.location.origin. */
-import { getToken, isApiConfigured, tapstackApi } from '../api/client'
+import { getSessionUser, getToken, isApiConfigured, tapstackApi } from '../api/client'
 
 export function appOrigin(): string {
   const fromEnv = (import.meta.env.VITE_APP_URL as string | undefined)?.trim().replace(/\/$/, '')
@@ -34,6 +34,8 @@ const AFFILIATE_KEY = 'tapstack_affiliate_slug'
 const PENDING_VENDOR_JOIN_KEY = 'tapstack_pending_vendor_join'
 const PENDING_VENDOR_JOIN_NAME_KEY = 'tapstack_pending_vendor_join_name'
 const VENDOR_AFFILIATE_WELCOME_KEY = 'tapstack_vendor_affiliate_welcome'
+const PLAYER_AFFILIATE_WELCOME_KEY = 'tapstack_player_affiliate_welcome'
+const PLAYER_SEEN_AFFILIATES_KEY = 'tapstack_player_seen_affiliate_ids'
 const PLAYER_AFFILIATE_REF_KEY = 'tapstack_player_affiliate_ref'
 /** @deprecated Cleared for legacy player-join behavior. */
 const PENDING_PLAYER_JOIN_KEY = 'tapstack_pending_player_join'
@@ -77,6 +79,152 @@ export function consumeVendorAffiliateWelcome(): VendorAffiliateWelcome | null {
   } catch {
     return null
   }
+}
+
+export type PlayerAffiliateWelcome = {
+  vendorName: string
+  vendorId?: number
+  alreadyJoined?: boolean
+}
+
+export function setPlayerAffiliateWelcome(next: PlayerAffiliateWelcome): void {
+  const name = next.vendorName.trim()
+  if (!name) return
+  try {
+    sessionStorage.setItem(
+      PLAYER_AFFILIATE_WELCOME_KEY,
+      JSON.stringify({
+        vendorName: name,
+        vendorId: next.vendorId || 0,
+        alreadyJoined: Boolean(next.alreadyJoined),
+      }),
+    )
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumePlayerAffiliateWelcome(): PlayerAffiliateWelcome | null {
+  try {
+    const raw = sessionStorage.getItem(PLAYER_AFFILIATE_WELCOME_KEY)
+    if (!raw) return null
+    sessionStorage.removeItem(PLAYER_AFFILIATE_WELCOME_KEY)
+    const parsed = JSON.parse(raw) as PlayerAffiliateWelcome
+    const name = String(parsed?.vendorName || '').trim()
+    if (!name) return null
+    return {
+      vendorName: name,
+      vendorId: Number(parsed.vendorId) || 0,
+      alreadyJoined: Boolean(parsed.alreadyJoined),
+    }
+  } catch {
+    return null
+  }
+}
+
+function playerWelcomeStateKey(): string {
+  return PLAYER_SEEN_AFFILIATES_KEY
+}
+
+type PlayerWelcomeState = {
+  initialized: number[]
+  shown: string[]
+}
+
+function welcomePair(playerId: number, vendorId: number): string {
+  return `${playerId}:${vendorId}`
+}
+
+function readWelcomeState(): PlayerWelcomeState {
+  try {
+    const raw = localStorage.getItem(playerWelcomeStateKey())
+    if (!raw) return { initialized: [], shown: [] }
+    const parsed = JSON.parse(raw) as Partial<PlayerWelcomeState>
+    return {
+      initialized: Array.isArray(parsed.initialized)
+        ? parsed.initialized.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        : [],
+      shown: Array.isArray(parsed.shown) ? parsed.shown.map((item) => String(item)) : [],
+    }
+  } catch {
+    return { initialized: [], shown: [] }
+  }
+}
+
+function writeWelcomeState(state: PlayerWelcomeState): void {
+  try {
+    localStorage.setItem(playerWelcomeStateKey(), JSON.stringify(state))
+  } catch {
+    /* ignore */
+  }
+}
+
+function currentPlayerId(fallback?: number): number {
+  const id = Number(fallback ?? getSessionUser()?.id)
+  return Number.isFinite(id) && id > 0 ? id : 0
+}
+
+/** One-shot welcome when a player is newly added to a vendor affiliate program. */
+export function detectNewPlayerAffiliates(
+  affiliates: Array<{ vendorId?: number; vendorName?: string; enabled?: boolean }>,
+  playerId?: number,
+): PlayerAffiliateWelcome | null {
+  const pid = currentPlayerId(playerId)
+  if (!pid) return null
+
+  const enabled = affiliates.filter((row) => row.enabled !== false && Number(row.vendorId) > 0)
+  const state = readWelcomeState()
+
+  if (!state.initialized.includes(pid)) {
+    for (const row of enabled) {
+      const pair = welcomePair(pid, Number(row.vendorId))
+      if (!state.shown.includes(pair)) state.shown.push(pair)
+    }
+    state.initialized.push(pid)
+    writeWelcomeState(state)
+    return null
+  }
+
+  const first = enabled.find((row) => !state.shown.includes(welcomePair(pid, Number(row.vendorId))))
+  if (!first) return null
+  const name = String(first.vendorName || '').trim()
+  if (!name) return null
+
+  const pair = welcomePair(pid, Number(first.vendorId))
+  if (!state.shown.includes(pair)) state.shown.push(pair)
+  writeWelcomeState(state)
+
+  return {
+    vendorName: name,
+    vendorId: Number(first.vendorId) || 0,
+    alreadyJoined: false,
+  }
+}
+
+export function rememberPlayerAffiliateIds(
+  affiliates: Array<{ vendorId?: number; enabled?: boolean }>,
+  playerId?: number,
+): void {
+  const pid = currentPlayerId(playerId)
+  if (!pid) return
+  const state = readWelcomeState()
+  if (!state.initialized.includes(pid)) state.initialized.push(pid)
+  for (const row of affiliates) {
+    if (row.enabled === false || Number(row.vendorId) <= 0) continue
+    const pair = welcomePair(pid, Number(row.vendorId))
+    if (!state.shown.includes(pair)) state.shown.push(pair)
+  }
+  writeWelcomeState(state)
+}
+
+export function forgetSeenPlayerAffiliate(vendorId: number, playerId?: number): void {
+  const pid = currentPlayerId(playerId)
+  const vid = Number(vendorId)
+  if (!pid || !vid) return
+  const state = readWelcomeState()
+  const pair = welcomePair(pid, vid)
+  state.shown = state.shown.filter((item) => item !== pair)
+  writeWelcomeState(state)
 }
 
 function forgetStaleLocalJoin(): void {

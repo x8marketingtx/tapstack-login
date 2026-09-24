@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createVendorFromInviteCode,
+  decodeIcon,
+  defaultGames,
+  initialsFromName,
   loadLocalVendors,
   looksLikeVendorCatalogDump,
   saveLocalVendors,
   vendorFromApi,
   type Vendor,
+  type VendorGame,
 } from '../data/vendors'
 import {
   ApiError,
@@ -26,7 +30,9 @@ import EarnPage from './EarnPage'
 import GiveawayPage from './GiveawayPage'
 import PromosPage from './PromosPage'
 import VendorPage from './VendorPage'
+import './VendorPage.css'
 import TopUpModal from './TopUpModal'
+import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './GameLoadModal'
 import ProfilePage, {
   DEMO_PLAYER_PROFILE,
   profileFromUser,
@@ -47,7 +53,13 @@ import {
   parseLocation,
   vendorPathId,
 } from '../lib/routing'
-import { clearPlayerAffiliateRef, getPlayerAffiliateRef, setPlayerAffiliateRef } from '../lib/affiliate'
+import { clearPlayerAffiliateRef, detectNewPlayerAffiliates, getPlayerAffiliateRef, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
+import {
+  invalidateVendorBalanceCache,
+  readCachedVendorTotals,
+  writeCachedGameBalance,
+  writeCachedVendorTotals,
+} from '../lib/vendorBalanceCache'
 import './CustomerDashboard.css'
 
 function vendorStorageKey(vendor: Pick<Vendor, 'id' | 'code' | 'name'>): string {
@@ -85,6 +97,125 @@ function sortVendorsByFavorite(vendors: Vendor[], favoriteKeys: Set<string>): Ve
     const bFav = favoriteKeys.has(vendorStorageKey(b)) ? 0 : 1
     return aFav - bFav
   })
+}
+
+function vendorGameKey(game: { id?: string; name: string }): string {
+  return (
+    game.id ||
+    game.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+  )
+}
+
+function toGameLoadTarget(game: VendorGame): GameLoadTarget {
+  return {
+    gameKey: vendorGameKey(game),
+    name: game.name,
+    mode: game.mode === 'auto' ? 'auto' : 'manual',
+    icon: game.icon,
+    iconBg: game.iconBg,
+    gameBalance: game.balance,
+    playerMobileId: undefined,
+  }
+}
+
+function catalogToVendorGames(
+  games: Array<{
+    id: string
+    title: string
+    icon?: string
+    mode: 'auto' | 'manual'
+    enabled?: boolean
+    platform?: string
+    connected?: boolean
+    balance?: string | null
+    playerMobileId?: string | null
+  }>,
+): VendorGame[] {
+  return games
+    .filter((game) => game.enabled !== false)
+    .map((game) => ({
+      id: game.id,
+      name: game.title,
+      icon: decodeIcon(game.icon, game.title),
+      iconBg: '#eef2ff',
+      active: true,
+      mode: game.mode === 'auto' ? 'auto' : 'manual',
+      balance: game.balance || '$0.00',
+      platform: game.platform,
+      connected: Boolean(game.connected),
+    }))
+}
+
+function VendorGamePickModal({
+  vendorName,
+  intent,
+  games,
+  loading,
+  onSelect,
+  onClose,
+}: {
+  vendorName: string
+  intent: 'load' | 'redeem'
+  games: VendorGame[]
+  loading: boolean
+  onSelect: (game: VendorGame) => void
+  onClose: () => void
+}) {
+  const action = intent === 'redeem' ? 'redeem' : 'top up'
+  return (
+    <div className="game-load-overlay vendor-game-pick-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="game-load-modal"
+        role="dialog"
+        aria-labelledby="vendor-game-pick-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="game-load-header">
+          <div className="game-load-heading">
+            <div>
+              <h2 id="vendor-game-pick-title">Select a game</h2>
+              <p className="game-load-sub">
+                Choose a {vendorName} game to {action}
+              </p>
+            </div>
+          </div>
+          <button type="button" className="game-load-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        {loading ? (
+          <p className="vendor-game-pick-empty">Loading games…</p>
+        ) : games.length === 0 ? (
+          <p className="vendor-game-pick-empty">This vendor has no games yet.</p>
+        ) : (
+          <div className="vendor-game-pick-list">
+            {games.map((game) => (
+              <button
+                key={vendorGameKey(game)}
+                type="button"
+                className="vendor-game-pick-item"
+                onClick={() => onSelect(game)}
+              >
+                <span className="game-icon" style={{ background: game.iconBg }} aria-hidden="true">
+                  {game.icon}
+                </span>
+                <span className="vendor-game-pick-copy">
+                  <span className="vendor-game-pick-name">{game.name}</span>
+                  <span className="vendor-game-pick-meta">
+                    {game.mode === 'auto' ? 'Auto' : 'Manual'}
+                    {game.connected ? ' · Connected' : ''}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 type ActivityAmount = {
@@ -141,6 +272,16 @@ function mapTxnsToActivities(txns: WalletTxn[]): ActivityRow[] {
   })
 }
 
+function parseMoney(value: string | number | null | undefined): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const n = Number(String(value ?? '').replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(n) ? n : 0
+}
+
+function formatMoney(value: number): string {
+  return `$${value.toFixed(2)}`
+}
+
 const VENDORS_MOBILE_PREVIEW = 4
 const VENDORS_MOBILE_MQ = '(max-width: 599px)'
 
@@ -164,12 +305,13 @@ function GamesHome({
   vendors,
   favoriteKeys,
   onToggleFavorite,
-  onRemoveVendor,
   onVendorSelect,
+  onVendorTransfer,
   cashBalance,
   loading,
   activities,
   onSeeAllActivity,
+  balanceEpoch = 0,
 }: {
   inviteCode: string
   onInviteCodeChange: (value: string) => void
@@ -179,15 +321,19 @@ function GamesHome({
   vendors: Vendor[]
   favoriteKeys: Set<string>
   onToggleFavorite: (vendor: Vendor) => void
-  onRemoveVendor: (vendor: Vendor) => void
   onVendorSelect: (vendor: Vendor) => void
+  onVendorTransfer: (vendor: Vendor, intent: 'load' | 'redeem') => void
   cashBalance: string
   loading?: boolean
   activities: ActivityRow[]
   onSeeAllActivity: () => void
+  balanceEpoch?: number
 }) {
   const sortedVendors = sortVendorsByFavorite(vendors, favoriteKeys)
   const [vendorsExpanded, setVendorsExpanded] = useState(false)
+  const [vendorTotals, setVendorTotals] = useState<
+    Record<string, { status: 'loading' | 'ready'; playable: number; redeemable: number }>
+  >({})
   const [isMobileVendorList, setIsMobileVendorList] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia(VENDORS_MOBILE_MQ).matches : false,
   )
@@ -203,6 +349,96 @@ function GamesHome({
   useEffect(() => {
     if (!isMobileVendorList) setVendorsExpanded(false)
   }, [isMobileVendorList])
+
+  const vendorBalanceKey = vendors
+    .map((vendor) => `${vendorStorageKey(vendor)}:${vendor.games.length}`)
+    .join('|')
+
+  useEffect(() => {
+    let cancelled = false
+    const token = getToken()
+    const canFetch = isApiConfigured() && Boolean(token) && !token?.startsWith('demo:')
+
+    const cachedReady: Record<
+      string,
+      { status: 'loading' | 'ready'; playable: number; redeemable: number }
+    > = {}
+    const toFetch: Vendor[] = []
+    for (const vendor of vendors) {
+      const key = vendorStorageKey(vendor)
+      if (!canFetch || vendor.id == null || String(vendor.id).startsWith('local-')) {
+        cachedReady[key] = { status: 'ready', playable: 0, redeemable: 0 }
+        continue
+      }
+      const cached = readCachedVendorTotals(key)
+      if (cached) {
+        cachedReady[key] = { status: 'ready', playable: cached.playable, redeemable: cached.redeemable }
+      } else {
+        cachedReady[key] = { status: 'loading', playable: 0, redeemable: 0 }
+        toFetch.push(vendor)
+      }
+    }
+    setVendorTotals(cachedReady)
+
+    if (toFetch.length === 0) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    ;(async () => {
+      const rows = await Promise.all(
+        toFetch.map(async (vendor) => {
+          const key = vendorStorageKey(vendor)
+          try {
+            const res = await tapstackApi.customerVendorGames(vendor.id!)
+            const connectedAuto = (res.games || []).filter(
+              (game) => game.enabled !== false && game.mode === 'auto' && game.connected,
+            )
+            const balances = await Promise.all(
+              connectedAuto.map((game) =>
+                tapstackApi.vendorGameBalance(vendor.id!, game.id).catch(() => null),
+              ),
+            )
+            let playable = 0
+            let redeemable = 0
+            connectedAuto.forEach((game, index) => {
+              const balance = balances[index]
+              if (!balance) return
+              const payable =
+                typeof balance.payable === 'number'
+                  ? balance.payable
+                  : parseMoney(balance.payableFormatted)
+              const redeem =
+                typeof balance.redeemable === 'number'
+                  ? balance.redeemable
+                  : parseMoney(balance.redeemableFormatted)
+              playable += payable
+              redeemable += redeem
+              writeCachedGameBalance(vendor.id!, game.id, {
+                payable,
+                redeemable: redeem,
+                payableFormatted: balance.payableFormatted || balance.formatted || formatMoney(payable),
+                redeemableFormatted:
+                  balance.redeemableFormatted || balance.formatted || formatMoney(redeem),
+              })
+            })
+            writeCachedVendorTotals(key, playable, redeemable)
+            return [key, { status: 'ready' as const, playable, redeemable }] as const
+          } catch {
+            return [key, { status: 'ready' as const, playable: 0, redeemable: 0 }] as const
+          }
+        }),
+      )
+      if (!cancelled) {
+        setVendorTotals((current) => ({ ...current, ...Object.fromEntries(rows) }))
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [vendorBalanceKey, balanceEpoch])
 
   const hasMoreVendors = sortedVendors.length > VENDORS_MOBILE_PREVIEW
   const visibleVendors =
@@ -285,72 +521,122 @@ function GamesHome({
             </div>
           ) : (
             <>
-            <div className="vendors-grid">
+            <div className="vendors-grid games-list">
               {visibleVendors.map((vendor) => {
                 const key = vendorStorageKey(vendor)
                 const favorited = favoriteKeys.has(key)
+                const bannerUrl = vendor.bannerUrl?.trim() || ''
+                const totals = vendorTotals[key]
+                const totalsLoading = !totals || totals.status === 'loading'
                 return (
-                  <div key={vendor.id ?? `${vendor.name}-${vendor.handle}`} className="vendor-card">
-                    <button
-                      type="button"
-                      className="vendor-card-main"
-                      onClick={() => onVendorSelect(vendor)}
-                    >
-                      <div
-                        className="vendor-icon"
-                        style={{ background: vendor.color, color: vendor.text }}
-                      >
-                        {vendor.initials}
-                        {vendor.hasPublicPromo ? (
-                          <span className="vendor-promo-emoji" title="Public promotion" aria-label="Public promotion">
-                            🎉
-                          </span>
-                        ) : null}
+                  <div
+                    key={vendor.id ?? `${vendor.name}-${vendor.handle}`}
+                    className={`vendor-home-card${bannerUrl ? ' has-banner' : ''}`}
+                  >
+                    {bannerUrl ? (
+                      <div className="vendor-home-card-bg" aria-hidden="true">
+                        <img src={bannerUrl} alt="" />
                       </div>
-                      <div className="vendor-info">
-                        <span className="vendor-name">{vendor.name}</span>
-                      </div>
-                    </button>
-                    <div className="vendor-card-actions">
+                    ) : null}
+                    <div className="game-card vendor-home-card-body">
+                    <div className="game-card-main">
                       <button
                         type="button"
-                        className={`vendor-card-action vendor-card-action--star${favorited ? ' is-on' : ''}`}
+                        className={`game-favorite${favorited ? ' is-on' : ''}`}
                         aria-label={favorited ? `Unfavorite ${vendor.name}` : `Favorite ${vendor.name}`}
                         aria-pressed={favorited}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onToggleFavorite(vendor)
-                        }}
+                        onClick={() => onToggleFavorite(vendor)}
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-                          <path
-                            d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.8L12 16.9 6.8 19.7l1-5.8L3.5 9.7l5.9-.9L12 3.5z"
-                            fill={favorited ? 'currentColor' : 'none'}
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        {favorited ? '★' : '☆'}
                       </button>
                       <button
                         type="button"
-                        className="vendor-card-action vendor-card-action--trash"
-                        aria-label={`Remove ${vendor.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onRemoveVendor(vendor)
-                        }}
+                        className="vendor-card-open"
+                        onClick={() => onVendorSelect(vendor)}
                       >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path
-                            d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <div
+                          className="game-icon"
+                          style={
+                            bannerUrl
+                              ? undefined
+                              : { background: vendor.color, color: vendor.text }
+                          }
+                          aria-hidden="true"
+                        >
+                          {bannerUrl ? (
+                            <img className="game-icon-img" src={bannerUrl} alt="" />
+                          ) : (
+                            vendor.initials || initialsFromName(vendor.name)
+                          )}
+                        </div>
+                        <div className="game-info">
+                          <div className="game-badges">
+                            <span className="game-badge game-badge--status active">• ACTIVE</span>
+                            {vendor.hasPublicPromo ? (
+                              <span className="game-badge game-badge--mode game-badge--auto">PROMO</span>
+                            ) : null}
+                          </div>
+                          <p className="game-name">{vendor.name}</p>
+                        </div>
                       </button>
+                    </div>
+
+                    <div className="game-balance-payable">
+                      <div className="game-balance-wrap">
+                        <span className="game-balance-label">
+                          Playable<span className="game-balance-label-rest"> Balance</span>
+                        </span>
+                        <div className="game-balance-value-row">
+                          {totalsLoading ? (
+                            <span className="game-balance-skeleton" aria-label="Loading playable balance" />
+                          ) : (
+                            <span className="game-balance">{formatMoney(totals.playable)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="game-balance-redeem">
+                      <div className="game-balance-wrap">
+                        <span className="game-balance-label">
+                          Redeemable<span className="game-balance-label-rest"> Balance</span>
+                        </span>
+                        <div className="game-balance-value-row">
+                          {totalsLoading ? (
+                            <span className="game-balance-skeleton" aria-label="Loading redeemable balance" />
+                          ) : (
+                            <span className="game-balance">{formatMoney(totals.redeemable)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="game-card-actions">
+                      <div className="game-side">
+                        <div className="game-actions">
+                          <button
+                            type="button"
+                            className="game-btn game-btn--load"
+                            onClick={() => onVendorTransfer(vendor, 'load')}
+                          >
+                            Top Up
+                          </button>
+                          <button
+                            type="button"
+                            className="game-btn game-btn--redeem"
+                            onClick={() => onVendorTransfer(vendor, 'redeem')}
+                          >
+                            Redeem
+                          </button>
+                          <button
+                            type="button"
+                            className="game-btn game-btn--move"
+                            onClick={() => onVendorSelect(vendor)}
+                          >
+                            View
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     </div>
                   </div>
                 )
@@ -454,6 +740,14 @@ export default function CustomerDashboard({
     initialRoute.portal === 'customer' && initialRoute.vendorId ? initialRoute.vendorId : null,
   )
   const [topUpOpen, setTopUpOpen] = useState(false)
+  const [gamePick, setGamePick] = useState<{ vendor: Vendor; intent: 'load' | 'redeem' } | null>(null)
+  const [gamePickLoading, setGamePickLoading] = useState(false)
+  const [vendorBalanceEpoch, setVendorBalanceEpoch] = useState(0)
+  const [homeTransfer, setHomeTransfer] = useState<{
+    vendor: Vendor
+    intent: GameTransferIntent
+    game: GameLoadTarget
+  } | null>(null)
   const [loading, setLoading] = useState(shouldLoadFromApi)
   const [cashBalance, setCashBalance] = useState(shouldLoadFromApi ? '' : '$125.00')
   const [pointsBalance, setPointsBalance] = useState(shouldLoadFromApi ? 0 : 3400)
@@ -462,6 +756,10 @@ export default function CustomerDashboard({
     if (cachedUser) return profileFromUser(cachedUser)
     return shouldLoadFromApi ? null : DEMO_PLAYER_PROFILE
   })
+  const [affiliateWelcome, setAffiliateWelcome] = useState<PlayerAffiliateWelcome | null>(null)
+  const playerAffiliatesRef = useRef<Array<{ vendorId?: number; vendorName?: string; enabled?: boolean }>>(
+    [],
+  )
 
   function syncFromRoute() {
     const route = parseLocation()
@@ -483,6 +781,28 @@ export default function CustomerDashboard({
     const vendorInvite = (params.get('v') || params.get('join') || '').trim()
     if (aff) setPlayerAffiliateRef(aff)
     if (vendorInvite) setInviteCode(vendorInvite.toUpperCase())
+  }, [])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!isApiConfigured() || !token || token.startsWith('demo:')) return
+    const playerId = Number(getSessionUser()?.id)
+    if (!playerId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rows = (await tapstackApi.customerAffiliates()).affiliates || []
+        if (cancelled) return
+        playerAffiliatesRef.current = rows
+        const welcome = detectNewPlayerAffiliates(rows, playerId)
+        if (welcome) setAffiliateWelcome(welcome)
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -686,6 +1006,63 @@ export default function CustomerDashboard({
     return false
   }
 
+  function openHomeTransfer(vendor: Vendor, intent: 'load' | 'redeem', game: VendorGame) {
+    setGamePick(null)
+    setHomeTransfer({
+      vendor,
+      intent,
+      game: toGameLoadTarget(game),
+    })
+  }
+
+  async function startVendorTransfer(vendor: Vendor, intent: 'load' | 'redeem') {
+    if (!requireVerified()) return
+    let localGames = vendor.games.filter((game) => game.active !== false)
+    const canFetch =
+      Boolean(vendor.id) &&
+      !String(vendor.id).startsWith('local-') &&
+      isApiConfigured() &&
+      !getToken()?.startsWith('demo:')
+    if (!localGames.length && !canFetch) {
+      localGames = defaultGames(vendor.name)
+    }
+
+    if (!canFetch) {
+      const nextVendor = { ...vendor, games: localGames }
+      if (localGames.length === 1) {
+        openHomeTransfer(nextVendor, intent, localGames[0])
+        return
+      }
+      setGamePick({ vendor: nextVendor, intent })
+      setGamePickLoading(false)
+      return
+    }
+
+    setGamePick({ vendor, intent })
+    setGamePickLoading(true)
+    try {
+      const res = await tapstackApi.customerVendorGames(vendor.id!)
+      const games = catalogToVendorGames(res.games || [])
+      const nextVendor = { ...vendor, games }
+      setVendors((current) => {
+        const updated = current.map((item) =>
+          String(item.id) === String(vendor.id) ? nextVendor : item,
+        )
+        saveLocalVendors(updated, getSessionUser()?.id)
+        return updated
+      })
+      if (games.length === 1) {
+        openHomeTransfer(nextVendor, intent, games[0])
+        return
+      }
+      setGamePick({ vendor: nextVendor, intent })
+    } catch {
+      setGamePick({ vendor, intent })
+    } finally {
+      setGamePickLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!shouldLoadFromApi) return
 
@@ -754,10 +1131,34 @@ export default function CustomerDashboard({
           nextVendors = apiVendors.length > 0 ? apiVendors : saved
         }
 
+        const token = getToken()
+        if (token && !token.startsWith('demo:')) {
+          nextVendors = await Promise.all(
+            nextVendors.map(async (vendor) => {
+              if (vendor.bannerUrl || vendor.id == null || String(vendor.id).startsWith('local-')) {
+                return vendor
+              }
+              try {
+                const detail = await tapstackApi.customerVendor(vendor.id)
+                const fresh = vendorFromApi(detail.vendor)
+                return {
+                  ...vendor,
+                  bannerUrl: fresh.bannerUrl || vendor.bannerUrl,
+                  initials: fresh.initials || vendor.initials,
+                  color: fresh.color || vendor.color,
+                  text: fresh.text || vendor.text,
+                  tagline: fresh.tagline || vendor.tagline,
+                }
+              } catch {
+                return vendor
+              }
+            }),
+          )
+        }
+
         setVendors(nextVendors)
         saveLocalVendors(nextVendors, userId)
 
-        const token = getToken()
         if (token && isMeForCurrentSession(user)) {
           applyAuthSession(token, user)
         }
@@ -842,7 +1243,48 @@ export default function CustomerDashboard({
     }
   }
 
+  function dismissAffiliateWelcome() {
+    rememberPlayerAffiliateIds(playerAffiliatesRef.current)
+    setAffiliateWelcome(null)
+  }
+
   const verifyLocked = needsVerification(verification)
+
+  const affiliateWelcomeModal = affiliateWelcome ? (
+    <div
+      className="player-affiliate-overlay"
+      role="presentation"
+      onClick={dismissAffiliateWelcome}
+    >
+      <div
+        className="player-affiliate-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-affiliate-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className="player-affiliate-icon" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M20 7.5 9.75 17.5 4 12"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+        <h2 id="player-affiliate-title" className="player-affiliate-title">
+          {affiliateWelcome.alreadyJoined ? "You're an affiliate" : "You're now an affiliate"}
+        </h2>
+        <p className="player-affiliate-name">{affiliateWelcome.vendorName}</p>
+        <p className="player-affiliate-copy">You earn affiliate payouts from this gameroom.</p>
+        <button type="button" className="player-affiliate-btn" onClick={dismissAffiliateWelcome}>
+          Got it
+        </button>
+      </div>
+    </div>
+  ) : null
 
   if (showVerify || verifyLocked) {
     return (
@@ -901,6 +1343,12 @@ export default function CustomerDashboard({
                 })
             }
           }}
+          onGameTransferSuccess={() => {
+            if (selectedVendor) {
+              invalidateVendorBalanceCache(vendorStorageKey(selectedVendor), selectedVendor.id)
+            }
+            setVendorBalanceEpoch((value) => value + 1)
+          }}
         />
         <TopUpModal
           open={topUpOpen}
@@ -930,6 +1378,7 @@ export default function CustomerDashboard({
             }
           }}
         />
+        {affiliateWelcomeModal}
       </>
     )
   }
@@ -977,10 +1426,11 @@ export default function CustomerDashboard({
                 vendors={vendors}
                 favoriteKeys={favoriteKeys}
                 onToggleFavorite={toggleFavoriteVendor}
-                onRemoveVendor={(vendor) => void removeVendor(vendor)}
                 onVendorSelect={openVendor}
+                onVendorTransfer={startVendorTransfer}
                 cashBalance={cashBalance || '$0.00'}
                 loading={loading}
+                balanceEpoch={vendorBalanceEpoch}
                 activities={
                   shouldLoadFromApi ? mapTxnsToActivities(walletTxns).slice(0, 8) : DEMO_ACTIVITIES
                 }
@@ -1080,6 +1530,51 @@ export default function CustomerDashboard({
           }
         }}
       />
+      {gamePick ? (
+        <VendorGamePickModal
+          vendorName={gamePick.vendor.name}
+          intent={gamePick.intent}
+          games={gamePick.vendor.games.filter((game) => game.active !== false)}
+          loading={gamePickLoading}
+          onSelect={(game) => openHomeTransfer(gamePick.vendor, gamePick.intent, game)}
+          onClose={() => {
+            setGamePick(null)
+            setGamePickLoading(false)
+          }}
+        />
+      ) : null}
+      {homeTransfer ? (
+        <GameLoadModal
+          open
+          intent={homeTransfer.intent}
+          vendorId={homeTransfer.vendor.id || 0}
+          vendorName={homeTransfer.vendor.name}
+          game={homeTransfer.game}
+          games={homeTransfer.vendor.games.map(toGameLoadTarget)}
+          cashBalance={cashBalance || '$0.00'}
+          onClose={() => setHomeTransfer(null)}
+          onSuccess={({ cashBalance: nextCash }) => {
+            setCashBalance(nextCash)
+            invalidateVendorBalanceCache(
+              vendorStorageKey(homeTransfer.vendor),
+              homeTransfer.vendor.id,
+            )
+            setVendorBalanceEpoch((value) => value + 1)
+            if (shouldLoadFromApi) {
+              void tapstackApi
+                .customerWallet()
+                .then((res) => {
+                  if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
+                })
+                .catch(() => {
+                  /* keep current */
+                })
+            }
+          }}
+          onVerifyRequired={openVerify}
+        />
+      ) : null}
+      {affiliateWelcomeModal}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ApiError, getSessionUser, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
 import { isVerifyApiError, needsVerification, verificationFromUser } from '../lib/verify'
 import type { PlayerProfile } from './ProfilePage'
+import PlayerAffiliateSection from './PlayerAffiliateSection'
 import './AccountPage.css'
 
 const QUICK_POINTS = [500, 1000, 2000]
@@ -284,6 +285,8 @@ export default function AccountPage({
           {redeemMsg ? <p className="points-redeem-ok">{redeemMsg}</p> : null}
         </form>
       </section>
+
+      <PlayerAffiliateSection hideWhenEmpty showPayouts />
 
       <section className="tx-history-section">
         <div className="tx-history-header">

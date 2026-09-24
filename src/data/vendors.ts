@@ -49,6 +49,8 @@ function hashName(name: string): number {
 }
 
 export function initialsFromName(name: string): string {
+  const compact = name.replace(/[^a-zA-Z0-9]/g, '')
+  if (compact.length >= 2) return compact.slice(0, 2).toUpperCase()
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
@@ -205,6 +207,10 @@ function readVendorList(key: string): Vendor[] {
     if (!Array.isArray(parsed)) return []
     return parsed.map((vendor) => ({
       ...vendor,
+      initials:
+        String(vendor.id || '').startsWith('local-')
+          ? initialsFromName(vendor.name)
+          : vendor.initials || initialsFromName(vendor.name),
       games: (vendor.games ?? []).map((game) => ({
         ...game,
         icon: decodeIcon(game.icon, game.name),

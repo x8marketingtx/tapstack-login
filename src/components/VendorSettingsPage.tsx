@@ -1388,7 +1388,7 @@ function BillingTab() {
   const [minRedeem, setMinRedeem] = useState('10')
   const [maxRedeem, setMaxRedeem] = useState('500')
   const [autoLoads, setAutoLoads] = useState(true)
-  const [approval, setApproval] = useState<RedeemApprovalMode>('hybrid')
+  const [approval, setApproval] = useState<RedeemApprovalMode>('manual')
   const [autoThreshold, setAutoThreshold] = useState('500')
   const [autoPayin, setAutoPayin] = useState('500')
   const [staffPayin, setStaffPayin] = useState('1000')
@@ -1560,8 +1560,8 @@ function BillingTab() {
       minRedeem: Math.round(min * 100) / 100,
       maxRedeem: Math.round(max * 100) / 100,
       autoLoads,
-      autoRedeems: approval !== 'manual',
-      redeemApproval: approval,
+      autoRedeems: !proLocked && approval !== 'manual',
+      redeemApproval: proLocked ? 'manual' : approval,
       autoRedeemThreshold: Math.round(threshold * 100) / 100,
       autoPayinThreshold: autoPayinValue,
       staffPayinThreshold: Math.max(autoPayinValue, clamp(Number(staffPayin) || 0, capStaff)),
@@ -1603,13 +1603,14 @@ function BillingTab() {
     return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'
   }
 
-  const needsThreshold = approval === 'auto' || approval === 'hybrid'
-  const thresholdLabel = approval === 'auto' ? 'Maximum auto-redeem' : 'Auto-approve up to'
+  const proLocked = !membership?.active
+  const displayApproval: RedeemApprovalMode = proLocked ? 'manual' : approval
+  const needsThreshold = displayApproval === 'auto' || displayApproval === 'hybrid'
+  const thresholdLabel = displayApproval === 'auto' ? 'Maximum auto-redeem' : 'Auto-approve up to'
   const thresholdHelp =
-    approval === 'auto'
+    displayApproval === 'auto'
       ? `Redemptions at or below $${money(autoThreshold)} are approved automatically. Larger requests are blocked.`
       : `Redemptions at or below $${money(autoThreshold)} are approved automatically. Amounts above that (up to $${money(maxRedeem)}) wait in Pending Redeems.`
-  const proLocked = !membership?.active
   const scrollToPro = () => {
     document.querySelector('.vendor-settings-subscription-panel')?.scrollIntoView({
       behavior: 'smooth',
@@ -1739,7 +1740,6 @@ function BillingTab() {
         className={`vendor-settings-panel${proLocked ? ' vendor-settings-panel--locked' : ''}`}
         aria-disabled={proLocked}
       >
-        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-games-card-header">
           <span className="vendor-settings-games-card-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -1766,6 +1766,8 @@ function BillingTab() {
           </div>
         </div>
 
+        <div className="vendor-settings-panel-lock-body">
+        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-mode-list" role="radiogroup" aria-label="Redeem approval method">
           {(
             [
@@ -1788,7 +1790,7 @@ function BillingTab() {
               },
             ] satisfies { id: RedeemApprovalMode; label: string; description: string }[]
           ).map((mode) => {
-            const active = approval === mode.id
+            const active = displayApproval === mode.id
             return (
               <button
                 key={mode.id}
@@ -1834,13 +1836,13 @@ function BillingTab() {
             Every redeem request will show up under Orders → Redeems for you to approve or reject.
           </p>
         )}
+        </div>
       </section>
 
       <section
         className={`vendor-settings-panel${proLocked ? ' vendor-settings-panel--locked' : ''}`}
         aria-disabled={proLocked}
       >
-        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-games-card-header">
           <span className="vendor-settings-games-card-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -1861,6 +1863,8 @@ function BillingTab() {
           </div>
         </div>
 
+        <div className="vendor-settings-panel-lock-body">
+        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-redeem-row">
           <label className="vendor-settings-redeem-field">
             <span className="vendor-settings-field-label">Maximum amount to autocomplete</span>
@@ -1959,6 +1963,7 @@ function BillingTab() {
             </p>
           </>
         ) : null}
+        </div>
       </section>
 
       <section className="vendor-settings-panel">
@@ -2076,7 +2081,6 @@ function BillingTab() {
         className={`vendor-settings-panel${proLocked ? ' vendor-settings-panel--locked' : ''}`}
         aria-disabled={proLocked}
       >
-        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-games-card-header">
           <span className="vendor-settings-games-card-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -2097,6 +2101,8 @@ function BillingTab() {
           </div>
         </div>
 
+        <div className="vendor-settings-panel-lock-body">
+        <ProAccessOverlay locked={proLocked} onUpgrade={scrollToPro} />
         <div className="vendor-settings-auto-list">
           <div className="vendor-settings-auto-item">
             <SettingsToggle
@@ -2114,6 +2120,7 @@ function BillingTab() {
             ? `${linkedCount} of ${gameCount} games are API-linked. Open a game's settings to link its platform.`
             : 'Open a game’s Settings tab to link its platform for automatic loads.'}
         </p>
+        </div>
       </section>
 
       {saveError ? <p className="vendor-settings-modal-error">{saveError}</p> : null}
