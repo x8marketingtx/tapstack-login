@@ -236,6 +236,12 @@ function LoadsTab({
                     <p className="vendor-order-meta">
                       {[load.game, load.method || 'Auto', load.time].filter(Boolean).join(' · ')}
                     </p>
+                    {load.couponCode ? (
+                      <p className="vendor-order-note">
+                        Promo {load.couponCode}
+                        {load.couponCredit ? ` · +$${Number(load.couponCredit).toFixed(2)}` : ''}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="vendor-order-right">

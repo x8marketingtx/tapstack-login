@@ -87,6 +87,7 @@ type GameLoadModalProps = {
 type SuccessState = {
   amount: number
   auto: boolean
+  couponCredit: number
   cashBalance: string
   gameBalance: string
 }
@@ -315,10 +316,13 @@ export default function GameLoadModal({
       }
 
       const auto = Boolean(res.auto)
+      const couponCredit =
+        !isRedeem && !isMove && 'couponCredit' in res ? Number(res.couponCredit) || 0 : 0
       setStatus('')
       setSuccess({
         amount: numericAmount,
         auto,
+        couponCredit,
         cashBalance: nextCash,
         gameBalance: nextGame,
       })
@@ -390,8 +394,12 @@ export default function GameLoadModal({
                   ? `$${success.amount.toFixed(0)} moved from ${game.name} to your TapStack wallet.`
                   : `$${success.amount.toFixed(0)} redeem request sent for ${game.name}. The vendor will process it shortly.`
                 : success.auto
-                  ? `$${success.amount.toFixed(0)} loaded to ${game.name}.`
-                  : `$${success.amount.toFixed(0)} load request sent for ${game.name}. The vendor will process it shortly.`}
+                  ? success.couponCredit > 0
+                    ? `$${success.amount.toFixed(0)} + $${success.couponCredit.toFixed(0)} promo loaded to ${game.name}.`
+                    : `$${success.amount.toFixed(0)} loaded to ${game.name}.`
+                  : success.couponCredit > 0
+                    ? `$${success.amount.toFixed(0)} load request sent for ${game.name}. Promo extra $${success.couponCredit.toFixed(0)} is added when the vendor completes it.`
+                    : `$${success.amount.toFixed(0)} load request sent for ${game.name}. The vendor will process it shortly.`}
             </p>
             <div className="game-load-success-balances">
               <div>
@@ -572,6 +580,9 @@ export default function GameLoadModal({
                     autoCapitalize="characters"
                     autoComplete="off"
                   />
+                  <p className="game-load-optional">
+                    $ Credit and freeplay extras are added to this game load, not your TapStack wallet.
+                  </p>
                 </>
               ) : null}
 

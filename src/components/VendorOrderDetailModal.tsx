@@ -218,6 +218,14 @@ export default function VendorOrderDetailModal({
                     {typeLabel(order.type)} · {order.method || '—'} · {order.status}
                   </span>
                   <span>{formatWhen(order.createdAt, `${order.date} ${order.time}`)}</span>
+                  {order.couponCode ? (
+                    <span>
+                      Promo {order.couponCode}
+                      {order.couponCredit
+                        ? ` · +$${Number(order.couponCredit).toFixed(2)} extra on this load`
+                        : ''}
+                    </span>
+                  ) : null}
                 </div>
                 <strong className={`vod-amount ${order.positive ? 'is-in' : 'is-out'}`}>
                   {order.amount}

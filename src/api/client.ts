@@ -564,6 +564,8 @@ export type VendorOrderItem = {
   fromGameKey?: string
   toGameKey?: string
   sameVendorTransfer?: boolean
+  couponCode?: string
+  couponCredit?: number
   attention?: boolean
   statusLabel?: string
 }
@@ -1551,6 +1553,7 @@ export const tapstackApi = {
       id: number
       status: string
       auto: boolean
+      couponCredit?: number
       wallet?: { id: number; balance: number; formatted: string; points: number; currency: string }
     }>(`/customer/vendors/${vendorId}/loads`, { method: 'POST', body: payload }),
   tipVendor: (vendorId: number | string, amount: number) =>
