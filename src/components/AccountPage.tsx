@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ApiError, getSessionUser, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
 import { isVerifyApiError, needsVerification, verificationFromUser } from '../lib/verify'
 import type { PlayerProfile } from './ProfilePage'
+import type { Vendor } from '../data/vendors'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
 import './AccountPage.css'
 
@@ -56,12 +57,24 @@ function mapLedgerToRows(txns: WalletTxn[]): TxRow[] {
   })
 }
 
+function txnVendorId(txn: WalletTxn): string {
+  const raw = txn.meta?.vendorId ?? txn.meta?.vendor_id
+  if (raw == null || raw === '') return ''
+  return String(raw)
+}
+
+function txnTime(txn: WalletTxn): number {
+  const ts = Date.parse(txn.createdAt || '')
+  return Number.isFinite(ts) ? ts : 0
+}
+
 export default function AccountPage({
   cashBalance = '$0.00',
   pointsBalance = 0,
   profile,
   loading = false,
   transactions,
+  vendors = [],
   onOpenProfile,
   onWalletUpdate,
   onVerifyRequired,
@@ -71,14 +84,14 @@ export default function AccountPage({
   profile: PlayerProfile
   loading?: boolean
   transactions?: WalletTxn[]
+  vendors?: Vendor[]
   onOpenProfile?: () => void
   onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
   onVerifyRequired?: () => void
 }) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d')
-  const [ledgerRows, setLedgerRows] = useState<TxRow[]>(() =>
-    transactions ? mapLedgerToRows(transactions) : [],
-  )
+  const [roomFilter, setRoomFilter] = useState('all')
+  const [fetchedTxns, setFetchedTxns] = useState<WalletTxn[]>(() => transactions ?? [])
   const [ledgerLoading, setLedgerLoading] = useState(false)
   const [pointsToRedeem, setPointsToRedeem] = useState('')
   const [selectedQuickPoints, setSelectedQuickPoints] = useState<number | null>(null)
@@ -86,9 +99,31 @@ export default function AccountPage({
   const [redeemMsg, setRedeemMsg] = useState('')
   const [redeemError, setRedeemError] = useState('')
 
+  const rawTxns = transactions ?? fetchedTxns
+  const linkedVendors = vendors.filter((vendor) => vendor.id != null && vendor.name)
+
+  const ledgerRows = useMemo(() => {
+    const now = Date.now()
+    const cutoff =
+      timeFilter === '7d'
+        ? now - 7 * 24 * 60 * 60 * 1000
+        : timeFilter === '30d'
+          ? now - 30 * 24 * 60 * 60 * 1000
+          : 0
+    const filtered = rawTxns.filter((txn) => {
+      if (cutoff > 0) {
+        const ts = txnTime(txn)
+        if (ts > 0 && ts < cutoff) return false
+      }
+      if (roomFilter !== 'all' && txnVendorId(txn) !== roomFilter) return false
+      return true
+    })
+    return mapLedgerToRows(filtered)
+  }, [rawTxns, timeFilter, roomFilter])
+
   useEffect(() => {
     if (transactions) {
-      setLedgerRows(mapLedgerToRows(transactions))
+      setFetchedTxns(transactions)
       return
     }
     if (!isApiConfigured()) return
@@ -98,10 +133,10 @@ export default function AccountPage({
     tapstackApi
       .customerWallet()
       .then((res) => {
-        if (!cancelled) setLedgerRows(mapLedgerToRows(res.recentTx || []))
+        if (!cancelled) setFetchedTxns(res.recentTx || [])
       })
       .catch(() => {
-        if (!cancelled) setLedgerRows([])
+        if (!cancelled) setFetchedTxns([])
       })
       .finally(() => {
         if (!cancelled) setLedgerLoading(false)
@@ -151,7 +186,7 @@ export default function AccountPage({
         setPointsToRedeem('')
         setSelectedQuickPoints(null)
         const walletRes = await tapstackApi.customerWallet()
-        setLedgerRows(mapLedgerToRows(walletRes.recentTx || []))
+        setFetchedTxns(walletRes.recentTx || [])
         if (walletRes.wallet) {
           onWalletUpdate?.({
             balance: walletRes.wallet.balance,
@@ -312,10 +347,18 @@ export default function AccountPage({
         </div>
 
         <div className="tx-room-select-wrap">
-          <select className="tx-room-select" defaultValue="all" aria-label="Filter by gameroom">
+          <select
+            className="tx-room-select"
+            value={roomFilter}
+            aria-label="Filter by gameroom"
+            onChange={(event) => setRoomFilter(event.target.value)}
+          >
             <option value="all">All Gamerooms</option>
-            <option value="ocean">Ocean Sluggerz</option>
-            <option value="victory">Victory Valley</option>
+            {linkedVendors.map((vendor) => (
+              <option key={String(vendor.id)} value={String(vendor.id)}>
+                {vendor.name}
+              </option>
+            ))}
           </select>
         </div>
 

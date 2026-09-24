@@ -1468,6 +1468,7 @@ export default function CustomerDashboard({
                 profile={headerProfile}
                 loading={loading}
                 transactions={walletTxns}
+                vendors={vendors}
                 onOpenProfile={openProfile}
                 onVerifyRequired={openVerify}
                 onWalletUpdate={(wallet) => {
