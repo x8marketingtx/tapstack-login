@@ -194,8 +194,13 @@ function LoadsTab({
             <span className="vendor-orders-section-name vendor-orders-section-name--muted">
               Automated Loads
             </span>
-            <span className="vendor-orders-section-subtitle">· no action needed</span>
+            <span className="vendor-orders-section-subtitle">
+              {autoLoads.length === 0 ? '· no action needed' : '· tap to complete'}
+            </span>
           </div>
+          {autoLoads.length > 0 ? (
+            <span className="vendor-orders-section-count">{autoLoads.length} to do</span>
+          ) : null}
         </div>
 
         {autoLoads.length === 0 ? (
@@ -203,10 +208,23 @@ function LoadsTab({
         ) : (
           <ul className="vendor-orders-list">
             {autoLoads.map((load) => (
-              <li key={load.id}>
+              <li key={load.id} className="vendor-order-card">
                 <button
                   type="button"
-                  className="vendor-order-card vendor-order-card--auto vendor-order-card--clickable"
+                  className="vendor-order-check"
+                  aria-label={`Complete ${load.name} auto load`}
+                  disabled={busyId === load.id}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onOpenOrder(load.id)
+                  }}
+                >
+                  {busyId === load.id ? '…' : null}
+                </button>
+
+                <button
+                  type="button"
+                  className="vendor-order-open"
                   onClick={() => onOpenOrder(load.id)}
                 >
                   <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>

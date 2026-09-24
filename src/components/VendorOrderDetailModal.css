@@ -163,6 +163,13 @@
   min-width: 0;
 }
 
+.vod-auto-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
 .vod-label {
   display: block;
   margin-bottom: 3px;

@@ -104,9 +104,10 @@ export default function VendorOrderDetailModal({
       return false
     }) || null
   const status = String(order?.status || '').toLowerCase()
-  const isManualActionable =
+  const isActionable =
     Boolean(order) &&
     (order?.type === 'manual-load' ||
+      order?.type === 'auto-load' ||
       order?.type === 'redeem' ||
       order?.type === 'affiliate-payout' ||
       order?.type === 'game-transfer') &&
@@ -326,8 +327,15 @@ export default function VendorOrderDetailModal({
                   </div>
                 ) : null}
 
-                {isManualActionable ? (
+                {isActionable ? (
                   <>
+                    {order.type === 'auto-load' ? (
+                      <p className="vod-auto-hint">
+                        {status === 'failed'
+                          ? 'Automation did not finish. Complete this if you loaded the game yourself, or reject it.'
+                          : 'This auto load is waiting. Complete it after the credits are on the player\u2019s game.'}
+                      </p>
+                    ) : null}
                     <label className="vod-label" htmlFor="vod-staff-note">
                       Staff note <span className="vod-required">required</span>
                     </label>
@@ -379,6 +387,8 @@ export default function VendorOrderDetailModal({
                           ? 'Complete redeem'
                           : order.type === 'affiliate-payout'
                             ? 'Approve payout'
+                          : order.type === 'auto-load'
+                            ? 'Complete load'
                           : 'Complete order'}
                     </button>
                     <button
