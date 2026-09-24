@@ -10,6 +10,7 @@ import {
   type VendorGameAccount,
   type VendorOrderItem,
 } from '../api/client'
+import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
 import './VendorAnalyticsPage.css'
 
 type AnalyticsTab = 'customers' | 'financial' | 'games'
@@ -611,6 +612,9 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                           </p>
                           <p className="vendor-customer-order-meta">
                             {[order.date, order.time, order.status].filter(Boolean).join(' · ')}
+                            {order.couponCode
+                              ? ` · Promo ${order.couponCode}${couponExtra(order) > 0 ? ` +${formatUsd(couponExtra(order))}` : ''}`
+                              : ''}
                           </p>
                         </div>
                         <span
@@ -619,7 +623,7 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                           }`}
                         >
                           {isOut ? '−' : '+'}
-                          {order.amount}
+                          {couponExtra(order) > 0 ? formatUsd(gameLoadTotal(order)) : order.amount}
                         </span>
                       </li>
                     )

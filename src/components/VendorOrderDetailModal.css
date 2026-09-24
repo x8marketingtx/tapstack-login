@@ -116,6 +116,55 @@
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+.vod-promo-box {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.vod-promo-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.vod-promo-head .vod-label {
+  margin: 0;
+}
+
+.vod-promo-head strong {
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  color: #9a3412;
+}
+
+.vod-promo-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vod-promo-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #9a3412;
+}
+
+.vod-promo-total {
+  padding-top: 6px;
+  border-top: 1px dashed #fdba74;
+  color: #7c2d12 !important;
+  font-weight: 750 !important;
+}
+
 .vod-order-icon {
   width: 42px;
   height: 42px;

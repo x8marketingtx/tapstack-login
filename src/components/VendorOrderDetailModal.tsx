@@ -9,6 +9,7 @@ import {
   type VendorOrderItem,
 } from '../api/client'
 import { decodeIcon } from '../data/vendors'
+import { couponExtra, formatUsd, gameLoadTotal, parseOrderMoney } from '../lib/orderPromo'
 import './VendorOrderDetailModal.css'
 
 type VendorOrderDetailModalProps = {
@@ -72,6 +73,7 @@ export default function VendorOrderDetailModal({
         setCustomer(res.customer)
         setAccounts(res.accounts || [])
         setPayoutTags(res.order?.payoutTags || res.order?.playerTags || [])
+        setStaffNote(res.order?.staffNote || '')
       } catch (err) {
         if (cancelled) return
         setError(
@@ -104,6 +106,11 @@ export default function VendorOrderDetailModal({
       return false
     }) || null
   const status = String(order?.status || '').toLowerCase()
+  const needsGameLoad =
+    Boolean(order) &&
+    (order?.type === 'auto-load' || order?.type === 'manual-load') &&
+    status === 'approved' &&
+    !String(order?.fulfilledAt || '').trim()
   const isActionable =
     Boolean(order) &&
     (order?.type === 'manual-load' ||
@@ -111,8 +118,8 @@ export default function VendorOrderDetailModal({
       order?.type === 'redeem' ||
       order?.type === 'affiliate-payout' ||
       order?.type === 'game-transfer') &&
-    (status === 'pending' || status === 'failed')
-  const noteReady = staffNote.trim().length > 0
+    (status === 'pending' || status === 'failed' || needsGameLoad)
+  const noteReady = staffNote.trim().length > 0 || (needsGameLoad && Boolean(order?.staffNote))
 
   async function copyText(label: string, value: string) {
     try {
@@ -135,7 +142,7 @@ export default function VendorOrderDetailModal({
         payoutTags,
       })
       setOrder((current) => (current ? { ...current, status: res.status || 'approved' } : current))
-      setActionNote('Order marked complete')
+      setActionNote(needsGameLoad ? 'Credits sent to the game' : 'Order marked complete')
       onUpdated?.()
       window.setTimeout(() => onClose(), 700)
     } catch (err) {
@@ -218,19 +225,33 @@ export default function VendorOrderDetailModal({
                     {typeLabel(order.type)} · {order.method || '—'} · {order.status}
                   </span>
                   <span>{formatWhen(order.createdAt, `${order.date} ${order.time}`)}</span>
-                  {order.couponCode ? (
-                    <span>
-                      Promo {order.couponCode}
-                      {order.couponCredit
-                        ? ` · +$${Number(order.couponCredit).toFixed(2)} extra on this load`
-                        : ''}
-                    </span>
-                  ) : null}
                 </div>
                 <strong className={`vod-amount ${order.positive ? 'is-in' : 'is-out'}`}>
-                  {order.amount}
+                  {couponExtra(order) > 0 ? formatUsd(gameLoadTotal(order)) : order.amount}
                 </strong>
               </div>
+              {order.couponCode ? (
+                <div className="vod-promo-box">
+                  <div className="vod-promo-head">
+                    <span className="vod-label">Promo code</span>
+                    <strong>{order.couponCode}</strong>
+                  </div>
+                  <div className="vod-promo-rows">
+                    <div>
+                      <span>Player paid</span>
+                      <span>{formatUsd(parseOrderMoney(order.amount))}</span>
+                    </div>
+                    <div>
+                      <span>Promo extra</span>
+                      <span>+{formatUsd(couponExtra(order))}</span>
+                    </div>
+                    <div className="vod-promo-total">
+                      <span>Load to game</span>
+                      <span>{formatUsd(gameLoadTotal(order))}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               {order.error ? <p className="vod-error">{order.error}</p> : null}
             </section>
 
@@ -337,11 +358,13 @@ export default function VendorOrderDetailModal({
 
                 {isActionable ? (
                   <>
-                    {order.type === 'auto-load' ? (
+                    {order.type === 'auto-load' || needsGameLoad ? (
                       <p className="vod-auto-hint">
-                        {status === 'failed'
+                        {needsGameLoad
+                          ? `This order is approved in TapStack but was not sent to the game. Load ${order.amount}${order.couponCredit ? ` + $${Number(order.couponCredit).toFixed(2)} promo` : ''} now.`
+                          : status === 'failed'
                           ? 'Automation did not finish. Complete this if you loaded the game yourself, or reject it.'
-                          : 'This auto load is waiting. Complete it after the credits are on the player\u2019s game.'}
+                          : 'Completing this sends the credits (and any promo extra) to the player\u2019s game.'}
                       </p>
                     ) : null}
                     <label className="vod-label" htmlFor="vod-staff-note">
@@ -390,7 +413,11 @@ export default function VendorOrderDetailModal({
                       onClick={() => void completeOrder()}
                     >
                       {actionBusy === 'complete'
-                        ? 'Completing…'
+                        ? needsGameLoad
+                          ? 'Loading to game…'
+                          : 'Completing…'
+                        : needsGameLoad
+                          ? 'Load to game'
                         : order.type === 'redeem'
                           ? 'Complete redeem'
                           : order.type === 'affiliate-payout'
@@ -399,6 +426,7 @@ export default function VendorOrderDetailModal({
                             ? 'Complete load'
                           : 'Complete order'}
                     </button>
+                    {needsGameLoad ? null : (
                     <button
                       type="button"
                       className="vod-reject-btn"
@@ -407,6 +435,7 @@ export default function VendorOrderDetailModal({
                     >
                       {actionBusy === 'reject' ? 'Rejecting…' : 'Reject'}
                     </button>
+                    )}
                   </div>
                   </>
                 ) : null}

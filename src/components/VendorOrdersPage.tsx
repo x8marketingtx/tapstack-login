@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import { decodeIcon } from '../data/vendors'
+import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
 import VendorOrderDetailModal from './VendorOrderDetailModal'
 import './VendorOrdersPage.css'
 
@@ -30,6 +31,17 @@ const HISTORY_RANGES: { id: HistoryRange; label: string }[] = [
   { id: '30d', label: '30 Days' },
   { id: 'custom', label: 'Custom' },
 ]
+
+function PromoNote({ item }: { item: Pick<VendorOrderItem, 'couponCode' | 'couponCredit'> }) {
+  if (!item.couponCode) return null
+  const extra = couponExtra(item)
+  return (
+    <p className="vendor-order-promo">
+      Promo {item.couponCode}
+      {extra > 0 ? ` · +${formatUsd(extra)} extra` : ''}
+    </p>
+  )
+}
 
 function formatSignedAmount(amount: string, positive: boolean): string {
   const cleaned = String(amount || '').trim()
@@ -165,6 +177,7 @@ function LoadsTab({
                         .join(' · ')}
                     </p>
                     {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
+                    <PromoNote item={load} />
                     {(load.payoutTags || load.playerTags || []).length > 0 ? (
                       <p className="vendor-order-tags">
                         {(load.payoutTags || load.playerTags || []).join(' · ')}
@@ -174,7 +187,10 @@ function LoadsTab({
 
                   <div className="vendor-order-right">
                     <span className="vendor-order-amount">
-                      {formatSignedAmount(load.amount, true)}
+                      {formatSignedAmount(
+                        couponExtra(load) > 0 ? formatUsd(gameLoadTotal(load)) : load.amount,
+                        true,
+                      )}
                     </span>
                     <OrderStatusBadge item={load} />
                   </div>
@@ -236,17 +252,15 @@ function LoadsTab({
                     <p className="vendor-order-meta">
                       {[load.game, load.method || 'Auto', load.time].filter(Boolean).join(' · ')}
                     </p>
-                    {load.couponCode ? (
-                      <p className="vendor-order-note">
-                        Promo {load.couponCode}
-                        {load.couponCredit ? ` · +$${Number(load.couponCredit).toFixed(2)}` : ''}
-                      </p>
-                    ) : null}
+                    <PromoNote item={load} />
                   </div>
 
                   <div className="vendor-order-right">
                     <span className="vendor-order-amount">
-                      {formatSignedAmount(load.amount, true)}
+                      {formatSignedAmount(
+                        couponExtra(load) > 0 ? formatUsd(gameLoadTotal(load)) : load.amount,
+                        true,
+                      )}
                     </span>
                     <OrderStatusBadge item={load} />
                     <span className="vendor-order-auto-badge">Auto</span>
@@ -426,6 +440,7 @@ function HistoryTab({
                   <p className="vendor-order-meta">
                     {[entry.date, entry.time].filter(Boolean).join(' · ')}
                   </p>
+                  <PromoNote item={entry} />
                 </div>
                 <div className="vendor-order-right">
                   <span
@@ -433,7 +448,10 @@ function HistoryTab({
                       entry.positive ? 'vendor-history-amount--positive' : 'vendor-history-amount--negative'
                     }`}
                   >
-                    {formatSignedAmount(entry.amount, entry.positive)}
+                    {formatSignedAmount(
+                      couponExtra(entry) > 0 ? formatUsd(gameLoadTotal(entry)) : entry.amount,
+                      entry.positive,
+                    )}
                   </span>
                   <OrderStatusBadge item={entry} />
                 </div>

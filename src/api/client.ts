@@ -566,6 +566,7 @@ export type VendorOrderItem = {
   sameVendorTransfer?: boolean
   couponCode?: string
   couponCredit?: number
+  fulfilledAt?: string
   attention?: boolean
   statusLabel?: string
 }
