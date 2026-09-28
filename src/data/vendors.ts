@@ -23,6 +23,8 @@ export type Vendor = {
   code?: string
   bannerUrl?: string
   bannerId?: number
+  avatarUrl?: string
+  avatarId?: number
   accentColor?: string
   accentSolid?: string
   tagline?: string
@@ -48,6 +50,12 @@ function hashName(name: string): number {
     hash = (hash * 31 + name.charCodeAt(i)) >>> 0
   }
   return hash
+}
+
+/** Deterministic avatar colors from a display name (new accounts & removed photos). */
+export function avatarPaletteForName(name: string): { avatarBg: string; avatarText: string } {
+  const palette = PALETTE[hashName(name.trim().toLowerCase()) % PALETTE.length]
+  return { avatarBg: palette.color, avatarText: palette.text }
 }
 
 export function initialsFromName(name: string): string {
@@ -170,6 +178,23 @@ export function decodeIcon(value: string | undefined | null, gameName?: string):
   return fallbackFromName
 }
 
+function vendorAvatarFromApi(vendor: ApiVendor): string {
+  const raw = vendor as ApiVendor & {
+    logoUrl?: string
+    profileImageUrl?: string
+    avatar_url?: string
+    logo_url?: string
+  }
+  const url =
+    raw.avatarUrl ||
+    raw.logoUrl ||
+    raw.profileImageUrl ||
+    raw.avatar_url ||
+    raw.logo_url ||
+    ''
+  return absoluteMediaUrl(url)
+}
+
 export function vendorFromApi(vendor: ApiVendor): Vendor {
   return {
     id: vendor.id,
@@ -181,6 +206,8 @@ export function vendorFromApi(vendor: ApiVendor): Vendor {
     code: vendor.code,
     bannerUrl: absoluteMediaUrl(vendor.bannerUrl),
     bannerId: vendor.bannerId || 0,
+    avatarUrl: vendorAvatarFromApi(vendor),
+    avatarId: vendor.avatarId || 0,
     accentColor: vendor.accentColor || 'purple',
     accentSolid: vendor.accentSolid || '#7c3aed',
     tagline: vendor.tagline || '',

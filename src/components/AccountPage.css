@@ -551,6 +551,36 @@
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
+.tx-item--clickable {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.tx-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tx-item-btn:hover {
+  background: #fff;
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.tx-item-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
 .tx-icon {
   display: flex;
   align-items: center;

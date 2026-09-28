@@ -11,6 +11,9 @@ import './GiveawayPage.css'
 
 const CHIPS_PER_TICKET = 6
 const ADS_PER_DAY = 6
+const MEGA_DRAW_PRIZE = 'WIN $10,000'
+const MEGA_DRAW_TAGLINE =
+  'Free chances to enter. Each ticket is an automatic entry. More Tickets, more chances.'
 const DEMO_STORAGE_KEY = 'tapstack_giveaway_demo_v1'
 /** Bundled sample ad in /public — no WordPress upload needed for demo. */
 const DEMO_AD_VIDEO_SRC = '/demo-ad.mp4'
@@ -18,7 +21,7 @@ const DEMO_AD_VIDEO_SRC = '/demo-ad.mp4'
 const TIER_RATES: Record<TicketTier, { label: string; dollars: number; tickets: number }> = {
   bronze: { label: 'Bronze', dollars: 40, tickets: 1 },
   silver: { label: 'Silver', dollars: 30, tickets: 1 },
-  gold: { label: 'Gold', dollars: 20, tickets: 1 },
+  gold: { label: 'Gold', dollars: 25, tickets: 1 },
   diamond: { label: 'Diamond', dollars: 20, tickets: 3 },
   platinum: { label: 'Platinum', dollars: 20, tickets: 6 },
 }
@@ -83,10 +86,58 @@ function mintDemoTicket(source: string): GiveawayTicket {
 /** Normalize legacy cash prize labels to points copy. */
 function normalizePrize(prize: string | undefined): string {
   const raw = (prize || '').trim()
-  if (!raw || /25[,.]?000\s*points/i.test(raw) || /\$?\s*25[,.]?000/i.test(raw)) {
-    return 'WIN $10.000'
+  if (
+    !raw ||
+    /25[,.]?000\s*points/i.test(raw) ||
+    /\$?\s*25[,.]?000/i.test(raw) ||
+    /win\s*\$?\s*10[.,]000/i.test(raw)
+  ) {
+    return MEGA_DRAW_PRIZE
   }
   return raw
+}
+
+function normalizeHowItWorks(lines: string[]): string[] {
+  return lines.map((line) =>
+    /no purchase necessary/i.test(line) ? MEGA_DRAW_TAGLINE : line,
+  )
+}
+
+function clientTierRate(tier: TicketTier): GiveawayState['tierRate'] {
+  const rate = TIER_RATES[tier]
+  return {
+    dollars: rate.dollars,
+    tickets: rate.tickets,
+    summary: `$${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}`,
+  }
+}
+
+function tierPurchaseHowItWorksLine(tier: TicketTier): string {
+  const rate = TIER_RATES[tier]
+  return `Purchases also earn tickets by your ${rate.label} tier: $${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}.`
+}
+
+/** Keep info-box purchase bullets aligned with TIER_RATES (e.g. Gold $25 → 1 ticket). */
+function isPurchaseTierBullet(line: string): boolean {
+  return (
+    (/purchases also earn/i.test(line) && /tier/i.test(line)) ||
+    /earn tickets by your/i.test(line) ||
+    (/gold/i.test(line) && /\$\d+\s*(→|->|=)\s*1 ticket/i.test(line))
+  )
+}
+
+function normalizeHowItWorksTierLines(lines: string[], tier: TicketTier): string[] {
+  const tierLine = tierPurchaseHowItWorksLine(tier)
+  const kept = lines.filter((line) => !isPurchaseTierBullet(line))
+  return [...kept, tierLine]
+}
+
+function withClientTierRates(state: GiveawayState): GiveawayState {
+  return {
+    ...state,
+    tierRate: clientTierRate(state.tier),
+    howItWorks: normalizeHowItWorksTierLines(state.howItWorks, state.tier),
+  }
 }
 
 function applyChips(store: DemoStore, count: number, source: string) {
@@ -144,27 +195,23 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     tickets: store.tickets,
     tier: store.tier,
     tierLabel: rate.label,
-    tierRate: {
-      dollars: rate.dollars,
-      tickets: rate.tickets,
-      summary: `$${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}`,
-    },
+    tierRate: clientTierRate(store.tier),
     adsWatchedToday: store.adsCount,
     adsRemainingToday: adsRemaining,
     adsPerDay: ADS_PER_DAY,
     purchaseSpendTowardNext: store.purchaseSpend,
     purchaseSpendNeeded: Math.max(0, rate.dollars - store.purchaseSpend),
     title: 'MONTHLY MEGA DRAW',
-    prize: 'WIN $10.000',
+    prize: MEGA_DRAW_PRIZE,
     drawDate: formatDrawDate(drawAtDate),
     drawAt,
     deadlineDays: deadline.days,
     deadlineLabel: deadline.label,
     howItWorks: [
-      'No Purchase necessary. Each ticket is an automatic entry. More Tickets, more chances.',
+      MEGA_DRAW_TAGLINE,
       'Watch videos for free entry — each completed video fills 1 chip.',
       `${CHIPS_PER_TICKET} chips = 1 Tapstack Ticket with a random entry number.`,
-      `Purchases also earn tickets by your ${rate.label} tier: $${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}.`,
+      tierPurchaseHowItWorksLine(store.tier),
     ],
   }
 }
@@ -193,6 +240,7 @@ export default function GiveawayPage() {
   const [adError, setAdError] = useState('')
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const tierSectionRef = useRef<HTMLElement | null>(null)
+  const yourTicketsRef = useRef<HTMLElement | null>(null)
   const [tierHelpOpen, setTierHelpOpen] = useState(false)
   const maxWatchedRef = useRef(0)
   const celebrateTimer = useRef<number | null>(null)
@@ -211,7 +259,7 @@ export default function GiveawayPage() {
       celebrateTimer.current = window.setTimeout(() => {
         setCompleting(false)
         setFlashChips(null)
-        setState(next)
+        setState(withClientTierRates(next))
         setCelebrating(newTickets)
         celebrateTimer.current = window.setTimeout(() => {
           setCelebrating(null)
@@ -225,7 +273,7 @@ export default function GiveawayPage() {
       setFlashChips(Math.min(CHIPS_PER_TICKET, chipsBefore + 1))
       window.setTimeout(() => setFlashChips(null), 500)
     }
-    setState(next)
+    setState(withClientTierRates(next))
   }
 
   useEffect(() => {
@@ -250,19 +298,24 @@ export default function GiveawayPage() {
       .then((res) => {
         if (cancelled) return
         const howItWorks = Array.isArray(res.howItWorks) ? res.howItWorks : []
-        const hasNewCopy = howItWorks.some((line) => /no purchase necessary/i.test(line))
-        setState({
-          ...res,
-          prize: normalizePrize(res.prize),
-          howItWorks: hasNewCopy
-            ? howItWorks
-            : [
-                'No Purchase necessary. Each ticket is an automatic entry. More Tickets, more chances.',
-                'Watch videos for free entry — each completed video fills 1 chip.',
-                `${CHIPS_PER_TICKET} chips = 1 Tapstack Ticket with a random entry number.`,
-                ...(howItWorks.filter((line) => /tier/i.test(line)).slice(0, 1) || []),
-              ],
-        })
+        const normalizedHowItWorks = normalizeHowItWorks(howItWorks)
+        const hasStructuredCopy =
+          normalizedHowItWorks.some((line) => /free chances to enter/i.test(line)) ||
+          normalizedHowItWorks.some((line) => /watch videos for free entry/i.test(line))
+        setState(
+          withClientTierRates({
+            ...res,
+            prize: normalizePrize(res.prize),
+            howItWorks: hasStructuredCopy
+              ? normalizedHowItWorks
+              : [
+                  MEGA_DRAW_TAGLINE,
+                  'Watch videos for free entry — each completed video fills 1 chip.',
+                  `${CHIPS_PER_TICKET} chips = 1 Tapstack Ticket with a random entry number.`,
+                  ...(howItWorks.filter((line) => /tier/i.test(line)).slice(0, 1) || []),
+                ],
+          }),
+        )
       })
       .catch((err) => {
         if (!cancelled) {
@@ -461,9 +514,16 @@ export default function GiveawayPage() {
             Collect chips · 6 chips = 1 Tapstack Ticket · {state.tierLabel} tier
           </p>
         </div>
-        <div className="giveaway-tickets-pill">
+        <button
+          type="button"
+          className="giveaway-tickets-pill"
+          aria-label={`View your ${state.ticketCount} ticket${state.ticketCount === 1 ? '' : 's'}`}
+          onClick={() =>
+            yourTicketsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
           {state.ticketCount} ticket{state.ticketCount === 1 ? '' : 's'}
-        </div>
+        </button>
       </div>
 
       <section className="mega-draw-card">
@@ -484,9 +544,7 @@ export default function GiveawayPage() {
           {state.title}
         </div>
         <p className="mega-draw-prize">{state.prize}</p>
-        <p className="mega-draw-desc">
-          No Purchase necessary. Each ticket is an automatic entry. More Tickets, more chances.
-        </p>
+        <p className="mega-draw-desc">{MEGA_DRAW_TAGLINE}</p>
         <div className="mega-draw-meta">
           <div className="mega-draw-meta-box">
             <span className="mega-draw-meta-label">DRAWS</span>
@@ -733,7 +791,7 @@ export default function GiveawayPage() {
 
       {error ? <p className="giveaway-error">{error}</p> : null}
 
-      <section className="your-tickets-section">
+      <section ref={yourTicketsRef} className="your-tickets-section" id="your-tickets">
         <div className="your-numbers-header">
           <div>
             <h2 className="your-numbers-title">Your tickets</h2>

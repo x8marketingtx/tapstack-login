@@ -986,6 +986,8 @@ export default function VendorPage({
           tier={profile?.tier}
           initials={profile?.initials}
           avatarUrl={profile?.avatarUrl}
+          avatarBg={profile?.avatarBg}
+          avatarText={profile?.avatarText}
           onProfileClick={onProfileClick}
           onLogoClick={onLogoClick}
         />

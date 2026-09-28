@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, isApiConfigured, tapstackApi, type PlayerPromo } from '../api/client'
+import {
+  isPromoHistoryEntry,
+  isPromoLiveEntry,
+  promoHistoryStatusLabel,
+} from '../lib/playerPromos'
 import ReportImageButton from './ReportImageButton'
 import './PromosPage.css'
 
@@ -29,7 +34,20 @@ async function fetchPromos(force = false): Promise<PlayerPromo[]> {
   return promosInflight
 }
 
-export default function PromosPage({ active = true }: { active?: boolean }) {
+export default function PromosPage({
+  active = true,
+  history = false,
+  onOpenHistory,
+  onCloseHistory,
+  onOpenGameroom,
+}: {
+  active?: boolean
+  history?: boolean
+  onOpenHistory?: () => void
+  onCloseHistory?: () => void
+  /** Navigate to the vendor gameroom (player dashboard). Return false if the vendor could not be opened. */
+  onOpenGameroom?: (vendorId: string) => boolean | void
+}) {
   const [promos, setPromos] = useState<PlayerPromo[]>(() => promosCache ?? [])
   const [loading, setLoading] = useState(() => isApiConfigured() && !promosCache)
   const [filter, setFilter] = useState<string>('all')
@@ -62,9 +80,14 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
     void load(false)
   }, [active, load])
 
+  const scopedPromos = useMemo(
+    () => promos.filter((p) => (history ? isPromoHistoryEntry(p) : isPromoLiveEntry(p))),
+    [promos, history],
+  )
+
   const vendors = useMemo(() => {
     const map = new Map<string, { id: string; label: string; initials: string }>()
-    for (const promo of promos) {
+    for (const promo of scopedPromos) {
       if (!map.has(promo.vendorId)) {
         map.set(promo.vendorId, {
           id: promo.vendorId,
@@ -74,10 +97,10 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
       }
     }
     return Array.from(map.values())
-  }, [promos])
+  }, [scopedPromos])
 
   const visible = useMemo(() => {
-    const byVendor = filter === 'all' ? promos : promos.filter((p) => p.vendorId === filter)
+    const byVendor = filter === 'all' ? scopedPromos : scopedPromos.filter((p) => p.vendorId === filter)
     const q = query.trim().toLowerCase()
     if (!q) return byVendor
     return byVendor.filter((p) =>
@@ -86,10 +109,16 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
         .toLowerCase()
         .includes(q),
     )
-  }, [promos, filter, query])
+  }, [scopedPromos, filter, query])
 
-  async function handleAction(promo: PlayerPromo) {
-    if (!isApiConfigured() || busyId) return
+  function canActOnPromo(promo: PlayerPromo): boolean {
+    if (promo.claimStatus === 'available') return true
+    if (promo.type !== 'giveaway' && promo.claimStatus === 'completed') return true
+    return false
+  }
+
+  async function handlePrimaryAction(promo: PlayerPromo) {
+    if (!isApiConfigured() || busyId || !canActOnPromo(promo)) return
     setBusyId(promo.id)
     setNote('')
     try {
@@ -101,7 +130,14 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
           promosCacheAt = Date.now()
           return next
         })
-        setNote('Promo activated — load to complete it.')
+        if (onOpenGameroom) {
+          const opened = onOpenGameroom(promo.vendorId)
+          if (opened === false) {
+            setNote('Promo activated — open this gameroom from Games to load.')
+          }
+        } else {
+          setNote('Promo activated — load to complete it.')
+        }
       } else if (promo.claimStatus === 'completed') {
         const res = await tapstackApi.customerPromoClaim(promo.id)
         setPromos((list) => {
@@ -131,8 +167,27 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
   return (
     <div className="promos-page">
       <div className="promos-intro">
-        <h1 className="promos-title">Promos and Giveaways</h1>
-        <p className="promos-subtitle">From your linked vendors — activate, complete a load, or enter a giveaway</p>
+        <div className="promos-intro-row">
+          <h1 className="promos-title">
+            {history ? 'Promo History' : 'Promos and Giveaways'}
+          </h1>
+          {history ? (
+            onCloseHistory ? (
+              <button type="button" className="promos-history-btn" onClick={onCloseHistory}>
+                Back
+              </button>
+            ) : null
+          ) : onOpenHistory ? (
+            <button type="button" className="promos-history-btn" onClick={onOpenHistory}>
+              Promo History
+            </button>
+          ) : null}
+        </div>
+        <p className="promos-subtitle">
+          {history
+            ? 'Past promos and giveaways that expired or were fully used.'
+            : 'From your linked vendors — activate, complete a load, or enter a giveaway'}
+        </p>
       </div>
 
       <div className="promo-filters" role="tablist" aria-label="Vendor filters">
@@ -192,7 +247,9 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
 
       {!loading && visible.length === 0 ? (
         <p className="promo-empty">
-          No live promos yet. Link a vendor and ask them to publish a Bonus Credit, Deposit Bonus, or Giveaway.
+          {history
+            ? 'No past promos or giveaways yet.'
+            : 'No live promos yet. Link a vendor and ask them to publish a Bonus Credit, Deposit Bonus, or Giveaway.'}
         </p>
       ) : null}
 
@@ -200,9 +257,7 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
         {visible.map((promo) => {
           const pct =
             promo.goal > 0 ? Math.min(100, Math.round((promo.progress / promo.goal) * 100)) : 0
-          const canAct =
-            promo.type !== 'giveaway' &&
-            (promo.claimStatus === 'available' || promo.claimStatus === 'completed')
+          const canAct = canActOnPromo(promo)
           const expanded = Boolean(expandedIds[promo.id])
           const heroImage = promo.vendorBannerUrl || promo.imageUrl
           const details =
@@ -214,7 +269,10 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
                 ? `Load $${promo.minAmount}+ and get ${promo.rewardValue}% bonus credit.`
                 : `Load $${promo.minAmount}+ and get $${promo.rewardValue.toFixed(2)} credit.`))
           return (
-            <article key={promo.id} className={`promo-card${expanded ? ' is-expanded' : ''}`}>
+            <article
+              key={promo.id}
+              className={`promo-card${expanded ? ' is-expanded' : ''}${history ? ' promo-card--history' : ''}`}
+            >
               <div className="promo-card-hero" style={{ background: promo.heroGradient }}>
                 {heroImage ? (
                   <img src={heroImage} alt="" className="promo-card-hero-img" />
@@ -314,14 +372,18 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
                     >
                       {expanded ? 'Show less' : 'Learn more'}
                     </button>
-                    <button
-                      type="button"
-                      className={`promo-play-btn ${promo.claimStatus === 'completed' ? 'is-claim' : ''}`}
-                      disabled={busyId === promo.id || !canAct}
-                      onClick={() => void handleAction(promo)}
-                    >
-                      {busyId === promo.id ? '…' : actionLabel(promo)}
-                    </button>
+                    {history ? (
+                      <span className="promo-history-status">{promoHistoryStatusLabel(promo)}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`promo-play-btn ${promo.claimStatus === 'completed' ? 'is-claim' : ''}`}
+                        disabled={busyId === promo.id || !canAct}
+                        onClick={() => void handlePrimaryAction(promo)}
+                      >
+                        {busyId === promo.id ? '…' : actionLabel(promo)}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -8,6 +8,8 @@ type DashboardHeaderProps = {
   tier?: TicketTier | string | null
   initials?: string
   avatarUrl?: string
+  avatarBg?: string
+  avatarText?: string
   loading?: boolean
   onProfileClick?: () => void
   onLogoClick?: () => void
@@ -18,6 +20,8 @@ export default function DashboardHeader({
   tier = 'bronze',
   initials = 'P',
   avatarUrl = '',
+  avatarBg = '#f5b37c',
+  avatarText = '#fff',
   loading = false,
   onProfileClick,
   onLogoClick,
@@ -50,6 +54,11 @@ export default function DashboardHeader({
               className="user-avatar"
               aria-label="Open profile"
               onClick={onProfileClick}
+              style={
+                avatarUrl
+                  ? undefined
+                  : { background: avatarBg, color: avatarText }
+              }
             >
               {avatarUrl ? <img src={avatarUrl} alt="" className="user-avatar-img" /> : initials}
             </button>

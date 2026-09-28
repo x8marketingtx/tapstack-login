@@ -19,6 +19,7 @@ import {
   verificationApplies,
   type VerificationState,
 } from '../lib/verify'
+import { avatarPaletteForName } from '../data/vendors'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
 import { PendingImageUpload } from './ImageUploadAgreement'
 import ReportImageButton from './ReportImageButton'
@@ -32,6 +33,8 @@ export type PlayerProfile = {
   initials: string
   avatarUrl?: string
   avatarId?: number
+  avatarBg?: string
+  avatarText?: string
   level: number
   levelProgressPct: number
   tier: TicketTier
@@ -45,6 +48,8 @@ export const DEMO_PLAYER_PROFILE: PlayerProfile = {
   initials: 'MR',
   avatarUrl: '',
   avatarId: 0,
+  avatarBg: '#ffedd5',
+  avatarText: '#ea580c',
   level: 7,
   levelProgressPct: 62,
   tier: 'bronze',
@@ -72,6 +77,7 @@ export function profileFromUser(
   const username = user.username?.startsWith('@')
     ? user.username
     : `@${(user.username || displayName.split(' ')[0] || 'player').replace(/^@/, '')}`
+  const palette = avatarPaletteForName(displayName)
   return {
     displayName,
     username,
@@ -80,6 +86,8 @@ export function profileFromUser(
     initials: initialsFromName(displayName),
     avatarUrl: absoluteMediaUrl(user.avatarUrl),
     avatarId: user.avatarId || 0,
+    avatarBg: user.avatarBg || palette.avatarBg,
+    avatarText: user.avatarText || palette.avatarText,
     level: user.level || level || 1,
     levelProgressPct,
     tier: normalizeTicketTier(user.tier),
@@ -167,6 +175,7 @@ export default function ProfilePage({
   const [phoneError, setPhoneError] = useState('')
   const [phoneSuccess, setPhoneSuccess] = useState('')
   const [phoneDemoCode, setPhoneDemoCode] = useState('')
+  const [avatarRemoving, setAvatarRemoving] = useState(false)
 
   useEffect(() => {
     setLocalProfile(profile)
@@ -176,6 +185,38 @@ export default function ProfilePage({
       setEditing(true)
     }
   }, [profile])
+
+  async function handleRemoveAvatar() {
+    const shown = localProfile
+    if (!shown.avatarUrl || avatarRemoving) return
+    setError('')
+    setAvatarRemoving(true)
+    try {
+      if (!isApiConfigured()) {
+        const palette = avatarPaletteForName(shown.displayName)
+        const next = {
+          ...shown,
+          avatarUrl: '',
+          avatarId: 0,
+          avatarBg: palette.avatarBg,
+          avatarText: palette.avatarText,
+        }
+        setLocalProfile(next)
+        onProfileChange(next)
+        return
+      }
+      const res = await tapstackApi.deletePlayerAvatar()
+      const next = profileFromUser(res.user, shown.level, shown.levelProgressPct)
+      setLocalProfile(next)
+      onProfileChange(next)
+      const token = getToken()
+      if (token) applyAuthSession(token, res.user)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not remove profile photo.')
+    } finally {
+      setAvatarRemoving(false)
+    }
+  }
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -254,12 +295,15 @@ export default function ProfilePage({
         }
         setEditing(false)
       } else {
+        const palette = avatarPaletteForName(fullName.trim())
         const next: PlayerProfile = {
           ...localProfile,
           displayName: fullName.trim(),
           email: email.trim(),
           initials: initialsFromName(fullName.trim()),
           username: `@${fullName.trim().toLowerCase().replace(/\s+/g, '_')}`,
+          avatarBg: palette.avatarBg,
+          avatarText: palette.avatarText,
         }
         setLocalProfile(next)
         onProfileChange(next)
@@ -434,6 +478,15 @@ export default function ProfilePage({
             <div
               className={`profile-hero-avatar${avatarTone !== 'player' ? ` profile-hero-avatar--${avatarTone}` : ''}`}
               aria-hidden="true"
+              style={
+                shown.avatarUrl || avatarTone !== 'player'
+                  ? undefined
+                  : {
+                      background: shown.avatarBg,
+                      color: shown.avatarText,
+                      boxShadow: 'none',
+                    }
+              }
             >
               {shown.avatarUrl ? (
                 <img src={shown.avatarUrl} alt="" className="profile-hero-avatar-img" />
@@ -465,6 +518,8 @@ export default function ProfilePage({
             <PendingImageUpload
               currentUrl={shown.avatarUrl}
               pickLabel={shown.avatarUrl ? 'Change photo' : 'Add profile picture'}
+              clearDisabled={avatarRemoving}
+              onClearCurrent={() => void handleRemoveAvatar()}
               onUpload={async (file) => {
                 if (!isApiConfigured()) {
                   const url = URL.createObjectURL(file)

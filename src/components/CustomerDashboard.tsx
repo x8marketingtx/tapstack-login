@@ -146,6 +146,44 @@ function catalogToVendorGames(
     }))
 }
 
+function VendorDeleteConfirmModal({
+  vendor,
+  onCancel,
+  onConfirm,
+}: {
+  vendor: Vendor
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="vendor-delete-overlay" role="presentation" onClick={onCancel}>
+      <div
+        className="vendor-delete-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vendor-delete-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="vendor-delete-title" className="vendor-delete-title">
+          Delete vendor?
+        </h2>
+        <p className="vendor-delete-copy">
+          Remove <strong>{vendor.name}</strong> from your vendors? You can add them again later with an
+          invite code.
+        </p>
+        <div className="vendor-delete-actions">
+          <button type="button" className="vendor-delete-btn vendor-delete-btn--cancel" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="vendor-delete-btn vendor-delete-btn--confirm" onClick={onConfirm}>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function VendorGamePickModal({
   vendorName,
   intent,
@@ -330,11 +368,29 @@ function GamesHome({
   const sortedVendors = sortVendorsByFavorite(vendors, favoriteKeys)
   const [vendorsExpanded, setVendorsExpanded] = useState(false)
   const [vendorSearch, setVendorSearch] = useState('')
+  const [openVendorMenuKey, setOpenVendorMenuKey] = useState<string | null>(null)
   const [vendorTotals, setVendorTotals] = useState<
     Record<string, { status: 'loading' | 'ready'; playable: number; redeemable: number }>
   >({})
   const [activityPage, setActivityPage] = useState(1)
   const pagedActivities = pageItems(activities, activityPage)
+
+  useEffect(() => {
+    if (!openVendorMenuKey) return
+    function closeIfOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const wrap = document.querySelector(`[data-vendor-menu="${openVendorMenuKey}"]`)
+      if (wrap?.contains(target)) return
+      setOpenVendorMenuKey(null)
+    }
+    document.addEventListener('mousedown', closeIfOutside)
+    document.addEventListener('touchstart', closeIfOutside)
+    return () => {
+      document.removeEventListener('mousedown', closeIfOutside)
+      document.removeEventListener('touchstart', closeIfOutside)
+    }
+  }, [openVendorMenuKey])
 
   const vendorBalanceKey = vendors
     .map((vendor) => `${vendorStorageKey(vendor)}:${vendor.games.length}`)
@@ -526,8 +582,10 @@ function GamesHome({
                 const key = vendorStorageKey(vendor)
                 const favorited = favoriteKeys.has(key)
                 const bannerUrl = vendor.bannerUrl?.trim() || ''
+                const avatarUrl = vendor.avatarUrl?.trim() || ''
                 const totals = vendorTotals[key]
                 const totalsLoading = !totals || totals.status === 'loading'
+                const menuOpen = openVendorMenuKey === key
                 return (
                   <div
                     key={vendor.id ?? `${vendor.name}-${vendor.handle}`}
@@ -538,6 +596,41 @@ function GamesHome({
                         <img src={bannerUrl} alt="" />
                       </div>
                     ) : null}
+                    <div className="vendor-home-more" data-vendor-menu={key}>
+                      <button
+                        type="button"
+                        className={`vendor-home-more-toggle${menuOpen ? ' is-open' : ''}`}
+                        aria-label={`${vendor.name} options`}
+                        aria-expanded={menuOpen}
+                        aria-haspopup="menu"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setOpenVendorMenuKey((current) => (current === key ? null : key))
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <circle cx="8" cy="3.5" r="1.35" fill="currentColor" />
+                          <circle cx="8" cy="8" r="1.35" fill="currentColor" />
+                          <circle cx="8" cy="12.5" r="1.35" fill="currentColor" />
+                        </svg>
+                      </button>
+                      {menuOpen ? (
+                        <div className="vendor-home-more-menu" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="vendor-home-more-item vendor-home-more-item--danger"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setOpenVendorMenuKey(null)
+                              onRemoveVendor(vendor)
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                     <div className="game-card vendor-home-card-body">
                     <div className="game-card-main">
                       <button
@@ -551,36 +644,20 @@ function GamesHome({
                       </button>
                       <button
                         type="button"
-                        className="vendor-home-trash"
-                        aria-label={`Remove ${vendor.name}`}
-                        onClick={() => onRemoveVendor(vendor)}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path
-                            d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
                         className="vendor-card-open"
                         onClick={() => onVendorSelect(vendor)}
                       >
                         <div
                           className="game-icon"
                           style={
-                            bannerUrl
+                            avatarUrl
                               ? undefined
                               : { background: vendor.color, color: vendor.text }
                           }
                           aria-hidden="true"
                         >
-                          {bannerUrl ? (
-                            <img className="game-icon-img" src={bannerUrl} alt="" />
+                          {avatarUrl ? (
+                            <img className="game-icon-img" src={avatarUrl} alt="" />
                           ) : (
                             vendor.initials || initialsFromName(vendor.name)
                           )}
@@ -742,6 +819,9 @@ export default function CustomerDashboard({
   const [activeTab, setActiveTab] = useState<DashboardTab>(() =>
     initialRoute.portal === 'customer' ? initialRoute.tab : 'games',
   )
+  const [promosHistory, setPromosHistory] = useState(
+    () => initialRoute.portal === 'customer' && Boolean(initialRoute.promosHistory),
+  )
   const [showProfile, setShowProfile] = useState(
     () => initialRoute.portal === 'customer' && Boolean(initialRoute.profile),
   )
@@ -760,6 +840,7 @@ export default function CustomerDashboard({
   const [gamePick, setGamePick] = useState<{ vendor: Vendor; intent: 'load' | 'redeem' } | null>(null)
   const [gamePickLoading, setGamePickLoading] = useState(false)
   const [vendorBalanceEpoch, setVendorBalanceEpoch] = useState(0)
+  const [vendorPendingDelete, setVendorPendingDelete] = useState<Vendor | null>(null)
   const [homeTransfer, setHomeTransfer] = useState<{
     vendor: Vendor
     intent: GameTransferIntent
@@ -782,6 +863,7 @@ export default function CustomerDashboard({
     const route = parseLocation()
     if (route.portal !== 'customer') return
     setActiveTab(route.tab)
+    setPromosHistory(Boolean(route.promosHistory))
     setShowProfile(Boolean(route.profile))
     setShowVerify(Boolean(route.verify))
     if (route.vendorId) {
@@ -886,8 +968,12 @@ export default function CustomerDashboard({
       )
       return
     }
-    applyDocumentTitle({ portal: 'customer', tab: activeTab })
-  }, [activeTab, showProfile, showVerify, selectedVendor])
+    applyDocumentTitle({
+      portal: 'customer',
+      tab: activeTab,
+      promosHistory: promosHistory || undefined,
+    })
+  }, [activeTab, showProfile, showVerify, selectedVendor, promosHistory])
 
   useEffect(() => {
     if (!needsVerification(verification)) return
@@ -927,8 +1013,6 @@ export default function CustomerDashboard({
   }
 
   async function removeVendor(vendor: Vendor) {
-    if (!window.confirm('Are you sure you want to delete this vendor?')) return
-
     const userId = getSessionUser()?.id ?? cachedUser?.id
     const key = vendorStorageKey(vendor)
 
@@ -1193,6 +1277,8 @@ export default function CustomerDashboard({
             ...vendor,
             bannerUrl: fresh.bannerUrl || vendor.bannerUrl,
             bannerId: fresh.bannerId || vendor.bannerId,
+            avatarUrl: fresh.avatarUrl || vendor.avatarUrl,
+            avatarId: fresh.avatarId || vendor.avatarId,
             tagline: fresh.tagline || vendor.tagline,
             accentColor: fresh.accentColor || vendor.accentColor,
             accentSolid: fresh.accentSolid || vendor.accentSolid,
@@ -1203,7 +1289,10 @@ export default function CustomerDashboard({
         if (token && !token.startsWith('demo:')) {
           nextVendors = await Promise.all(
             nextVendors.map(async (vendor) => {
-              if (vendor.bannerUrl || vendor.id == null || String(vendor.id).startsWith('local-')) {
+              if (vendor.id == null || String(vendor.id).startsWith('local-')) {
+                return vendor
+              }
+              if (vendor.bannerUrl && vendor.avatarUrl) {
                 return vendor
               }
               try {
@@ -1213,6 +1302,8 @@ export default function CustomerDashboard({
                   ...vendor,
                   bannerUrl: fresh.bannerUrl || vendor.bannerUrl,
                   bannerId: fresh.bannerId || vendor.bannerId,
+                  avatarUrl: fresh.avatarUrl || vendor.avatarUrl,
+                  avatarId: fresh.avatarId || vendor.avatarId,
                   initials: fresh.initials || vendor.initials,
                   color: fresh.color || vendor.color,
                   text: fresh.text || vendor.text,
@@ -1336,6 +1427,29 @@ export default function CustomerDashboard({
 
   const verifyLocked = needsVerification(verification)
 
+  function requestRemoveVendor(vendor: Vendor) {
+    setVendorPendingDelete(vendor)
+  }
+
+  function cancelRemoveVendor() {
+    setVendorPendingDelete(null)
+  }
+
+  function confirmRemoveVendor() {
+    if (!vendorPendingDelete) return
+    const vendor = vendorPendingDelete
+    setVendorPendingDelete(null)
+    void removeVendor(vendor)
+  }
+
+  const vendorDeleteModal = vendorPendingDelete ? (
+    <VendorDeleteConfirmModal
+      vendor={vendorPendingDelete}
+      onCancel={cancelRemoveVendor}
+      onConfirm={confirmRemoveVendor}
+    />
+  ) : null
+
   const affiliateWelcomeModal = affiliateWelcome ? (
     <div
       className="player-affiliate-overlay"
@@ -1406,7 +1520,7 @@ export default function CustomerDashboard({
           profile={profile}
           onBack={closeVendor}
           onTabChange={handleTabChange}
-          onRemoveVendor={() => void removeVendor(selectedVendor)}
+          onRemoveVendor={() => requestRemoveVendor(selectedVendor)}
           onProfileClick={openProfile}
           onLogoClick={goHome}
           onTopUp={() => {
@@ -1462,6 +1576,7 @@ export default function CustomerDashboard({
           }}
         />
         {affiliateWelcomeModal}
+        {vendorDeleteModal}
       </>
     )
   }
@@ -1491,6 +1606,8 @@ export default function CustomerDashboard({
               tier={headerProfile?.tier}
               initials={headerProfile?.initials}
               avatarUrl={headerProfile?.avatarUrl}
+              avatarBg={headerProfile?.avatarBg}
+              avatarText={headerProfile?.avatarText}
               onProfileClick={openProfile}
               onLogoClick={goHome}
             />
@@ -1512,7 +1629,7 @@ export default function CustomerDashboard({
                 onToggleFavorite={toggleFavoriteVendor}
                 onVendorSelect={openVendor}
                 onVendorTransfer={startVendorTransfer}
-                onRemoveVendor={(vendor) => void removeVendor(vendor)}
+                onRemoveVendor={requestRemoveVendor}
                 cashBalance={cashBalance || '$0.00'}
                 loading={loading}
                 balanceEpoch={vendorBalanceEpoch}
@@ -1543,7 +1660,19 @@ export default function CustomerDashboard({
             {activeTab === 'giveaway' && <GiveawayPage />}
 
             <div hidden={activeTab !== 'promos'} aria-hidden={activeTab !== 'promos'}>
-              <PromosPage active={activeTab === 'promos'} />
+              <PromosPage
+                active={activeTab === 'promos'}
+                history={promosHistory}
+                onOpenHistory={() =>
+                  navigate({ portal: 'customer', tab: 'promos', promosHistory: true })
+                }
+                onCloseHistory={() => navigate({ portal: 'customer', tab: 'promos' })}
+                onOpenGameroom={(vendorId) => {
+                  const match = matchVendorFromList(vendors, vendorId)
+                  if (!match) return false
+                  openVendor(match)
+                }}
+              />
             </div>
 
             {activeTab === 'account' && headerProfile && (
@@ -1657,6 +1786,7 @@ export default function CustomerDashboard({
         />
       ) : null}
       {affiliateWelcomeModal}
+      {vendorDeleteModal}
     </div>
   )
 }

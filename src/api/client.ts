@@ -533,6 +533,10 @@ export type PlayerPromo = {
   categoryClass: string
   description: string
   ends: string
+  /** ISO end time when provided by the API (used for expired vs live lists). */
+  endsAt?: string
+  /** Vendor promo lifecycle; `expired` promos belong in history. */
+  status?: 'active' | 'expired' | 'draft' | string
   type: string
   minAmount: number
   rewardValue: number
@@ -1632,6 +1636,10 @@ export const tapstackApi = {
       user: TapstackUser
     }
   },
+  deletePlayerAvatar: () =>
+    apiRequest<{ ok: boolean; user: TapstackUser }>('/customer/profile/avatar', {
+      method: 'DELETE',
+    }),
   vendorGames: () =>
     apiRequest<{
       vendorId?: number
@@ -1761,6 +1769,12 @@ export const tapstackApi = {
       pendingCount: number
       orders: VendorOrderItem[]
     }>(`/customer/vendors/${vendorId}/orders`),
+  customerOrderDetail: (orderId: number | string) =>
+    apiRequest<{
+      ok?: boolean
+      order: VendorOrderItem
+      vendor?: { id?: number | string; name?: string }
+    }>(`/customer/orders/${encodeURIComponent(String(orderId))}`),
 
   adminOverview: (range = 'today') =>
     apiRequest<AdminOverview>(`/admin/overview?range=${encodeURIComponent(range)}`),
@@ -2305,6 +2319,8 @@ export type TapstackUser = {
   username?: string
   avatarId?: number | null
   avatarUrl?: string
+  avatarBg?: string
+  avatarText?: string
   level?: number
   tier?: TicketTier
   vendorId?: number | null
@@ -2345,6 +2361,8 @@ export type ApiVendor = {
   code: string
   bannerUrl?: string
   bannerId?: number
+  avatarUrl?: string
+  avatarId?: number
   accentColor?: string
   accentSolid?: string
   tagline?: string

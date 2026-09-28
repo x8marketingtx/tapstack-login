@@ -562,22 +562,78 @@
   font-size: 28px;
 }
 
-.vendor-home-trash {
-  display: flex;
+.vendor-home-card .game-favorite.is-on {
+  -webkit-text-stroke: 0.75px rgba(255, 255, 255, 0.92);
+  paint-order: stroke fill;
+}
+
+.vendor-home-more {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+}
+
+.vendor-home-more-toggle {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #475569;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.vendor-home-more-toggle.is-open,
+.vendor-home-more-toggle:hover {
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+}
+
+.vendor-home-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 132px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.vendor-home-more-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
   border: none;
   border-radius: 8px;
-  background: rgba(254, 226, 226, 0.9);
-  color: #dc2626;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
   cursor: pointer;
 }
 
-.vendor-home-trash:hover {
-  background: #fecaca;
+.vendor-home-more-item:hover {
+  background: #f8fafc;
+}
+
+.vendor-home-more-item--danger {
+  color: #dc2626;
+}
+
+.vendor-home-more-item--danger:hover {
+  background: #fef2f2;
+}
+
+.vendor-home-card .game-card-main {
+  padding-right: 36px;
 }
 
 .vendor-home-card {
@@ -615,12 +671,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.48) 100%,
-    rgba(255, 255, 255, 0.68) 100%,
-    rgba(255, 255, 255, 0.82) 100%
-  );
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .vendor-home-card-body.game-card {
@@ -744,6 +795,17 @@
   text-overflow: unset;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.vendor-home-card.has-banner .game-name {
+  color: #fff;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.vendor-home-card.has-banner .game-icon {
+  box-sizing: border-box;
+  border: 2px solid rgba(255, 255, 255, 0.5);
 }
 
 .vendor-card-open {
@@ -1311,6 +1373,80 @@
 .nav-ticket-icon--gold {
   color: #d4af37;
   filter: drop-shadow(0 1px 1px rgba(180, 120, 20, 0.35));
+}
+
+.vendor-delete-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.vendor-delete-dialog {
+  width: min(100%, 340px);
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+}
+
+.vendor-delete-title {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.vendor-delete-copy {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.vendor-delete-copy strong {
+  color: #111827;
+  font-weight: 700;
+}
+
+.vendor-delete-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.vendor-delete-btn {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vendor-delete-btn--cancel {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+}
+
+.vendor-delete-btn--cancel:hover {
+  background: #f9fafb;
+}
+
+.vendor-delete-btn--confirm {
+  border: none;
+  background: #dc2626;
+  color: #fff;
+}
+
+.vendor-delete-btn--confirm:hover {
+  background: #b91c1c;
 }
 
 .player-affiliate-overlay {

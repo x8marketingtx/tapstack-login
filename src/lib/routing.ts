@@ -16,7 +16,14 @@ export type RouteState =
   | { portal: 'join'; slug: string }
   | { portal: 'play'; code: string }
   | { portal: 'terms' | 'privacy' | 'returns'; section?: string }
-  | { portal: 'customer'; tab: CustomerTab; vendorId?: string; profile?: boolean; verify?: boolean }
+  | {
+      portal: 'customer'
+      tab: CustomerTab
+      vendorId?: string
+      profile?: boolean
+      verify?: boolean
+      promosHistory?: boolean
+    }
   | { portal: 'vendor'; tab: VendorTab; profile?: boolean; verify?: boolean }
   | { portal: 'admin'; tab: AdminTab }
   | { portal: 'distributor'; tab: DistributorTab; profile?: boolean; verify?: boolean }
@@ -98,6 +105,12 @@ export function parseLocation(pathname = window.location.pathname, hash = window
     if (parts[1] === 'vendors' && parts[2]) {
       return { portal: 'customer', tab: 'games', vendorId: decodeURIComponent(parts[2]) }
     }
+    if (parts[1] === 'promos' && parts[2] === 'history') {
+      return { portal: 'customer', tab: 'promos', promosHistory: true }
+    }
+    if (parts[1] === 'promos') {
+      return { portal: 'customer', tab: 'promos' }
+    }
     const tab = (parts[1] || 'games') as CustomerTab
     const resolved = CUSTOMER_TABS.has(tab) ? tab : 'games'
     return { portal: 'customer', tab: resolved }
@@ -155,7 +168,9 @@ export function pathForRoute(route: RouteState): string {
       if (route.profile) return '/customer/profile'
       if (route.verify) return '/customer/verify'
       if (route.vendorId) return `/customer/vendors/${encodeURIComponent(route.vendorId)}`
+      if (route.promosHistory) return '/customer/promos/history'
       if (route.tab === 'games') return '/customer'
+      if (route.tab === 'promos') return '/customer/promos'
       return `/customer/${route.tab}`
     }
     case 'vendor': {
@@ -235,7 +250,9 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
         case 'giveaway':
           return `Tickets · Player · ${TITLE_BRAND}`
         case 'promos':
-          return `Promos and Giveaways · Player · ${TITLE_BRAND}`
+          return route.promosHistory
+            ? `Promo History · Player · ${TITLE_BRAND}`
+            : `Promos and Giveaways · Player · ${TITLE_BRAND}`
         case 'account':
           return `Account · Player · ${TITLE_BRAND}`
         default:

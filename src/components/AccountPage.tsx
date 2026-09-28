@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, getSessionUser, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
 import { isVerifyApiError, needsVerification, verificationFromUser } from '../lib/verify'
+import {
+  isLoadTransaction,
+  loadTxnMetaLine,
+  txnVendorId,
+  txnVendorName,
+} from '../lib/walletTxn'
 import type { PlayerProfile } from './ProfilePage'
 import type { Vendor } from '../data/vendors'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
 import ActivityPager from './ActivityPager'
+import LoadReceiptModal from './LoadReceiptModal'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import './AccountPage.css'
 
@@ -24,14 +31,16 @@ type TxRow = {
   title: string
   meta: string
   amounts: TxAmount[]
+  loadReceipt?: WalletTxn
 }
 
-function mapLedgerToRows(txns: WalletTxn[]): TxRow[] {
+function mapLedgerToRows(txns: WalletTxn[], vendors: Vendor[]): TxRow[] {
   return txns.map((txn) => {
     const meta = txn.meta || {}
-    const icon = typeof meta.icon === 'string' ? meta.icon : txn.amount >= 0 ? '💰' : '🎮'
+    const isLoad = isLoadTransaction(txn)
+    const icon = typeof meta.icon === 'string' ? meta.icon : isLoad ? '🎮' : txn.amount >= 0 ? '💰' : '🎮'
     const iconBg =
-      typeof meta.iconBg === 'string' ? meta.iconBg : txn.amount >= 0 ? '#dcfce7' : '#dbeafe'
+      typeof meta.iconBg === 'string' ? meta.iconBg : isLoad ? '#dbeafe' : txn.amount >= 0 ? '#dcfce7' : '#dbeafe'
     const amounts: TxAmount[] = []
     if (txn.amount !== 0) {
       amounts.push({
@@ -48,21 +57,21 @@ function mapLedgerToRows(txns: WalletTxn[]): TxRow[] {
     if (amounts.length === 0) {
       amounts.push({ text: '$0.00', variant: 'cash-positive' })
     }
+    const vendorName = txnVendorName(txn, vendors)
+    const title = isLoad
+      ? ['Load', vendorName].filter(Boolean).join(' · ')
+      : txn.title || txn.type
+    const metaLine = isLoad ? loadTxnMetaLine(txn, vendors) : txn.createdAt || txn.type
     return {
       id: txn.id,
       icon,
       iconBg,
-      title: txn.title || txn.type,
-      meta: txn.createdAt || txn.type,
+      title,
+      meta: metaLine,
       amounts,
+      loadReceipt: isLoad ? txn : undefined,
     }
   })
-}
-
-function txnVendorId(txn: WalletTxn): string {
-  const raw = txn.meta?.vendorId ?? txn.meta?.vendor_id
-  if (raw == null || raw === '') return ''
-  return String(raw)
 }
 
 function txnTime(txn: WalletTxn): number {
@@ -117,6 +126,7 @@ export default function AccountPage({
   const [redeeming, setRedeeming] = useState(false)
   const [redeemMsg, setRedeemMsg] = useState('')
   const [redeemError, setRedeemError] = useState('')
+  const [receiptTxn, setReceiptTxn] = useState<WalletTxn | null>(null)
 
   const rawTxns = fetchedTxns
   const linkedVendors = vendors.filter((vendor) => vendor.id != null && vendor.name)
@@ -140,8 +150,8 @@ export default function AccountPage({
   }, [rawTxns, timeFilter, roomFilter])
 
   const ledgerRows = useMemo(
-    () => mapLedgerToRows(pageItems(filteredTxns, ledgerPage)),
-    [filteredTxns, ledgerPage],
+    () => mapLedgerToRows(pageItems(filteredTxns, ledgerPage), linkedVendors),
+    [filteredTxns, ledgerPage, linkedVendors],
   )
 
   const loadLedger = useCallback(async (silent = false) => {
@@ -431,26 +441,52 @@ export default function AccountPage({
               </div>
             </li>
           ) : (
-            ledgerRows.map((tx) => (
-              <li key={tx.id} className="tx-item">
-                <div className="tx-icon" style={{ background: tx.iconBg }}>
-                  {tx.icon}
-                </div>
-                <div className="tx-details">
-                  <p className="tx-title">{tx.title}</p>
-                  <p className="tx-meta">{tx.meta}</p>
-                </div>
-                <div className="tx-amounts">
-                  {tx.amounts.map((item) => (
-                    <span key={item.text} className={`tx-amount tx-amount--${item.variant}`}>
-                      {item.text}
-                    </span>
-                  ))}
-                </div>
-              </li>
-            ))
+            ledgerRows.map((tx) => {
+              const rowBody = (
+                <>
+                  <div className="tx-icon" style={{ background: tx.iconBg }}>
+                    {tx.icon}
+                  </div>
+                  <div className="tx-details">
+                    <p className="tx-title">{tx.title}</p>
+                    <p className="tx-meta">{tx.meta}</p>
+                  </div>
+                  <div className="tx-amounts">
+                    {tx.amounts.map((item) => (
+                      <span key={item.text} className={`tx-amount tx-amount--${item.variant}`}>
+                        {item.text}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )
+              if (tx.loadReceipt) {
+                return (
+                  <li key={tx.id} className="tx-item tx-item--clickable">
+                    <button
+                      type="button"
+                      className="tx-item-btn"
+                      onClick={() => setReceiptTxn(tx.loadReceipt!)}
+                      aria-label={`View load receipt for ${tx.title}`}
+                    >
+                      {rowBody}
+                    </button>
+                  </li>
+                )
+              }
+              return (
+                <li key={tx.id} className="tx-item">
+                  {rowBody}
+                </li>
+              )
+            })
           )}
         </ul>
+        <LoadReceiptModal
+          txn={receiptTxn}
+          vendors={linkedVendors}
+          onClose={() => setReceiptTxn(null)}
+        />
         <ActivityPager page={ledgerPage} total={filteredTxns.length} onPage={setLedgerPage} />
         {olderSummary && olderSummary.count > 0 ? (
           <div className="tx-older-summary">

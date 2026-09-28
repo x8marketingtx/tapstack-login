@@ -37,6 +37,7 @@ type PendingImageUploadProps = {
   currentUrl?: string
   currentName?: string
   onClearCurrent?: () => void
+  clearDisabled?: boolean
   onUpload: (file: File) => Promise<void>
   pickLabel?: string
 }
@@ -49,6 +50,7 @@ export const PendingImageUpload = forwardRef<PendingImageUploadHandle, PendingIm
       currentUrl = '',
       currentName = '',
       onClearCurrent,
+      clearDisabled = false,
       onUpload,
       pickLabel = 'Choose an image',
     },
@@ -118,12 +120,41 @@ export const PendingImageUpload = forwardRef<PendingImageUploadHandle, PendingIm
 
     const shownUrl = preview || currentUrl
     const shownName = file?.name || currentName || (currentUrl ? 'Image selected' : 'No image selected')
+    const canClearPreview = Boolean(shownUrl && (file || (currentUrl && onClearCurrent)))
+
+    function handleClearPreview() {
+      if (clearDisabled || busy) return
+      if (file) {
+        clearPending()
+        return
+      }
+      if (currentUrl && onClearCurrent) onClearCurrent()
+    }
 
     return (
       <div className="pending-image-upload">
         {shownUrl ? (
           <div className="pending-image-preview">
             <img src={shownUrl} alt="" />
+            {canClearPreview ? (
+              <button
+                type="button"
+                className="pending-image-preview-remove"
+                aria-label="Remove image"
+                disabled={clearDisabled || busy}
+                onClick={handleClearPreview}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            ) : null}
           </div>
         ) : null}
         <label className="pending-image-pick">
@@ -162,10 +193,6 @@ export const PendingImageUpload = forwardRef<PendingImageUploadHandle, PendingIm
               {busy ? 'Uploading…' : 'Upload image'}
             </button>
           </>
-        ) : currentUrl && onClearCurrent ? (
-          <button type="button" className="pending-image-clear-btn" onClick={onClearCurrent}>
-            Remove image
-          </button>
         ) : null}
         {error ? <p className="pending-image-error">{error}</p> : null}
       </div>
