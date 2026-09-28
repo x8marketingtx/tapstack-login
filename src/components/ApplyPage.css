@@ -134,6 +134,16 @@
   text-transform: uppercase;
 }
 
+.apply-field-required {
+  margin-left: 2px;
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.apply-upload-title .apply-field-required {
+  font-size: 12px;
+}
+
 .apply-field-input-wrap {
   display: flex;
   align-items: center;

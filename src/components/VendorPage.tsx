@@ -123,6 +123,105 @@ function GameBalanceBlock({
   )
 }
 
+function GameAccountMenu({
+  gameKey,
+  gameName,
+  menuOpen,
+  onToggleMenu,
+  onCloseMenu,
+  onAccount,
+  onDisconnect,
+  disconnecting,
+}: {
+  gameKey: string
+  gameName: string
+  menuOpen: boolean
+  onToggleMenu: () => void
+  onCloseMenu: () => void
+  onAccount: () => void
+  onDisconnect: () => void
+  disconnecting: boolean
+}) {
+  return (
+    <div className="game-more" data-game-menu={gameKey}>
+      <button
+        type="button"
+        className={`game-more-toggle${menuOpen ? ' is-open' : ''}`}
+        aria-label={`${gameName} account options`}
+        aria-expanded={menuOpen}
+        aria-haspopup="menu"
+        onClick={onToggleMenu}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="3.5" r="1.35" fill="currentColor" />
+          <circle cx="8" cy="8" r="1.35" fill="currentColor" />
+          <circle cx="8" cy="12.5" r="1.35" fill="currentColor" />
+        </svg>
+      </button>
+      {menuOpen ? (
+        <div className="game-more-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className="game-more-item"
+            onClick={() => {
+              onCloseMenu()
+              onAccount()
+            }}
+          >
+            <span className="game-more-item-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.7" />
+                <path
+                  d="M5.5 19.2c1.6-3 4-4.5 6.5-4.5s4.9 1.5 6.5 4.5"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            Account
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="game-more-item game-more-item--danger"
+            disabled={disconnecting}
+            onClick={() => {
+              onCloseMenu()
+              onDisconnect()
+            }}
+          >
+            <span className="game-more-item-icon" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M9 9.5V7.8A2.8 2.8 0 0 1 11.8 5h.4A2.8 2.8 0 0 1 15 7.8V9.5"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M15 9.5h3.2A1.3 1.3 0 0 1 19.5 10.8v7.4a1.3 1.3 0 0 1-1.3 1.3H5.8A1.3 1.3 0 0 1 4.5 18.2v-7.4A1.3 1.3 0 0 1 5.8 9.5H9"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M10.2 13.2v3.2M13.8 13.2v3.2"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function credsStorageKey(vendorId: number | string, gameKey: string) {
   return `tapstack_game_creds:${vendorId}:${gameKey}`
 }
@@ -1098,7 +1197,7 @@ export default function VendorPage({
                 const artUrl = gameArtUrl(game.name, game.platform)
                 const favorited = favoriteGames.has(gameKey)
                 return (
-                  <li key={gameKey} className="game-card">
+                  <li key={gameKey} className="game-card vendor-page-game-card">
                     <div className="game-card-main">
                       <button
                         type="button"
@@ -1176,15 +1275,6 @@ export default function VendorPage({
                       {game.mode === 'auto' ? (
                         connected ? (
                           <div className="game-actions">
-                            {gamePlayUrl(game.name, game.platform) ? (
-                              <button
-                                type="button"
-                                className="game-btn game-btn--play"
-                                onClick={() => openGamePlay(game.name, game.platform)}
-                              >
-                                Play
-                              </button>
-                            ) : null}
                             <button
                               type="button"
                               className="game-btn game-btn--load"
@@ -1208,93 +1298,6 @@ export default function VendorPage({
                                 Move
                               </button>
                             ) : null}
-                            <div className="game-more" data-game-menu={gameKey}>
-                              <button
-                                type="button"
-                                className={`game-more-toggle${gameMenuKey === gameKey ? ' is-open' : ''}`}
-                                aria-label={`${game.name} account options`}
-                                aria-expanded={gameMenuKey === gameKey}
-                                aria-haspopup="menu"
-                                onClick={() =>
-                                  setGameMenuKey((current) => (current === gameKey ? null : gameKey))
-                                }
-                              >
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                  <circle cx="8" cy="3.5" r="1.35" fill="currentColor" />
-                                  <circle cx="8" cy="8" r="1.35" fill="currentColor" />
-                                  <circle cx="8" cy="12.5" r="1.35" fill="currentColor" />
-                                </svg>
-                              </button>
-                              {gameMenuKey === gameKey ? (
-                                <div className="game-more-menu" role="menu">
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="game-more-item"
-                                    onClick={() => {
-                                      setGameMenuKey(null)
-                                      openSavedCredentials(game)
-                                    }}
-                                  >
-                                    <span className="game-more-item-icon" aria-hidden="true">
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <circle cx="12" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.7" />
-                                        <path
-                                          d="M5.5 19.2c1.6-3 4-4.5 6.5-4.5s4.9 1.5 6.5 4.5"
-                                          stroke="currentColor"
-                                          strokeWidth="1.7"
-                                          strokeLinecap="round"
-                                        />
-                                      </svg>
-                                    </span>
-                                    Account
-                                  </button>
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="game-more-item game-more-item--danger"
-                                    disabled={disconnectingKey === gameKey}
-                                    onClick={() => {
-                                      setGameMenuKey(null)
-                                      void handleDisconnect(gameKey, game.name)
-                                    }}
-                                  >
-                                    <span className="game-more-item-icon" aria-hidden="true">
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <path
-                                          d="M9 9.5V7.8A2.8 2.8 0 0 1 11.8 5h.4A2.8 2.8 0 0 1 15 7.8V9.5"
-                                          stroke="currentColor"
-                                          strokeWidth="1.7"
-                                          strokeLinecap="round"
-                                        />
-                                        <path
-                                          d="M15 9.5h3.2A1.3 1.3 0 0 1 19.5 10.8v7.4a1.3 1.3 0 0 1-1.3 1.3H5.8A1.3 1.3 0 0 1 4.5 18.2v-7.4A1.3 1.3 0 0 1 5.8 9.5H9"
-                                          stroke="currentColor"
-                                          strokeWidth="1.7"
-                                          strokeLinecap="round"
-                                        />
-                                        <path
-                                          d="M10.2 13.2v3.2M13.8 13.2v3.2"
-                                          stroke="currentColor"
-                                          strokeWidth="1.7"
-                                          strokeLinecap="round"
-                                        />
-                                      </svg>
-                                    </span>
-                                    {disconnectingKey === gameKey ? 'Disconnecting…' : 'Disconnect'}
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ) : !connectionResolved ? (
-                          <div className="game-actions game-actions--pending" aria-busy="true">
-                            <span className="game-action-skeleton" />
-                            <span className="game-action-skeleton" />
-                            <span className="game-action-skeleton game-action-skeleton--icon" />
-                          </div>
-                        ) : (
-                          <div className="game-actions">
                             {gamePlayUrl(game.name, game.platform) ? (
                               <button
                                 type="button"
@@ -1304,6 +1307,15 @@ export default function VendorPage({
                                 Play
                               </button>
                             ) : null}
+                          </div>
+                        ) : !connectionResolved ? (
+                          <div className="game-actions game-actions--pending" aria-busy="true">
+                            <span className="game-action-skeleton" />
+                            <span className="game-action-skeleton" />
+                            <span className="game-action-skeleton game-action-skeleton--icon" />
+                          </div>
+                        ) : (
+                          <div className="game-actions game-actions--connect">
                           <button
                             type="button"
                             className="game-connect game-connect--side"
@@ -1335,10 +1347,6 @@ export default function VendorPage({
                             </svg>
                             Connect
                           </button>
-                          </div>
-                        )
-                      ) : (
-                        <div className="game-actions">
                             {gamePlayUrl(game.name, game.platform) ? (
                               <button
                                 type="button"
@@ -1348,6 +1356,10 @@ export default function VendorPage({
                                 Play
                               </button>
                             ) : null}
+                          </div>
+                        )
+                      ) : (
+                        <div className="game-actions">
                           <button
                             type="button"
                             className="game-btn game-btn--load"
@@ -1371,10 +1383,33 @@ export default function VendorPage({
                               Move
                             </button>
                           ) : null}
+                          {gamePlayUrl(game.name, game.platform) ? (
+                            <button
+                              type="button"
+                              className="game-btn game-btn--play"
+                              onClick={() => openGamePlay(game.name, game.platform)}
+                            >
+                              Play
+                            </button>
+                          ) : null}
                         </div>
                       )}
                       </div>
                     </div>
+                    {game.mode === 'auto' && connected ? (
+                      <GameAccountMenu
+                        gameKey={gameKey}
+                        gameName={game.name}
+                        menuOpen={gameMenuKey === gameKey}
+                        onToggleMenu={() =>
+                          setGameMenuKey((current) => (current === gameKey ? null : gameKey))
+                        }
+                        onCloseMenu={() => setGameMenuKey(null)}
+                        onAccount={() => openSavedCredentials(game)}
+                        onDisconnect={() => void handleDisconnect(gameKey, game.name)}
+                        disconnecting={disconnectingKey === gameKey}
+                      />
+                    ) : null}
                   </li>
                 )
               })}

@@ -715,6 +715,7 @@
 }
 
 .game-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
@@ -1067,6 +1068,16 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
+}
+
+@media (min-width: 721px) {
+  .game-btn--play {
+    order: -1;
+  }
+
+  .vendor-page .game-btn--play {
+    order: unset;
+  }
 }
 
 .game-actions--pending {
@@ -1974,71 +1985,125 @@
   }
 }
 
-@media (max-width: 720px) {
-  .game-card {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      'main main'
-      'payable redeemable'
-      'actions actions';
-    gap: 10px 12px;
-    padding: 12px;
-  }
+/* Vendor page column is never wider than 760px — use compact game cards regardless of viewport width. */
+.vendor-page .vendor-page-game-card {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'main main'
+    'payable redeemable'
+    'actions actions';
+  gap: 10px 12px;
+  padding: 12px 12px 14px;
+}
 
-  .game-card-main {
-    min-width: 0;
-    width: 100%;
-  }
+.vendor-page .vendor-page-game-card .game-card-main {
+  min-width: 0;
+  width: 100%;
+  padding-right: 36px;
+}
 
-  .game-name {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-    line-height: 1.25;
-  }
+.vendor-page .vendor-page-game-card > .game-more {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+}
 
-  .game-balance-payable {
-    justify-self: start;
-    align-self: start;
-  }
+.vendor-page .vendor-page-game-card > .game-more .game-more-toggle {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
 
-  .game-balance-redeem {
-    justify-self: end;
-    align-self: start;
-  }
+.vendor-page .vendor-page-game-card > .game-more .game-more-toggle.is-open,
+.vendor-page .vendor-page-game-card > .game-more .game-more-toggle:hover {
+  background: #f5f3ff;
+  color: #6d28d9;
+  box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.22);
+}
 
-  .game-card-actions,
-  .game-side,
-  .game-actions {
-    width: 100%;
-    justify-self: stretch;
-  }
+.vendor-page .vendor-page-game-card > .game-more .game-more-menu {
+  top: calc(100% + 8px);
+}
 
-  .game-side {
-    flex-direction: row;
-    align-items: center;
-    justify-content: stretch;
-  }
+.vendor-page .vendor-page-game-card .game-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.25;
+}
 
-  .game-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    justify-content: stretch;
-    gap: 8px;
-  }
+.vendor-page .vendor-page-game-card .game-balance-payable {
+  justify-self: start;
+  align-self: start;
+}
 
-  .game-btn {
-    width: 100%;
-    min-height: 36px;
-    padding: 8px 4px;
-    text-align: center;
-    white-space: nowrap;
-  }
+.vendor-page .vendor-page-game-card .game-balance-redeem {
+  justify-self: end;
+  align-self: start;
+}
 
-  .game-connect--side {
-    width: 100%;
-    min-width: 0;
-  }
+.vendor-page .vendor-page-game-card .game-card-actions,
+.vendor-page .vendor-page-game-card .game-side,
+.vendor-page .vendor-page-game-card .game-actions {
+  width: 100%;
+  justify-self: stretch;
+}
+
+.vendor-page .vendor-page-game-card .game-side {
+  flex-direction: row;
+  align-items: center;
+  justify-content: stretch;
+}
+
+.vendor-page .vendor-page-game-card .game-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  justify-content: stretch;
+  gap: 8px;
+}
+
+.vendor-page .vendor-page-game-card .game-actions--connect {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.vendor-page .vendor-page-game-card .game-btn {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.vendor-page .vendor-page-game-card .game-btn--play {
+  grid-column: 1 / -1;
+  min-height: 42px;
+  margin-top: 2px;
+  font-size: 13px;
+  border-color: #34d399;
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.vendor-page .vendor-page-game-card .game-actions--connect .game-btn--play {
+  grid-column: 1 / -1;
+}
+
+.vendor-page .vendor-page-game-card .game-actions--connect .game-connect--side {
+  grid-column: 1 / -1;
+}
+
+.vendor-page .vendor-page-game-card .game-connect--side {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border-radius: 10px;
 }
 
 @media (max-width: 560px) {

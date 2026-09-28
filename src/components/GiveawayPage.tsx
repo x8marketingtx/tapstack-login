@@ -84,7 +84,7 @@ function mintDemoTicket(source: string): GiveawayTicket {
 function normalizePrize(prize: string | undefined): string {
   const raw = (prize || '').trim()
   if (!raw || /25[,.]?000\s*points/i.test(raw) || /\$?\s*25[,.]?000/i.test(raw)) {
-    return 'WIN $10K'
+    return 'WIN $10.000'
   }
   return raw
 }
@@ -155,7 +155,7 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     purchaseSpendTowardNext: store.purchaseSpend,
     purchaseSpendNeeded: Math.max(0, rate.dollars - store.purchaseSpend),
     title: 'MONTHLY MEGA DRAW',
-    prize: 'WIN $10K',
+    prize: 'WIN $10.000',
     drawDate: formatDrawDate(drawAtDate),
     drawAt,
     deadlineDays: deadline.days,

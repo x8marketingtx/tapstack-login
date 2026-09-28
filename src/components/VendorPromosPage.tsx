@@ -970,60 +970,69 @@ function CodesTab() {
         </div>
 
         <div className="vendor-promos-datetime-row">
-          <div className="vendor-promos-select-wrap">
-            <select
-              className="vendor-promos-select"
-              value={bonusType}
-              onChange={(event) => setBonusType(event.target.value)}
-              aria-label="Bonus type"
-            >
-              <option value="percent-bonus">% Bonus</option>
-              <option value="dollar-credit">$ Credit</option>
-              <option value="freeplay">Freeplay</option>
-            </select>
-            <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <input
-            type="number"
-            className="vendor-promos-input"
-            placeholder="Value (e.g. 20)"
-            value={bonusValue}
-            onChange={(event) => setBonusValue(event.target.value)}
-            min={0.01}
-            step="0.01"
-            required
-          />
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">Bonus type</span>
+            <div className="vendor-promos-select-wrap">
+              <select
+                className="vendor-promos-select"
+                value={bonusType}
+                onChange={(event) => setBonusType(event.target.value)}
+              >
+                <option value="percent-bonus">% Bonus</option>
+                <option value="dollar-credit">$ Credit</option>
+                <option value="freeplay">Freeplay</option>
+              </select>
+              <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </label>
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">Bonus value</span>
+            <input
+              type="number"
+              className="vendor-promos-input"
+              placeholder="e.g. 20"
+              value={bonusValue}
+              onChange={(event) => setBonusValue(event.target.value)}
+              min={0.01}
+              step="0.01"
+              required
+            />
+          </label>
         </div>
 
         <div className="vendor-promos-datetime-row">
-          <div className="vendor-promos-select-wrap">
-            <select
-              className="vendor-promos-select"
-              value={useLimit}
-              onChange={(event) => setUseLimit(event.target.value)}
-              aria-label="Use limit per customer"
-            >
-              <option value="1">1 use per customer</option>
-              <option value="3">3 uses per customer</option>
-              <option value="5">5 uses per customer</option>
-              <option value="unlimited">Unlimited per customer</option>
-            </select>
-            <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <input
-            type="number"
-            className="vendor-promos-input"
-            placeholder="Max total uses"
-            value={maxRedemptions}
-            onChange={(event) => setMaxRedemptions(event.target.value)}
-            min={0}
-            step={1}
-            aria-label="Max total redemptions"
-          />
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">Uses per customer</span>
+            <div className="vendor-promos-select-wrap">
+              <select
+                className="vendor-promos-select"
+                value={useLimit}
+                onChange={(event) => setUseLimit(event.target.value)}
+              >
+                <option value="1">1 use per customer</option>
+                <option value="3">3 uses per customer</option>
+                <option value="5">5 uses per customer</option>
+                <option value="unlimited">Unlimited per customer</option>
+              </select>
+              <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </label>
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">Max total uses</span>
+            <input
+              type="number"
+              className="vendor-promos-input"
+              placeholder="0 = unlimited"
+              value={maxRedemptions}
+              onChange={(event) => setMaxRedemptions(event.target.value)}
+              min={0}
+              step={1}
+            />
+          </label>
         </div>
 
         <GameExclusiveSelect value={gameKey} onChange={setGameKey} games={catalog} />

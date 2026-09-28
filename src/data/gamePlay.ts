@@ -2,7 +2,7 @@ import { gameArtSlug } from './gameArt'
 
 /** Public play URLs for known sweepstakes platforms. */
 const PLAY_URLS: Record<string, string> = {
-  'golden-dragon': 'https://goldendragon99.com',
+  'golden-dragon': 'http://playgd.mobi',
   'fire-kirin': 'https://firekirin.com',
   'orion-stars': 'https://orionstars.vip',
   juwa: 'https://juwa777.com',

@@ -11,10 +11,19 @@ import { TapStackLogo } from './TapStackLogo'
 import { ImageAgreementCheckbox } from './ImageUploadAgreement'
 import './ApplyPage.css'
 
+function ApplyRequiredMark() {
+  return (
+    <span className="apply-field-required" aria-hidden="true">
+      *
+    </span>
+  )
+}
+
 type ApplyFieldProps = {
   id: string
   label: string
   optional?: boolean
+  required?: boolean
   icon: ReactNode
   placeholder: string
   value: string
@@ -26,6 +35,7 @@ function ApplyField({
   id,
   label,
   optional = false,
+  required = false,
   icon,
   placeholder,
   value,
@@ -36,6 +46,7 @@ function ApplyField({
     <label className="apply-field" htmlFor={id}>
       <span className="apply-field-label">
         {label}
+        {required ? <ApplyRequiredMark /> : null}
         {optional ? ' (optional)' : ''}
       </span>
       <span className="apply-field-input-wrap">
@@ -49,6 +60,7 @@ function ApplyField({
           placeholder={placeholder}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          required={required}
         />
       </span>
     </label>
@@ -127,6 +139,7 @@ function DocumentUploadTile({
   meta,
   accept,
   fileName,
+  required = false,
   onSelect,
 }: {
   id: string
@@ -134,6 +147,7 @@ function DocumentUploadTile({
   meta: string
   accept: string
   fileName: string
+  required?: boolean
   onSelect: (file: File | null) => void
 }) {
   return (
@@ -143,6 +157,7 @@ function DocumentUploadTile({
         type="file"
         className="apply-upload-input"
         accept={accept}
+        required={required}
         onChange={(event) => {
           onSelect(event.target.files?.[0] ?? null)
         }}
@@ -150,7 +165,10 @@ function DocumentUploadTile({
       <span className="apply-upload-icon" aria-hidden="true">
         <UploadIcon />
       </span>
-      <span className="apply-upload-title">{title}</span>
+      <span className="apply-upload-title">
+        {title}
+        {required ? <ApplyRequiredMark /> : null}
+      </span>
       <span className="apply-upload-meta">{fileName || meta}</span>
     </label>
   )
@@ -338,6 +356,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
               <ApplyField
                 id="apply-full-name"
                 label="Full Name"
+                required
                 icon={
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6" />
@@ -357,6 +376,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
               <ApplyField
                 id="apply-gameroom-name"
                 label="Gameroom Name"
+                required
                 icon={
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <path
@@ -377,6 +397,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
                 id="apply-phone"
                 label="Phone Number"
                 type="tel"
+                required
                 icon={
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <path
@@ -396,6 +417,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
               <ApplyField
                 id="apply-address"
                 label="Physical Address"
+                required
                 icon={
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <path
@@ -415,6 +437,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
                 id="apply-email"
                 label="Email Address"
                 type="email"
+                required
                 icon={
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                     <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
@@ -516,8 +539,9 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
                 <DocumentUploadTile
                   id="apply-screenshots-upload"
                   title="Backend Screenshots"
-                  meta="Required · PNG/JPG, up to 10 MB"
+                  meta="PNG/JPG, up to 10 MB"
                   accept="image/png,image/jpeg,image/jpg"
+                  required
                   fileName={screenshotFileName}
                   onSelect={(file) => {
                     setScreenshotFileName(file?.name ?? '')
