@@ -1,11 +1,17 @@
 .game-load-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 45;
+  z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 12px 12px 18px;
+  padding:
+    max(12px, env(safe-area-inset-top, 0px))
+    12px
+    max(18px, env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: rgba(8, 12, 18, 0.52);
   backdrop-filter: blur(8px);
 }
@@ -13,11 +19,20 @@
 .game-load-modal {
   width: 100%;
   max-width: 400px;
+  max-height: min(
+    calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)),
+    calc(100svh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))
+  );
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 18px 16px 20px;
   border-radius: 22px;
   background: #fff;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
   animation: game-load-in 180ms ease-out;
+  flex-shrink: 0;
 }
 
 @keyframes game-load-in {
@@ -372,5 +387,11 @@
 @media (min-width: 600px) {
   .game-load-overlay {
     align-items: center;
+    padding-top: max(20px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .game-load-modal {
+    margin-block: auto;
   }
 }
