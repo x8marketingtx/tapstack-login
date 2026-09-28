@@ -229,7 +229,6 @@ function PromotionsTab() {
   const [winnerCount, setWinnerCount] = useState('1')
   const [entryMode, setEntryMode] = useState<'per_order' | 'total'>('per_order')
   const [walletUsdc, setWalletUsdc] = useState<number | null>(null)
-  const [imageId, setImageId] = useState(0)
   const [imageUrl, setImageUrl] = useState('')
   const [imageRemoved, setImageRemoved] = useState(false)
   const imageIdRef = useRef(0)
@@ -295,10 +294,9 @@ function PromotionsTab() {
     setPlayerTags([])
     setWinnerCount('1')
     setEntryMode('per_order')
-    setImageId(0)
-    imageIdRef.current = 0
     setImageUrl('')
     setImageRemoved(false)
+    imageIdRef.current = 0
     setGameKey('')
   }
 
@@ -323,7 +321,6 @@ function PromotionsTab() {
     setPlayerTags(promo.playerTags || [])
     setWinnerCount(String(promo.winnerCount || 1))
     setEntryMode(promo.entryMode === 'total' ? 'total' : 'per_order')
-    setImageId(promo.imageId || 0)
     imageIdRef.current = promo.imageId || 0
     setImageUrl(promo.imageUrl || '')
     setImageRemoved(false)
@@ -681,14 +678,12 @@ function PromotionsTab() {
             ref={imageUploadRef}
             currentUrl={imageUrl}
             onClearCurrent={() => {
-              setImageId(0)
               imageIdRef.current = 0
               setImageUrl('')
               setImageRemoved(true)
             }}
             onUpload={async (file) => {
               const res = await tapstackApi.uploadPromoImage(file)
-              setImageId(res.imageId)
               imageIdRef.current = res.imageId
               setImageUrl(res.imageUrl)
               setImageRemoved(false)

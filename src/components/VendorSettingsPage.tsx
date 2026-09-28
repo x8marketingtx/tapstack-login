@@ -97,7 +97,6 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [withdrawalAlerts, setWithdrawalAlerts] = useState(true)
   const [accentColor, setAccentColor] = useState('purple')
   const [venueTagline, setVenueTagline] = useState('')
-  const [bannerId, setBannerId] = useState(0)
   const [bannerUrl, setBannerUrl] = useState('')
   const [bannerName, setBannerName] = useState('')
   const [bannerRemoved, setBannerRemoved] = useState(false)
@@ -166,7 +165,6 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         setVenueTagline(p.venueTagline || '')
         const nextBannerId = Number(p.bannerId) || 0
         const nextBannerUrl = absoluteMediaUrl(p.bannerUrl || '')
-        setBannerId(nextBannerId)
         bannerIdRef.current = nextBannerId
         setBannerUrl(nextBannerUrl)
         setBannerName(p.bannerName || '')
@@ -242,7 +240,6 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
       if (typeof p.venueTagline === 'string') setVenueTagline(p.venueTagline)
       const savedBannerUrl = typeof p.bannerUrl === 'string' ? absoluteMediaUrl(p.bannerUrl) : ''
       if (typeof p.bannerId === 'number' && (p.bannerId > 0 || bannerRemoved)) {
-        setBannerId(p.bannerId)
         bannerIdRef.current = p.bannerId
       }
       if (savedBannerUrl) {
@@ -602,7 +599,6 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
             currentUrl={bannerUrl}
             currentName={bannerName}
             onClearCurrent={() => {
-              setBannerId(0)
               bannerIdRef.current = 0
               setBannerUrl('')
               setBannerName('')
@@ -611,7 +607,6 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
             onUpload={async (file) => {
               const res = await tapstackApi.uploadVendorBanner(file)
               const url = absoluteMediaUrl(res.bannerUrl)
-              setBannerId(res.bannerId)
               bannerIdRef.current = res.bannerId
               setBannerUrl(url)
               setBannerName(res.bannerName || file.name)
