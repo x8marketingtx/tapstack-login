@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
+  ApiError,
   applyAuthSession,
   getSessionUser,
   getToken,
@@ -20,6 +21,9 @@ import TopUpModal from './TopUpModal'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
 import HelpCenter from './HelpCenter'
+import VendorOnboardingModal from './VendorOnboardingModal'
+import ActivityPager from './ActivityPager'
+import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import {
   consumeVerifyReturn,
   needsVerification,
@@ -31,6 +35,7 @@ import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
 import {
   consumePendingVendorJoin,
   consumeVendorAffiliateWelcome,
+  directCheckoutLink,
   type VendorAffiliateWelcome,
 } from '../lib/affiliate'
 import './VendorDashboard.css'
@@ -46,18 +51,14 @@ const DEMO_VENDOR_PROFILE: PlayerProfile = {
   tier: 'bronze',
 }
 
-type VolumeTier = { label: string; rate: string; active: boolean }
-
 type VendorHomeExtras = {
   roleLabel?: string
   proActive?: boolean
   proPrice?: string
   signupLink?: string
   signupLinkDisplay?: string
-  volumeLabel?: string
-  volumeCurrentRate?: string
-  volumeNextRate?: string
-  volumeTiers?: VolumeTier[]
+  distributorName?: string
+  kycIncomplete?: boolean
 }
 
 function VendorHeader({
@@ -79,6 +80,7 @@ function VendorHeader({
   onPlayersClick: () => void
   onLogoClick?: () => void
 }) {
+  const [menuOpen, setMenuOpen] = useState(false)
   const badge = notificationCount > 99 ? '99+' : String(notificationCount)
   const playerBadge = playerTicketCount > 99 ? '99+' : String(playerTicketCount)
   return (
@@ -121,21 +123,79 @@ function VendorHeader({
           </button>
           <button
             type="button"
-            className="vendor-help-button vendor-players-button"
+            className="vendor-icon-button vendor-chat-button"
+            aria-label={playerTicketCount > 0 ? `${playerTicketCount} player messages` : 'Chat'}
             onClick={onPlayersClick}
           >
-            Players
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M5 6.5A3.5 3.5 0 0 1 8.5 3h7A3.5 3.5 0 0 1 19 6.5v6A3.5 3.5 0 0 1 15.5 16H11l-4.2 3.2A.8.8 0 0 1 5.5 18.6V16A3.5 3.5 0 0 1 5 12.5v-6Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <path d="M9 8.5h6M9 12h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
             {playerTicketCount > 0 ? <span className="vendor-badge">{playerBadge}</span> : null}
           </button>
 
-          <button
-            type="button"
-            className="vendor-avatar-button"
-            aria-label="Open profile"
-            onClick={onProfileClick}
-          >
-            {initials}
-          </button>
+          <div className="vendor-avatar-menu">
+            <button
+              type="button"
+              className="vendor-avatar-button"
+              aria-label="Open account menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              {initials}
+            </button>
+            {menuOpen ? (
+              <div className="vendor-avatar-dropdown" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onProfileClick()
+                  }}
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onHelpClick()
+                  }}
+                >
+                  Help
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onPlayersClick()
+                  }}
+                >
+                  Chat
+                  {playerTicketCount > 0 ? <span className="vendor-menu-count">{playerBadge}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onNotificationsClick()
+                  }}
+                >
+                  Notifications
+                  {notificationCount > 0 ? <span className="vendor-menu-count">{badge}</span> : null}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </header>
@@ -224,17 +284,6 @@ function formatChangePct(pct: number | undefined): string {
   return `${sign}${rounded}% vs yesterday`
 }
 
-function formatCompactMoney(amount: number): string {
-  if (!Number.isFinite(amount)) return '$0'
-  if (Math.abs(amount) >= 1000) {
-    return `$${(amount / 1000).toLocaleString('en-US', {
-      maximumFractionDigits: 1,
-      minimumFractionDigits: amount % 1000 === 0 ? 0 : 1,
-    })}k`
-  }
-  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-}
-
 type VendorHomeStats = {
   depositsFormatted: string
   depositsChangePct?: number
@@ -246,16 +295,6 @@ type VendorHomeStats = {
   customersNewWeek: number
 }
 
-type VendorMonthlyVolume = {
-  current: number
-  target: number
-  remaining: number
-  progressPct: number
-  currentFormatted: string
-  targetFormatted: string
-  remainingFormatted: string
-}
-
 function VendorHome({
   walletBalance,
   storeName,
@@ -263,11 +302,12 @@ function VendorHome({
   inviteCode,
   recentTx,
   today,
-  monthlyVolume,
   extras,
   onTopUp,
   onProfileClick,
   onGoPro,
+  onCompleteKyc,
+  onInviteCodeChange,
 }: {
   walletBalance: string
   storeName: string
@@ -275,31 +315,60 @@ function VendorHome({
   inviteCode: string
   recentTx: Array<{ id?: number; name: string; meta: string; amount: string; tone?: string }>
   today: VendorHomeStats
-  monthlyVolume: VendorMonthlyVolume
   extras?: VendorHomeExtras
   onTopUp: () => void
   onProfileClick: () => void
   onGoPro?: () => void
+  onCompleteKyc?: () => void
+  onInviteCodeChange?: (code: string) => Promise<void> | void
 }) {
-  const [copied, setCopied] = useState(false)
-  const signupLink = extras?.signupLink || ''
-  const signupDisplay = extras?.signupLinkDisplay || signupLink
-  const showSignup = Boolean(signupLink)
+  const [txPage, setTxPage] = useState(1)
+  const pagedTx = pageItems(recentTx, txPage)
+  const [copied, setCopied] = useState<'code' | 'link' | ''>('')
+  const [codeDraft, setCodeDraft] = useState(inviteCode)
+  const [codeBusy, setCodeBusy] = useState(false)
+  const [codeError, setCodeError] = useState('')
+  const checkout = directCheckoutLink(inviteCode || codeDraft)
 
-  async function handleCopyCode() {
-    const value = showSignup ? signupLink : inviteCode
+  useEffect(() => {
+    setCodeDraft(inviteCode)
+  }, [inviteCode])
+
+  async function handleCopy(kind: 'code' | 'link') {
+    const value = kind === 'link' ? checkout.url : inviteCode || codeDraft
     if (!value) return
     try {
       await navigator.clipboard.writeText(value)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
+      setCopied(kind)
+      window.setTimeout(() => setCopied(''), 1600)
     } catch {
       // ignore clipboard failures
     }
   }
 
+  async function handleSaveCode() {
+    const next = codeDraft.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!next || next === inviteCode || !onInviteCodeChange) return
+    setCodeBusy(true)
+    setCodeError('')
+    try {
+      await onInviteCodeChange(next)
+    } catch (err) {
+      setCodeError(err instanceof ApiError ? err.message : 'Could not save vendor code.')
+    } finally {
+      setCodeBusy(false)
+    }
+  }
+
   return (
     <div className="vendor-home">
+      {extras?.distributorName ? (
+        <section className="vendor-affiliate-bar">
+          <p className="vendor-affiliate-bar-label">Affiliate of</p>
+          <p className="vendor-affiliate-bar-name">{extras.distributorName}</p>
+        </section>
+      ) : null}
+
       <section className="vendor-store-row">
         <button type="button" className="vendor-store-info" onClick={onProfileClick}>
           <div className="vendor-store-avatar">{storeInitials}</div>
@@ -311,14 +380,24 @@ function VendorHome({
                 <span className="vendor-store-role-badge">{extras.roleLabel}</span>
               ) : null}
             </span>
-            {showSignup ? (
-              <span className="vendor-store-invite-hint">Share your vendor signup link</span>
-            ) : inviteCode ? (
-              <span className="vendor-store-invite-hint">Players join with your invite code</span>
+            {inviteCode ? (
+              <span className="vendor-store-invite-hint">Players join with your vendor code</span>
             ) : null}
           </div>
         </button>
       </section>
+
+      {extras?.kycIncomplete && onCompleteKyc ? (
+        <div className="vendor-kyc-notice">
+          <div>
+            <p className="vendor-kyc-notice-title">Please complete your KYC verification</p>
+            <p className="vendor-kyc-notice-copy">Identity verification is required before moving money in or out.</p>
+          </div>
+          <button type="button" className="vendor-kyc-notice-btn" onClick={onCompleteKyc}>
+            Complete
+          </button>
+        </div>
+      ) : null}
 
       {onGoPro && !extras?.proActive ? (
         <button type="button" className="vendor-go-pro-card" onClick={onGoPro}>
@@ -326,39 +405,54 @@ function VendorHome({
             <p className="vendor-go-pro-kicker">TapStack Pro</p>
             <p className="vendor-go-pro-title">Upgrade to Pro</p>
             <p className="vendor-go-pro-meta">
-              Monthly membership{extras?.proPrice ? ` · ${extras.proPrice}/mo` : ''}
+              Monthly membership{extras?.proPrice ? ` · ${extras.proPrice}/mo` : ' · $999.99/mo'}
             </p>
           </div>
           <span className="vendor-go-pro-btn">Go Pro</span>
         </button>
       ) : null}
 
-      {showSignup ? (
-        <section className="vendor-invite-card">
-          <div className="vendor-invite-copy">
-            <p className="vendor-invite-label">VENDOR SIGNUP LINK</p>
-            <p className="vendor-invite-code vendor-invite-code--link">{signupDisplay}</p>
+      <section className="vendor-invite-card vendor-invite-card--editable">
+        <div className="vendor-invite-copy">
+          <p className="vendor-invite-label">VENDOR CODE</p>
+          <div className="vendor-invite-edit-row">
+            <input
+              className="vendor-invite-input"
+              value={codeDraft}
+              maxLength={16}
+              spellCheck={false}
+              onChange={(event) => setCodeDraft(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              aria-label="Vendor code"
+            />
+            <button
+              type="button"
+              className="vendor-invite-btn"
+              disabled={codeBusy || !codeDraft || codeDraft === inviteCode}
+              onClick={() => void handleSaveCode()}
+            >
+              {codeBusy ? 'Saving' : 'Save'}
+            </button>
+            <button type="button" className="vendor-invite-btn" onClick={() => void handleCopy('code')}>
+              {copied === 'code' ? 'Copied' : 'Copy'}
+            </button>
           </div>
-          <button type="button" className="vendor-invite-btn" onClick={() => void handleCopyCode()}>
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </section>
-      ) : inviteCode ? (
-        <section className="vendor-invite-card">
-          <div className="vendor-invite-copy">
-            <p className="vendor-invite-label">PLAYER INVITE CODE</p>
-            <p className="vendor-invite-code">{inviteCode}</p>
-          </div>
-          <button type="button" className="vendor-invite-btn" onClick={() => void handleCopyCode()}>
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </section>
-      ) : null}
+          {codeError ? <p className="vendor-invite-error">{codeError}</p> : null}
+          {inviteCode ? (
+            <>
+              <p className="vendor-invite-label vendor-invite-label--sub">DIRECT CHECKOUT LINK</p>
+              <p className="vendor-invite-code vendor-invite-code--link">{checkout.display}</p>
+              <button type="button" className="vendor-invite-btn vendor-invite-btn--link" onClick={() => void handleCopy('link')}>
+                {copied === 'link' ? 'Copied' : 'Copy link'}
+              </button>
+            </>
+          ) : null}
+        </div>
+      </section>
 
       <section className="vendor-wallet-card">
         <div className="vendor-wallet-top">
           <div>
-            <p className="vendor-wallet-label">WALLET BALANCE</p>
+            <p className="vendor-wallet-label">Tapstack Balance</p>
             <p className="vendor-wallet-amount">{walletBalance}</p>
             <p className="vendor-wallet-meta">USDC · Available</p>
           </div>
@@ -377,68 +471,6 @@ function VendorHome({
             Withdraw
           </button>
         </div>
-      </section>
-
-      <section className="vendor-volume-card">
-        <div className="vendor-volume-header">
-          <div className="vendor-volume-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="9" cy="12" r="6" stroke="#b45309" strokeWidth="1.8" />
-              <circle cx="15" cy="12" r="6" stroke="#b45309" strokeWidth="1.8" />
-            </svg>
-          </div>
-          <div className="vendor-volume-info">
-            <div className="vendor-volume-row">
-              <span className="vendor-volume-label">{extras?.volumeLabel || 'Monthly Volume'}</span>
-              <span className="vendor-volume-value">
-                {formatCompactMoney(monthlyVolume.current)} / {formatCompactMoney(monthlyVolume.target)}
-              </span>
-            </div>
-            <div className="vendor-volume-bar">
-              <div
-                className="vendor-volume-fill"
-                style={{ width: `${Math.min(100, Math.max(0, monthlyVolume.progressPct))}%` }}
-              />
-            </div>
-            <p className="vendor-volume-footnote">
-              {extras?.volumeCurrentRate ? (
-                <>
-                  Current rate <span className="vendor-volume-highlight">{extras.volumeCurrentRate}</span>
-                  {monthlyVolume.remaining > 0 ? (
-                    <>
-                      {' · '}
-                      <span className="vendor-volume-highlight">{monthlyVolume.remainingFormatted} more</span>
-                      {' unlocks '}
-                      <span className="vendor-volume-cashback">{extras.volumeNextRate || 'next tier'}</span>
-                    </>
-                  ) : null}
-                </>
-              ) : monthlyVolume.remaining > 0 ? (
-                <>
-                  <span className="vendor-volume-highlight">
-                    {monthlyVolume.remainingFormatted} more
-                  </span>{' '}
-                  unlocks <span className="vendor-volume-cashback">1% cashback</span>
-                </>
-              ) : (
-                <>
-                  <span className="vendor-volume-highlight">Target reached</span> —{' '}
-                  <span className="vendor-volume-cashback">1% cashback unlocked</span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        {extras?.volumeTiers && extras.volumeTiers.length > 0 ? (
-          <ul className="vendor-volume-tiers">
-            {extras.volumeTiers.map((tier) => (
-              <li key={tier.label} className={tier.active ? 'vendor-volume-tiers--active' : undefined}>
-                <span>{tier.label}</span>
-                <strong>{tier.rate}</strong>
-              </li>
-            ))}
-          </ul>
-        ) : null}
       </section>
 
       <section className="vendor-stats-grid">
@@ -519,7 +551,7 @@ function VendorHome({
               </div>
             </li>
           ) : (
-            recentTx.map((tx) => (
+            pagedTx.map((tx) => (
               <li key={tx.id ?? `${tx.name}-${tx.meta}`} className="vendor-transaction-item">
                 <div className="vendor-transaction-details">
                   <p className="vendor-transaction-name">{tx.name}</p>
@@ -536,6 +568,7 @@ function VendorHome({
             ))
           )}
         </ul>
+        <ActivityPager page={txPage} total={recentTx.length} onPage={setTxPage} />
       </section>
     </div>
   )
@@ -571,7 +604,7 @@ export default function VendorDashboard({
   const [walletBalance, setWalletBalance] = useState('$0.00')
   const [inviteCode, setInviteCode] = useState('')
   const [homeExtras, setHomeExtras] = useState<VendorHomeExtras | undefined>(undefined)
-  const [settingsTab, setSettingsTab] = useState<'profile' | 'games' | 'billing'>(() => {
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'games' | 'billing' | 'staff'>(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('tab') === 'billing' || params.has('pro')) return 'billing'
     return 'profile'
@@ -589,15 +622,6 @@ export default function VendorDashboard({
     customers: 0,
     customersNewWeek: 0,
   })
-  const [monthlyVolume, setMonthlyVolume] = useState<VendorMonthlyVolume>({
-    current: 0,
-    target: 60000,
-    remaining: 60000,
-    progressPct: 0,
-    currentFormatted: '$0.00',
-    targetFormatted: '$60,000.00',
-    remainingFormatted: '$60,000.00',
-  })
   const [profile, setProfile] = useState<PlayerProfile>(() => {
     if (cachedUser?.role === expectedRole) return profileFromUser(cachedUser)
     return DEMO_VENDOR_PROFILE
@@ -607,6 +631,7 @@ export default function VendorDashboard({
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const [affiliateWelcome, setAffiliateWelcome] = useState<VendorAffiliateWelcome | null>(null)
+  const [onboarding, setOnboarding] = useState(() => cachedUser?.onboarding || null)
 
   function syncFromRoute() {
     const route = parseLocation()
@@ -767,6 +792,7 @@ export default function VendorDashboard({
             const next = profileFromUser(me.user, me.level, me.levelProgressPct)
             setProfile(next)
             setVerification(verificationFromUser(me.user))
+            setOnboarding(me.user.onboarding || null)
             const token = getToken()
             if (token) {
               applyAuthSession(token, me.user)
@@ -792,11 +818,12 @@ export default function VendorDashboard({
 
         const code = dash?.store?.inviteCode || dash?.store?.code || ''
         if (code) setInviteCode(String(code).toUpperCase())
-        if (dash?.store?.membership) {
+        if (dash?.store?.membership || dash?.store?.distributorName) {
           setHomeExtras((prev) => ({
             ...prev,
             proActive: Boolean(dash.store?.membership?.active),
             proPrice: dash.store?.membership?.priceFormatted,
+            distributorName: dash.store?.distributorName || prev?.distributorName,
           }))
         }
 
@@ -815,30 +842,6 @@ export default function VendorDashboard({
             net: typeof t.net === 'number' ? t.net : 0,
             customers: typeof t.customers === 'number' ? t.customers : 0,
             customersNewWeek: typeof t.customersNewWeek === 'number' ? t.customersNewWeek : 0,
-          })
-        }
-
-        if (dash?.monthlyVolume) {
-          const m = dash.monthlyVolume
-          const current = typeof m.current === 'number' ? m.current : 0
-          const target = typeof m.target === 'number' ? m.target : 60000
-          const remaining =
-            typeof m.cashbackUnlockRemaining === 'number'
-              ? m.cashbackUnlockRemaining
-              : Math.max(0, target - current)
-          setMonthlyVolume({
-            current,
-            target,
-            remaining,
-            progressPct:
-              typeof m.progressPct === 'number'
-                ? m.progressPct
-                : target > 0
-                  ? Math.min(100, (current / target) * 100)
-                  : 0,
-            currentFormatted: m.currentFormatted || `$${current.toFixed(2)}`,
-            targetFormatted: m.targetFormatted || `$${target.toFixed(2)}`,
-            remainingFormatted: m.remainingFormatted || `$${remaining.toFixed(2)}`,
           })
         }
       } catch {
@@ -886,12 +889,44 @@ export default function VendorDashboard({
     }
 
     void refreshPendingCount()
-    const timer = window.setInterval(() => void refreshPendingCount(), 30000)
+    const timer = window.setInterval(() => void refreshPendingCount(), MONEY_REFRESH_MS)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
   }, [shouldLoadFromApi, activeTab, notificationsOpen])
+
+  const refreshVendorMoney = useCallback(() => {
+    if (!shouldLoadFromApi) return
+    void tapstackApi
+      .vendorDashboard()
+      .then((dash) => {
+        const balance = dash?.wallet
+        const amount = balance?.amount
+        if (typeof amount === 'number') {
+          setWalletBalance(amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' }))
+        } else if (typeof balance?.balance === 'string') {
+          setWalletBalance(balance.balance)
+        }
+        if (Array.isArray(dash?.recentTx)) setRecentTx(dash.recentTx)
+        if (dash?.today) {
+          const t = dash.today
+          setTodayStats({
+            depositsFormatted: t.depositsFormatted || '$0.00',
+            depositsChangePct: t.depositsChangePct ?? 0,
+            redeemsFormatted: t.redeemsFormatted || '$0.00',
+            redeemsChangePct: t.redeemsChangePct ?? 0,
+            netFormatted: t.netFormatted || '$0.00',
+            net: typeof t.net === 'number' ? t.net : 0,
+            customers: typeof t.customers === 'number' ? t.customers : 0,
+            customersNewWeek: typeof t.customersNewWeek === 'number' ? t.customersNewWeek : 0,
+          })
+        }
+      })
+      .catch(() => undefined)
+  }, [shouldLoadFromApi])
+
+  useIntervalRefresh(refreshVendorMoney, MONEY_REFRESH_MS, shouldLoadFromApi)
 
   async function openNotifications() {
     setNotificationsOpen(true)
@@ -1006,13 +1041,27 @@ export default function VendorDashboard({
                 inviteCode={inviteCode}
                 recentTx={recentTx}
                 today={todayStats}
-                monthlyVolume={monthlyVolume}
-                extras={homeExtras}
+                extras={{
+                  ...homeExtras,
+                  kycIncomplete: Boolean(
+                    verification.pluginReady &&
+                      verification.required &&
+                      !verification.identityVerified,
+                  ),
+                }}
                 onTopUp={() => {
                   if (!requireVerified()) return
                   setTopUpOpen(true)
                 }}
                 onProfileClick={openProfile}
+                onCompleteKyc={openVerify}
+                onInviteCodeChange={async (next) => {
+                  const res = await tapstackApi.saveVendorSettings({ profile: { inviteCode: next } })
+                  const saved = String(res.profile?.inviteCode || res.profile?.code || next)
+                    .replace(/^@/, '')
+                    .toUpperCase()
+                  setInviteCode(saved)
+                }}
                 onGoPro={() => {
                   setSettingsTab('billing')
                   handleTabChange('settings')
@@ -1084,6 +1133,13 @@ export default function VendorDashboard({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {onboarding?.required ? (
+        <VendorOnboardingModal
+          missingFields={onboarding.missingFields || []}
+          onComplete={() => setOnboarding({ required: false, termsAccepted: true, missingFields: [] })}
+        />
       ) : null}
 
       <TopUpModal

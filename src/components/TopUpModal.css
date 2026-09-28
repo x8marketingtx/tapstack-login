@@ -138,3 +138,32 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.topup-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.topup-method {
+  padding: 8px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topup-method.is-active {
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.topup-crypto {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

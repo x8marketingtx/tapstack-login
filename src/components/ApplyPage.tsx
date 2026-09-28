@@ -8,6 +8,7 @@ import {
   setVendorAffiliateWelcome,
 } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
+import { ImageAgreementCheckbox } from './ImageUploadAgreement'
 import './ApplyPage.css'
 
 type ApplyFieldProps = {
@@ -133,7 +134,7 @@ function DocumentUploadTile({
   meta: string
   accept: string
   fileName: string
-  onSelect: (fileName: string) => void
+  onSelect: (file: File | null) => void
 }) {
   return (
     <label className="apply-upload-tile" htmlFor={id}>
@@ -143,8 +144,7 @@ function DocumentUploadTile({
         className="apply-upload-input"
         accept={accept}
         onChange={(event) => {
-          const file = event.target.files?.[0]
-          onSelect(file?.name ?? '')
+          onSelect(event.target.files?.[0] ?? null)
         }}
       />
       <span className="apply-upload-icon" aria-hidden="true">
@@ -164,14 +164,15 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
   const [fullName, setFullName] = useState('')
   const [gameroomName, setGameroomName] = useState('')
   const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [email, setEmail] = useState('')
   const [facebookPage, setFacebookPage] = useState('')
   const [facebookGroup, setFacebookGroup] = useState('')
   const [automatedSite, setAutomatedSite] = useState('')
   const [mainWebsite, setMainWebsite] = useState('')
   const [monthlyVolume, setMonthlyVolume] = useState('')
-  const [llcFileName, setLlcFileName] = useState('')
   const [screenshotFileName, setScreenshotFileName] = useState('')
+  const [imageAgreed, setImageAgreed] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [approved, setApproved] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
@@ -218,13 +219,18 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
     automatedSite.trim().length > 0 ||
     mainWebsite.trim().length > 0
 
+  const needsImageAgree = screenshotFileName.length > 0
+
   const canSubmit =
     fullName.trim().length > 0 &&
     gameroomName.trim().length > 0 &&
     phone.trim().length > 0 &&
+    address.trim().length > 0 &&
     email.trim().length > 0 &&
     hasOnlinePresence &&
     monthlyVolume.length > 0 &&
+    screenshotFileName.length > 0 &&
+    (!needsImageAgree || imageAgreed) &&
     !submitting
 
   async function handleSubmit(event: React.FormEvent) {
@@ -238,6 +244,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
         fullName: fullName.trim(),
         gameroomName: gameroomName.trim(),
         phone: phone.trim(),
+        address: address.trim(),
         email: email.trim(),
         facebookPage: facebookPage.trim(),
         facebookGroup: facebookGroup.trim(),
@@ -247,9 +254,9 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
         referralCode: affiliateSlug || undefined,
         affiliateSlug: affiliateSlug || undefined,
         documents: {
-          llcOrLoi: llcFileName || null,
           backendScreenshots: screenshotFileName || null,
         },
+        backendScreenshots: screenshotFileName || undefined,
       })
       setApproved(Boolean(res.approved))
       setSuccessMessage(
@@ -387,6 +394,24 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
               />
 
               <ApplyField
+                id="apply-address"
+                label="Physical Address"
+                icon={
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                    />
+                    <circle cx="12" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                }
+                placeholder="Street, city, state, ZIP"
+                value={address}
+                onChange={setAddress}
+              />
+
+              <ApplyField
                 id="apply-email"
                 label="Email Address"
                 type="email"
@@ -485,26 +510,28 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
             </section>
 
             <section className="apply-section">
-              <p className="apply-section-label">Documents (optional)</p>
+              <p className="apply-section-label">Documents</p>
 
               <div className="apply-upload-grid">
                 <DocumentUploadTile
-                  id="apply-llc-upload"
-                  title="LLC or LOI"
-                  meta="PDF or image, up to 10 MB"
-                  accept=".pdf,image/*"
-                  fileName={llcFileName}
-                  onSelect={setLlcFileName}
-                />
-                <DocumentUploadTile
                   id="apply-screenshots-upload"
                   title="Backend Screenshots"
-                  meta="PNG/JPG, up to 10 MB"
+                  meta="Required · PNG/JPG, up to 10 MB"
                   accept="image/png,image/jpeg,image/jpg"
                   fileName={screenshotFileName}
-                  onSelect={setScreenshotFileName}
+                  onSelect={(file) => {
+                    setScreenshotFileName(file?.name ?? '')
+                    setImageAgreed(false)
+                  }}
                 />
               </div>
+              {needsImageAgree ? (
+                <ImageAgreementCheckbox
+                  id="apply-image-agree"
+                  checked={imageAgreed}
+                  onChange={setImageAgreed}
+                />
+              ) : null}
             </section>
 
             {affiliateSlug ? (

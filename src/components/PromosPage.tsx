@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, isApiConfigured, tapstackApi, type PlayerPromo } from '../api/client'
+import ReportImageButton from './ReportImageButton'
 import './PromosPage.css'
 
 const CACHE_TTL_MS = 60_000
@@ -32,6 +33,8 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
   const [promos, setPromos] = useState<PlayerPromo[]>(() => promosCache ?? [])
   const [loading, setLoading] = useState(() => isApiConfigured() && !promosCache)
   const [filter, setFilter] = useState<string>('all')
+  const [query, setQuery] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({})
   const [busyId, setBusyId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const loadedOnce = useRef(Boolean(promosCache))
@@ -73,7 +76,17 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
     return Array.from(map.values())
   }, [promos])
 
-  const visible = filter === 'all' ? promos : promos.filter((p) => p.vendorId === filter)
+  const visible = useMemo(() => {
+    const byVendor = filter === 'all' ? promos : promos.filter((p) => p.vendorId === filter)
+    const q = query.trim().toLowerCase()
+    if (!q) return byVendor
+    return byVendor.filter((p) =>
+      [p.title, p.headline, p.vendorName, p.description, p.category]
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    )
+  }, [promos, filter, query])
 
   async function handleAction(promo: PlayerPromo) {
     if (!isApiConfigured() || busyId) return
@@ -132,21 +145,45 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
         >
           All
         </button>
-        {vendors.map((vendor) => (
-          <button
-            key={vendor.id}
-            type="button"
-            role="tab"
-            aria-selected={filter === vendor.id}
-            className={`promo-filter ${filter === vendor.id ? 'promo-filter--active' : ''}`}
-            onClick={() => setFilter(vendor.id)}
+        <input
+          type="search"
+          className="promo-filter-search"
+          placeholder="Search promos"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Search promos"
+        />
+        {vendors.length > 4 ? (
+          <select
+            className="promo-filter-select"
+            value={filter === 'all' ? 'all' : filter}
+            onChange={(event) => setFilter(event.target.value)}
+            aria-label="Select vendor"
           >
-            <span className="promo-filter-icon" style={{ background: '#14532d' }}>
-              {vendor.initials.slice(0, 1)}
-            </span>
-            {vendor.label}
-          </button>
-        ))}
+            <option value="all">All vendors</option>
+            {vendors.map((vendor) => (
+              <option key={vendor.id} value={vendor.id}>
+                {vendor.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          vendors.map((vendor) => (
+            <button
+              key={vendor.id}
+              type="button"
+              role="tab"
+              aria-selected={filter === vendor.id}
+              className={`promo-filter ${filter === vendor.id ? 'promo-filter--active' : ''}`}
+              onClick={() => setFilter(vendor.id)}
+            >
+              <span className="promo-filter-icon" style={{ background: '#14532d' }}>
+                {vendor.initials.slice(0, 1)}
+              </span>
+              {vendor.label}
+            </button>
+          ))
+        )}
       </div>
 
       {note ? <p className="promo-toast">{note}</p> : null}
@@ -166,12 +203,26 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
           const canAct =
             promo.type !== 'giveaway' &&
             (promo.claimStatus === 'available' || promo.claimStatus === 'completed')
+          const expanded = Boolean(expandedIds[promo.id])
+          const heroImage = promo.vendorBannerUrl || promo.imageUrl
+          const details =
+            (promo.gameTitle ? `${promo.gameTitle} only. ` : '') +
+            (promo.description ||
+              (promo.type === 'giveaway'
+                ? `$${promo.poolAmount || promo.rewardValue} giveaway · ${promo.winnerCount || 1} winner${(promo.winnerCount || 1) === 1 ? '' : 's'} · $${(promo.prizeEach || ((promo.poolAmount || promo.rewardValue) / Math.max(1, promo.winnerCount || 1))).toFixed(2)} each.`
+                : promo.type === 'deposit-bonus'
+                ? `Load $${promo.minAmount}+ and get ${promo.rewardValue}% bonus credit.`
+                : `Load $${promo.minAmount}+ and get $${promo.rewardValue.toFixed(2)} credit.`))
           return (
-            <article key={promo.id} className="promo-card">
+            <article key={promo.id} className={`promo-card${expanded ? ' is-expanded' : ''}`}>
               <div className="promo-card-hero" style={{ background: promo.heroGradient }}>
-                {promo.imageUrl ? (
-                  <img src={promo.imageUrl} alt="" className="promo-card-hero-img" />
+                {heroImage ? (
+                  <img src={heroImage} alt="" className="promo-card-hero-img" />
                 ) : null}
+                <ReportImageButton
+                  imageId={promo.vendorBannerId || promo.imageId}
+                  context={promo.vendorBannerId ? 'vendor-banner' : 'promo'}
+                />
                 <span className="promo-card-badge">{promo.badge || 'PROMO'}</span>
                 <div className="promo-card-vendor">
                   <span className="promo-vendor-icon">{promo.vendorInitials}</span>
@@ -188,15 +239,39 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
                     {promo.category}
                   </span>
                 </div>
-                <p className="promo-card-desc">
-                  {promo.gameTitle ? `${promo.gameTitle} only. ` : ''}
-                  {promo.description ||
-                    (promo.type === 'giveaway'
-                      ? `$${promo.poolAmount || promo.rewardValue} giveaway · ${promo.winnerCount || 1} winner${(promo.winnerCount || 1) === 1 ? '' : 's'} · $${(promo.prizeEach || ((promo.poolAmount || promo.rewardValue) / Math.max(1, promo.winnerCount || 1))).toFixed(2)} each.`
-                      : promo.type === 'deposit-bonus'
-                      ? `Load $${promo.minAmount}+ and get ${promo.rewardValue}% bonus credit.`
-                      : `Load $${promo.minAmount}+ and get $${promo.rewardValue.toFixed(2)} credit.`)}
+                <p className={`promo-card-desc${expanded ? ' is-open' : ''}`}>
+                  {details}
                 </p>
+                {expanded ? (
+                  <ul className="promo-card-details">
+                    <li>
+                      <span>Vendor</span>
+                      <strong>{promo.vendorName}</strong>
+                    </li>
+                    {promo.minAmount > 0 ? (
+                      <li>
+                        <span>Min load</span>
+                        <strong>${promo.minAmount.toFixed(0)}</strong>
+                      </li>
+                    ) : null}
+                    {promo.rewardValue > 0 ? (
+                      <li>
+                        <span>Reward</span>
+                        <strong>
+                          {promo.type === 'deposit-bonus'
+                            ? `${promo.rewardValue}%`
+                            : `$${promo.rewardValue.toFixed(2)}`}
+                        </strong>
+                      </li>
+                    ) : null}
+                    {promo.gameTitle ? (
+                      <li>
+                        <span>Game</span>
+                        <strong>{promo.gameTitle}</strong>
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : null}
                 {promo.type === 'giveaway' ? (
                   <div className="promo-giveaway-stats">
                     <div>
@@ -228,14 +303,26 @@ export default function PromosPage({ active = true }: { active?: boolean }) {
                   <span className="promo-card-ends">
                     <span aria-hidden="true">🕐</span> {promo.ends}
                   </span>
-                  <button
-                    type="button"
-                    className={`promo-play-btn ${promo.claimStatus === 'completed' ? 'is-claim' : ''}`}
-                    disabled={busyId === promo.id || !canAct}
-                    onClick={() => void handleAction(promo)}
-                  >
-                    {busyId === promo.id ? '…' : actionLabel(promo)}
-                  </button>
+                  <div className="promo-card-footer-actions">
+                    <button
+                      type="button"
+                      className="promo-learn-btn"
+                      aria-expanded={expanded}
+                      onClick={() =>
+                        setExpandedIds((current) => ({ ...current, [promo.id]: !current[promo.id] }))
+                      }
+                    >
+                      {expanded ? 'Show less' : 'Learn more'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`promo-play-btn ${promo.claimStatus === 'completed' ? 'is-claim' : ''}`}
+                      disabled={busyId === promo.id || !canAct}
+                      onClick={() => void handleAction(promo)}
+                    >
+                      {busyId === promo.id ? '…' : actionLabel(promo)}
+                    </button>
+                  </div>
                 </div>
               </div>
             </article>

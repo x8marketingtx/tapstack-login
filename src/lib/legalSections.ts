@@ -31,6 +31,7 @@ export const TERMS_SECTION_LINKS: LegalPolicyLink[] = [
   { label: 'Responsible Social Play', doc: 'terms', section: '16' },
   { label: 'Jurisdiction Restrictions', doc: 'terms', section: '6-1' },
   { label: 'KYC Disclosure', doc: 'terms', section: '7-2' },
+  { label: 'Vendor Force Approval', doc: 'terms', section: '7-6' },
   { label: 'AML Disclosure', doc: 'terms', section: '18' },
   { label: 'Game Fairness & RNG Certification', doc: 'terms', section: '13-3' },
   { label: 'Deposit & Withdrawal Policy', doc: 'terms', section: '3-4' },

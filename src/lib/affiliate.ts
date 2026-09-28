@@ -20,6 +20,16 @@ export function joinLinkForSlug(slug: string): { url: string; display: string } 
   }
 }
 
+export function directCheckoutLink(code: string): { url: string; display: string } {
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const origin = appOrigin()
+  const host = origin.replace(/^https?:\/\//i, '')
+  return {
+    url: `${origin}/play/${encodeURIComponent(clean)}`,
+    display: `${host}/play/${clean}`,
+  }
+}
+
 export function slugFromJoinUrl(url: string): string {
   try {
     const path = url.includes('://') ? new URL(url).pathname : url
@@ -33,12 +43,44 @@ export function slugFromJoinUrl(url: string): string {
 const AFFILIATE_KEY = 'tapstack_affiliate_slug'
 const PENDING_VENDOR_JOIN_KEY = 'tapstack_pending_vendor_join'
 const PENDING_VENDOR_JOIN_NAME_KEY = 'tapstack_pending_vendor_join_name'
+const PENDING_PLAY_VENDOR_KEY = 'tapstack_pending_play_vendor'
 const VENDOR_AFFILIATE_WELCOME_KEY = 'tapstack_vendor_affiliate_welcome'
 const PLAYER_AFFILIATE_WELCOME_KEY = 'tapstack_player_affiliate_welcome'
 const PLAYER_SEEN_AFFILIATES_KEY = 'tapstack_player_seen_affiliate_ids'
 const PLAYER_AFFILIATE_REF_KEY = 'tapstack_player_affiliate_ref'
 /** @deprecated Cleared for legacy player-join behavior. */
 const PENDING_PLAYER_JOIN_KEY = 'tapstack_pending_player_join'
+
+export function setPendingPlayVendor(code: string): void {
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!clean) return
+  try {
+    sessionStorage.setItem(PENDING_PLAY_VENDOR_KEY, clean)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumePendingPlayVendor(): string {
+  try {
+    const raw = sessionStorage.getItem(PENDING_PLAY_VENDOR_KEY) || ''
+    if (raw) sessionStorage.removeItem(PENDING_PLAY_VENDOR_KEY)
+    return raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  } catch {
+    return ''
+  }
+}
+
+export function peekPendingPlayVendor(): string {
+  try {
+    return (sessionStorage.getItem(PENDING_PLAY_VENDOR_KEY) || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+  } catch {
+    return ''
+  }
+}
 
 export type VendorAffiliateWelcome = {
   distributorName: string

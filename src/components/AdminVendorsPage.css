@@ -34,6 +34,32 @@
   font-weight: 600;
 }
 
+.admin-vendors-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-vendors-import-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-vendor-import-errors {
+  margin: 0;
+  padding-left: 18px;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
 .admin-vendors-search {
   display: flex;
   align-items: center;

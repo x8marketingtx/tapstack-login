@@ -1156,3 +1156,65 @@
   line-height: 1.45;
   color: #111827;
 }
+
+.vendor-promos-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vendor-promos-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.vendor-promo-winner-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 11px;
+  font-weight: 800;
+  font-style: normal;
+  vertical-align: middle;
+  cursor: help;
+}
+
+.vendor-promo-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.vendor-promo-confirm-modal {
+  width: min(360px, 100%);
+  padding: 20px 18px;
+  border-radius: 18px;
+  background: #fff;
+  text-align: center;
+}
+
+.vendor-promo-confirm-modal h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.vendor-promo-confirm-modal p {
+  margin: 0 0 16px;
+  color: #4b5563;
+}

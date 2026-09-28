@@ -119,7 +119,7 @@ export default function VendorOrderDetailModal({
       order?.type === 'affiliate-payout' ||
       order?.type === 'game-transfer') &&
     (status === 'pending' || status === 'failed' || needsGameLoad)
-  const noteReady = staffNote.trim().length > 0 || (needsGameLoad && Boolean(order?.staffNote))
+  const noteReady = true
 
   async function copyText(label: string, value: string) {
     try {
@@ -369,7 +369,7 @@ export default function VendorOrderDetailModal({
                     ) : null}
                     {order.type === 'manual-load' || order.type === 'auto-load' ? (
                       <p className="vod-auto-hint">
-                        Reject &amp; refund returns the player&apos;s paid amount (and load fee) to their TapStack wallet.
+                        Reject &amp; refund returns the player&apos;s paid amount (and load fee) to their Tapstack Balance.
                       </p>
                     ) : null}
                     <label htmlFor="vod-staff-note">

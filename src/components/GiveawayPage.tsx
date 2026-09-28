@@ -83,8 +83,8 @@ function mintDemoTicket(source: string): GiveawayTicket {
 /** Normalize legacy cash prize labels to points copy. */
 function normalizePrize(prize: string | undefined): string {
   const raw = (prize || '').trim()
-  if (!raw || /\$?\s*25[,.]?000/i.test(raw)) {
-    return '25,000 points'
+  if (!raw || /25[,.]?000\s*points/i.test(raw) || /\$?\s*25[,.]?000/i.test(raw)) {
+    return 'WIN $10K'
   }
   return raw
 }
@@ -155,16 +155,16 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     purchaseSpendTowardNext: store.purchaseSpend,
     purchaseSpendNeeded: Math.max(0, rate.dollars - store.purchaseSpend),
     title: 'MONTHLY MEGA DRAW',
-    prize: '25,000 points',
+    prize: 'WIN $10K',
     drawDate: formatDrawDate(drawAtDate),
     drawAt,
     deadlineDays: deadline.days,
     deadlineLabel: deadline.label,
     howItWorks: [
-      `Watch up to ${ADS_PER_DAY} videos a day — each completed video fills 1 chip.`,
-      `${CHIPS_PER_TICKET} chips = 1 TapStack Points entry with a random entry number.`,
+      'No Purchase necessary. Each ticket is an automatic entry. More Tickets, more chances.',
+      'Watch videos for free entry — each completed video fills 1 chip.',
+      `${CHIPS_PER_TICKET} chips = 1 Tapstack Ticket with a random entry number.`,
       `Purchases also earn tickets by your ${rate.label} tier: $${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}.`,
-      'Purchases of $25+ also grant 1 bonus chip.',
     ],
   }
 }
@@ -192,6 +192,8 @@ export default function GiveawayPage() {
   const [deadlineLabel, setDeadlineLabel] = useState('')
   const [adError, setAdError] = useState('')
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const tierSectionRef = useRef<HTMLElement | null>(null)
+  const [tierHelpOpen, setTierHelpOpen] = useState(false)
   const maxWatchedRef = useRef(0)
   const celebrateTimer = useRef<number | null>(null)
   const finishingRef = useRef(false)
@@ -247,12 +249,19 @@ export default function GiveawayPage() {
       .customerGiveaway()
       .then((res) => {
         if (cancelled) return
+        const howItWorks = Array.isArray(res.howItWorks) ? res.howItWorks : []
+        const hasNewCopy = howItWorks.some((line) => /no purchase necessary/i.test(line))
         setState({
           ...res,
           prize: normalizePrize(res.prize),
-          howItWorks: (res.howItWorks || []).map((line) =>
-            line.replace(/giveaway ticket/gi, 'TapStack Points entry'),
-          ),
+          howItWorks: hasNewCopy
+            ? howItWorks
+            : [
+                'No Purchase necessary. Each ticket is an automatic entry. More Tickets, more chances.',
+                'Watch videos for free entry — each completed video fills 1 chip.',
+                `${CHIPS_PER_TICKET} chips = 1 Tapstack Ticket with a random entry number.`,
+                ...(howItWorks.filter((line) => /tier/i.test(line)).slice(0, 1) || []),
+              ],
         })
       })
       .catch((err) => {
@@ -446,10 +455,10 @@ export default function GiveawayPage() {
                 />
               </svg>
             </span>
-            TapStack Entry
+            Tapstack Entry Ticket
           </h1>
           <p className="giveaway-subtitle">
-            Collect chips · 6 chips = 1 TapStack Points entry · {state.tierLabel} tier
+            Collect chips · 6 chips = 1 Tapstack Ticket · {state.tierLabel} tier
           </p>
         </div>
         <div className="giveaway-tickets-pill">
@@ -458,11 +467,16 @@ export default function GiveawayPage() {
       </div>
 
       <section className="mega-draw-card">
-        <div className="mega-draw-watermark" aria-hidden="true">
-          ADMIT
-          <br />
-          ONE
-        </div>
+        <button
+          type="button"
+          className="mega-draw-tier-btn"
+          onClick={() => {
+            setTierHelpOpen(true)
+            tierSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+        >
+          Tier upgrade
+        </button>
         <div className="mega-draw-label">
           <span className="mega-draw-label-icon" aria-hidden="true">
             🎰
@@ -471,7 +485,7 @@ export default function GiveawayPage() {
         </div>
         <p className="mega-draw-prize">{state.prize}</p>
         <p className="mega-draw-desc">
-          Each ticket is one entry with a unique number. More tickets, more chances.
+          No Purchase necessary. Each ticket is an automatic entry. More Tickets, more chances.
         </p>
         <div className="mega-draw-meta">
           <div className="mega-draw-meta-box">
@@ -563,8 +577,8 @@ export default function GiveawayPage() {
           {state.chipsNeeded === 0
             ? 'Ready to convert into a ticket…'
             : state.chipsNeeded === 1
-              ? '1 more chip needed for your next TapStack Entry.'
-              : `${state.chipsNeeded} more chips needed for your next TapStack Entry.`}
+              ? '1 more chip needed for your next Tapstack Ticket.'
+              : `${state.chipsNeeded} more chips needed for your next Tapstack Ticket.`}
         </p>
 
         <div className="chips-actions">
@@ -577,7 +591,7 @@ export default function GiveawayPage() {
             {watching
               ? `Watching… ${watchProgress}%`
               : state.adsRemainingToday > 0
-                ? `Watch video (+1 chip) · ${state.adsRemainingToday} left today`
+                ? `Watch videos for free entry (=1 chip) - ${state.adsRemainingToday} left today`
                 : 'Daily video limit reached'}
           </button>
         </div>
@@ -631,7 +645,11 @@ export default function GiveawayPage() {
         ) : null}
       </section>
 
-      <section className="tier-card">
+      <section
+        className={`tier-card tier-card--${state.tier}${tierHelpOpen ? ' is-open' : ''}`}
+        id="tier-upgrade"
+        ref={tierSectionRef}
+      >
         <div className="tier-card-main">
           <p className="tier-card-label">Your earn rate</p>
           <p className="tier-card-value">
@@ -641,6 +659,29 @@ export default function GiveawayPage() {
             ${state.purchaseSpendTowardNext.toFixed(0)} toward next tier award · $
             {state.purchaseSpendNeeded.toFixed(0)} to go
           </p>
+          <button
+            type="button"
+            className="tier-upgrade-toggle"
+            aria-expanded={tierHelpOpen}
+            onClick={() => setTierHelpOpen((open) => !open)}
+          >
+            {tierHelpOpen ? 'Hide tier perks' : 'What each tier gets'}
+          </button>
+          {tierHelpOpen ? (
+            <ul className="tier-perk-list">
+              {(Object.keys(TIER_RATES) as TicketTier[]).map((tier) => {
+                const rate = TIER_RATES[tier]
+                return (
+                  <li key={tier} className={tier === state.tier ? 'is-current' : undefined}>
+                    <strong>{rate.label}</strong>
+                    <span>
+                      ${rate.dollars} → {rate.tickets} ticket{rate.tickets === 1 ? '' : 's'}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
         </div>
         {!useApi ? (
           <div className="tier-demo-tools">
@@ -696,7 +737,6 @@ export default function GiveawayPage() {
         <div className="your-numbers-header">
           <div>
             <h2 className="your-numbers-title">Your tickets</h2>
-            <p className="your-numbers-subtitle">Tap a ticket to reveal its entry number</p>
           </div>
         </div>
 
@@ -711,12 +751,12 @@ export default function GiveawayPage() {
                 className="ticket-card"
                 onClick={() => setSelectedTicket(ticket)}
               >
-                <span className="ticket-card-stub" aria-hidden="true" />
+                <span className="ticket-card-perf ticket-card-perf--left" aria-hidden="true" />
                 <span className="ticket-card-body">
-                  <span className="ticket-card-label">TapStack Points entry</span>
-                  <span className="ticket-card-masked">••••••</span>
-                  <span className="ticket-card-source">{sourceLabel(ticket.source)}</span>
+                  <span className="ticket-card-label">Tapstack Ticket</span>
+                  <span className="ticket-card-number">{String(ticket.number).padStart(6, '0')}</span>
                 </span>
+                <span className="ticket-card-perf ticket-card-perf--right" aria-hidden="true" />
               </button>
             ))}
           </div>

@@ -13,7 +13,7 @@ import {
 import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
 import './VendorAnalyticsPage.css'
 
-type AnalyticsTab = 'customers' | 'financial' | 'games'
+type AnalyticsTab = 'financial' | 'customers' | 'games'
 
 type CustomerRow = VendorCustomer
 
@@ -39,8 +39,8 @@ const DEMO_CUSTOMERS: CustomerRow[] = [
 ]
 
 const ANALYTICS_TABS: { id: AnalyticsTab; label: string; icon: string }[] = [
+  { id: 'financial', label: 'Performance', icon: '📈' },
   { id: 'customers', label: 'Customers', icon: '👥' },
-  { id: 'financial', label: 'Financial', icon: '📈' },
   { id: 'games', label: 'Games', icon: '🎮' },
 ]
 
@@ -149,6 +149,8 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
   const [affCadence, setAffCadence] = useState<'daily' | 'weekly' | 'monthly'>('weekly')
   const [affBusy, setAffBusy] = useState(false)
   const [affNote, setAffNote] = useState('')
+  const [forceBusy, setForceBusy] = useState(false)
+  const [forceNote, setForceNote] = useState('')
 
   const emptyMessage =
     portal === 'distributor'
@@ -413,6 +415,52 @@ function CustomersTab({ portal = 'vendor' }: { portal?: 'vendor' | 'distributor'
                 disabled={tagBusyId === shown.id}
                 onToggleTag={(tagId) => void toggleCustomerTag(shown, tagId)}
               />
+            </section>
+
+            <section className="vendor-customer-info-card">
+              <div className="vendor-customer-section-head">
+                <h3 className="vendor-customer-section-title">Force approve</h3>
+              </div>
+              <p className="vendor-customer-section-hint">
+                Lets this player use your room without KYC. You are responsible for their actions,
+                including loss, chargebacks, fraud, and exploitation. They cannot play in other
+                rooms unless those vendors also force-approve them.
+              </p>
+              {shown.identityVerified ? (
+                <p className="vendor-customer-section-hint">This player is already identity verified.</p>
+              ) : shown.forceApproved ? (
+                <p className="vendor-customer-section-hint">Force approved for your room.</p>
+              ) : (
+                <button
+                  type="button"
+                  className="vendor-customer-force-btn"
+                  disabled={forceBusy}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        'Force-approve this player for your room? You accept liability for their actions on Tapstack, including loss, chargebacks, fraud, and exploitation.',
+                      )
+                    ) {
+                      return
+                    }
+                    setForceBusy(true)
+                    setForceNote('')
+                    void tapstackApi
+                      .vendorForceApproveCustomer(shown.id)
+                      .then(() => {
+                        setDetailCustomer((prev) => (prev ? { ...prev, forceApproved: true } : prev))
+                        setForceNote('Force approved for your room.')
+                      })
+                      .catch((err) => {
+                        setForceNote(err instanceof Error ? err.message : 'Could not force approve.')
+                      })
+                      .finally(() => setForceBusy(false))
+                  }}
+                >
+                  {forceBusy ? 'Approving…' : 'Force approve for this room'}
+                </button>
+              )}
+              {forceNote ? <p className="vendor-customer-section-hint">{forceNote}</p> : null}
             </section>
 
             <section className="vendor-customer-info-card">
@@ -798,6 +846,7 @@ function GamesTab() {
   const [periodLabel, setPeriodLabel] = useState('')
   const [transactions, setTransactions] = useState<GameTxn[]>([])
   const [detailFilter, setDetailFilter] = useState<'all' | 'in' | 'out'>('all')
+  const [customerQuery, setCustomerQuery] = useState('')
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -882,9 +931,13 @@ function GamesTab() {
   }, [selectedGame?.id, range])
 
   const filteredTxns = useMemo(() => {
-    if (detailFilter === 'all') return transactions
-    return transactions.filter((txn) => txn.direction === detailFilter)
-  }, [transactions, detailFilter])
+    const needle = customerQuery.trim().toLowerCase()
+    return transactions.filter((txn) => {
+      if (detailFilter !== 'all' && txn.direction !== detailFilter) return false
+      if (!needle) return true
+      return String(txn.name || '').toLowerCase().includes(needle)
+    })
+  }, [transactions, detailFilter, customerQuery])
 
   const inCount = transactions.filter((t) => t.direction === 'in').length
   const outCount = transactions.filter((t) => t.direction === 'out').length
@@ -902,6 +955,7 @@ function GamesTab() {
             onClick={() => {
               setSelectedGame(null)
               setDetailFilter('all')
+              setCustomerQuery('')
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -960,6 +1014,14 @@ function GamesTab() {
             </div>
           </div>
         </section>
+
+        <input
+          type="search"
+          className="vendor-games-customer-search"
+          placeholder="Search by customer name"
+          value={customerQuery}
+          onChange={(event) => setCustomerQuery(event.target.value)}
+        />
 
         <div className="vendor-games-segment" role="tablist" aria-label="Transaction filter">
           {(
@@ -1164,7 +1226,8 @@ type FinancialSummary = {
   deposits: string
   redeems: string
   platformFees: string
-  distributorCut: string
+  promoValue: string
+  promoEntries: number
 }
 
 const EMPTY_SUMMARY: FinancialSummary = {
@@ -1174,7 +1237,8 @@ const EMPTY_SUMMARY: FinancialSummary = {
   deposits: '$0',
   redeems: '$0',
   platformFees: '$0',
-  distributorCut: '$0',
+  promoValue: '$0',
+  promoEntries: 0,
 }
 
 function FinancialTab() {
@@ -1197,9 +1261,20 @@ function FinancialTab() {
       setLoading(true)
       setError('')
       try {
-        const res = await tapstackApi.vendorAnalytics(queryRange)
+        const [res, promos] = await Promise.all([
+          tapstackApi.vendorAnalytics(queryRange),
+          tapstackApi.vendorPromos().catch(() => ({ promotions: [] as { entries?: number; valueGiven?: string }[] })),
+        ])
         if (cancelled) return
         const financial = res.financial || {}
+        const promoList = promos.promotions || []
+        const promoEntries = promoList.reduce((sum, item) => sum + (item.entries || 0), 0)
+        const promoValue =
+          financial.promoAnalytics?.valueGiven ||
+          promoList.reduce((sum, item) => {
+            const n = Number(String(item.valueGiven || '').replace(/[^0-9.-]/g, ''))
+            return sum + (Number.isFinite(n) ? n : 0)
+          }, 0)
         setSummary({
           periodLabel: financial.periodLabel || EMPTY_SUMMARY.periodLabel,
           breakdownTitle: financial.breakdownTitle || EMPTY_SUMMARY.breakdownTitle,
@@ -1207,7 +1282,8 @@ function FinancialTab() {
           deposits: financial.deposits || '$0',
           redeems: financial.redeems || '$0',
           platformFees: financial.platformFees || '$0',
-          distributorCut: financial.distributorCut || '$0',
+          promoValue: typeof promoValue === 'string' ? promoValue : `$${promoValue.toFixed(2)}`,
+          promoEntries,
         })
         setDaily(
           (res.daily || []).map((day) => ({
@@ -1237,7 +1313,7 @@ function FinancialTab() {
   return (
     <div className="vendor-analytics-content vendor-financial-content">
       <div className="vendor-financial-toolbar">
-        <h2 className="vendor-analytics-heading">Volume &amp; Profit</h2>
+        <h2 className="vendor-analytics-heading">Performance</h2>
         <div className="vendor-financial-range-pills" role="tablist" aria-label="Time range">
           {FINANCIAL_RANGES.map((item) => (
             <button
@@ -1306,8 +1382,9 @@ function FinancialTab() {
         </article>
 
         <article className="vendor-financial-stat-card">
-          <span className="vendor-financial-stat-label">Distributor Cut</span>
-          <p className="vendor-financial-stat-value vendor-financial-stat-value--purple">{summary.distributorCut}</p>
+          <span className="vendor-financial-stat-label">Promo analytics</span>
+          <p className="vendor-financial-stat-value vendor-financial-stat-value--purple">{summary.promoValue}</p>
+          <p className="vendor-financial-stat-sub">{summary.promoEntries} entries</p>
         </article>
       </div>
 
@@ -1370,7 +1447,7 @@ export default function VendorAnalyticsPage({
 }: {
   portal?: 'vendor' | 'distributor'
 }) {
-  const [activeTab, setActiveTab] = useState<AnalyticsTab>('customers')
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>('financial')
 
   return (
     <div className="vendor-analytics-page">

@@ -48,7 +48,10 @@ export type VerificationState = {
   canRetry: boolean
   rateLimitReason?: string
   required: boolean
+  kycDeferred?: boolean
+  imported?: boolean
   message: string
+  failedAttempts?: number
 }
 
 const VERIFY_ERROR_CODES = new Set([
@@ -124,6 +127,7 @@ export function emptyVerification(overrides: Partial<VerificationState> = {}): V
     canRetry: false,
     rateLimitReason: '',
     required: false,
+    failedAttempts: 0,
     message: '',
     ...overrides,
   })
@@ -140,11 +144,14 @@ export function verificationFromUser(user?: TapstackUser | null): VerificationSt
     canSpend: raw.canSpend !== false,
     pluginReady: Boolean(raw.pluginReady),
     required: typeof raw.required === 'boolean' ? raw.required : user.role === 'player',
+    kycDeferred: Boolean(raw.kycDeferred),
+    imported: Boolean(raw.imported),
     blockedReason: raw.blockedReason ?? null,
     geoBlocked: Boolean(raw.geoBlocked),
     geoReason: raw.geoReason ?? null,
     geoType: raw.geoType ?? null,
     message: raw.message || '',
+    failedAttempts: typeof raw.failedAttempts === 'number' ? raw.failedAttempts : 0,
   })
 }
 
@@ -287,7 +294,7 @@ export function statusLabel(status: VerificationStatus, geoBlocked = false): str
     case 'pending':
       return 'In progress'
     case 'manual_review':
-      return 'Under review'
+      return 'Unsuccessful'
     case 'error':
       return 'Unsuccessful'
     case 'block':

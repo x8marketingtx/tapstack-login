@@ -1,6 +1,6 @@
 /** Lightweight path router — keeps URLs in sync and supports deep links. */
 
-export type AppPortal = 'login' | 'otp' | 'signup' | 'apply' | 'join' | 'terms' | 'privacy' | 'returns'
+export type AppPortal = 'login' | 'otp' | 'signup' | 'apply' | 'join' | 'play' | 'terms' | 'privacy' | 'returns'
 export type DashboardPortal = 'customer' | 'vendor' | 'admin' | 'distributor'
 
 export type CustomerTab = 'games' | 'earn' | 'giveaway' | 'promos' | 'account'
@@ -14,6 +14,7 @@ export type RouteState =
   | { portal: 'signup' }
   | { portal: 'apply' }
   | { portal: 'join'; slug: string }
+  | { portal: 'play'; code: string }
   | { portal: 'terms' | 'privacy' | 'returns'; section?: string }
   | { portal: 'customer'; tab: CustomerTab; vendorId?: string; profile?: boolean; verify?: boolean }
   | { portal: 'vendor'; tab: VendorTab; profile?: boolean; verify?: boolean }
@@ -86,6 +87,9 @@ export function parseLocation(pathname = window.location.pathname, hash = window
   if (root === 'join' && parts[1]) {
     return { portal: 'join', slug: decodeURIComponent(parts[1]) }
   }
+  if (root === 'play' && parts[1]) {
+    return { portal: 'play', code: decodeURIComponent(parts[1]) }
+  }
   if (root === 'otp') return { portal: 'otp' }
 
   if (root === 'customer') {
@@ -139,6 +143,8 @@ export function pathForRoute(route: RouteState): string {
       return '/apply'
     case 'join':
       return `/join/${encodeURIComponent(route.slug)}`
+    case 'play':
+      return `/play/${encodeURIComponent(route.code)}`
     case 'terms':
     case 'privacy':
     case 'returns':
@@ -206,6 +212,8 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
       return `Apply · ${TITLE_BRAND}`
     case 'join':
       return `Join · ${TITLE_BRAND}`
+    case 'play':
+      return `Play · ${TITLE_BRAND}`
     case 'terms':
       return `Terms of Service · ${TITLE_BRAND}`
     case 'privacy':

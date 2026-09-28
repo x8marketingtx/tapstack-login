@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ApiError,
   applyAuthSession,
+  absoluteMediaUrl,
   getToken,
   isApiConfigured,
   isMeForCurrentSession,
@@ -19,6 +20,8 @@ import {
   type VerificationState,
 } from '../lib/verify'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
+import { PendingImageUpload } from './ImageUploadAgreement'
+import ReportImageButton from './ReportImageButton'
 import './ProfilePage.css'
 
 export type PlayerProfile = {
@@ -27,6 +30,8 @@ export type PlayerProfile = {
   email: string
   phone: string
   initials: string
+  avatarUrl?: string
+  avatarId?: number
   level: number
   levelProgressPct: number
   tier: TicketTier
@@ -38,6 +43,8 @@ export const DEMO_PLAYER_PROFILE: PlayerProfile = {
   email: 'player@tapstack.demo',
   phone: '+1 555 555 0100',
   initials: 'MR',
+  avatarUrl: '',
+  avatarId: 0,
   level: 7,
   levelProgressPct: 62,
   tier: 'bronze',
@@ -71,6 +78,8 @@ export function profileFromUser(
     email: user.email || '—',
     phone: formatPhone(user.phone || ''),
     initials: initialsFromName(displayName),
+    avatarUrl: absoluteMediaUrl(user.avatarUrl),
+    avatarId: user.avatarId || 0,
     level: user.level || level || 1,
     levelProgressPct,
     tier: normalizeTicketTier(user.tier),
@@ -421,11 +430,20 @@ export default function ProfilePage({
 
       <section className="profile-hero">
         <div className="profile-hero-top">
-          <div
-            className={`profile-hero-avatar${avatarTone !== 'player' ? ` profile-hero-avatar--${avatarTone}` : ''}`}
-            aria-hidden="true"
-          >
-            {shown.initials}
+          <div className="profile-hero-avatar-wrap">
+            <div
+              className={`profile-hero-avatar${avatarTone !== 'player' ? ` profile-hero-avatar--${avatarTone}` : ''}`}
+              aria-hidden="true"
+            >
+              {shown.avatarUrl ? (
+                <img src={shown.avatarUrl} alt="" className="profile-hero-avatar-img" />
+              ) : (
+                shown.initials
+              )}
+            </div>
+            {shown.avatarId ? (
+              <ReportImageButton imageId={shown.avatarId} context="player-avatar" />
+            ) : null}
           </div>
           {showLevel ? (
             <div className={`profile-level-badge ${tierBadgeClass(shown.tier)}`}>
@@ -442,6 +460,29 @@ export default function ProfilePage({
 
         <h2 className="profile-hero-name">{shown.displayName}</h2>
         <p className="profile-hero-username">{shown.username}</p>
+        {avatarTone === 'player' ? (
+          <div className="profile-avatar-upload">
+            <PendingImageUpload
+              currentUrl={shown.avatarUrl}
+              pickLabel={shown.avatarUrl ? 'Change photo' : 'Add profile picture'}
+              onUpload={async (file) => {
+                if (!isApiConfigured()) {
+                  const url = URL.createObjectURL(file)
+                  const next = { ...localProfile, avatarUrl: url, avatarId: Date.now() }
+                  setLocalProfile(next)
+                  onProfileChange(next)
+                  return
+                }
+                const res = await tapstackApi.uploadPlayerAvatar(file)
+                const next = profileFromUser(res.user, localProfile.level, localProfile.levelProgressPct)
+                setLocalProfile(next)
+                onProfileChange(next)
+                const token = getToken()
+                if (token) applyAuthSession(token, res.user)
+              }}
+            />
+          </div>
+        ) : null}
       </section>
 
       {editing ? (

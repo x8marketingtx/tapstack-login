@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   ApiError,
   isApiConfigured,
@@ -12,6 +12,7 @@ import {
   type VendorPromotion,
 } from '../api/client'
 import './VendorPromosPage.css'
+import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
 
 type PromosTab = 'promotions' | 'codes' | 'email-blast'
 
@@ -97,6 +98,11 @@ function PromotionCard({
   }
   const isPaused = status === 'draft'
   const canToggle = status === 'active' || status === 'draft'
+  const winnerNames = (promo.winners || []).map((w) => w.name).filter(Boolean)
+  const winnerHint =
+    winnerNames.length > 0
+      ? `Winner${winnerNames.length === 1 ? '' : 's'}: ${winnerNames.join(', ')}`
+      : 'Winner not drawn yet'
 
   return (
     <article className="vendor-promo-list-card">
@@ -110,7 +116,14 @@ function PromotionCard({
             )}
           </span>
           <div>
-            <h3 className="vendor-promo-list-title">{promo.title}</h3>
+            <h3 className="vendor-promo-list-title">
+              {promo.title}
+              {promo.type === 'giveaway' ? (
+                <span className="vendor-promo-winner-tip" title={winnerHint} aria-label={winnerHint}>
+                  i
+                </span>
+              ) : null}
+            </h3>
             <p className="vendor-promo-list-meta">
               {promo.typeLabel} · {promo.endsLabel}
               {promo.gameTitle ? ` · ${promo.gameTitle} only` : ''}
@@ -196,6 +209,8 @@ function PromotionsTab() {
   const [error, setError] = useState('')
   const [title, setTitle] = useState('')
   const [promoType, setPromoType] = useState('bonus-credit')
+  const [rewardMode, setRewardMode] = useState<'flat' | 'percent'>('flat')
+  const [confirmCreated, setConfirmCreated] = useState('')
   const [minAmount, setMinAmount] = useState('25')
   const [rewardValue, setRewardValue] = useState('5')
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -216,13 +231,16 @@ function PromotionsTab() {
   const [walletUsdc, setWalletUsdc] = useState<number | null>(null)
   const [imageId, setImageId] = useState(0)
   const [imageUrl, setImageUrl] = useState('')
+  const [imageRemoved, setImageRemoved] = useState(false)
+  const imageIdRef = useRef(0)
+  const imageUploadRef = useRef<PendingImageUploadHandle>(null)
   const [gameKey, setGameKey] = useState('')
   const [catalog, setCatalog] = useState<VendorGameRecord[]>([])
-  const [uploading, setUploading] = useState(false)
 
   const isGiveaway = promoType === 'giveaway'
+  const needsRewardMode = promoType === 'bonus-credit' || promoType === 'deposit-bonus'
   const rewardHint =
-    promoType === 'deposit-bonus'
+    needsRewardMode && rewardMode === 'percent'
       ? 'Bonus % (e.g. 20 for +20%)'
       : isGiveaway
         ? 'Giveaway amount total ($)'
@@ -261,6 +279,7 @@ function PromotionsTab() {
     setEditingId(null)
     setTitle('')
     setPromoType('bonus-credit')
+    setRewardMode('flat')
     setMinAmount('25')
     setRewardValue('5')
     setStartDate(new Date().toISOString().slice(0, 10))
@@ -277,7 +296,9 @@ function PromotionsTab() {
     setWinnerCount('1')
     setEntryMode('per_order')
     setImageId(0)
+    imageIdRef.current = 0
     setImageUrl('')
+    setImageRemoved(false)
     setGameKey('')
   }
 
@@ -286,7 +307,8 @@ function PromotionsTab() {
     const end = splitDateTime(promo.endsAt)
     setEditingId(promo.id)
     setTitle(promo.title || '')
-    setPromoType(promo.type || 'bonus-credit')
+    setPromoType(promo.type === 'giveaway' ? 'giveaway' : promo.type === 'deposit-bonus' ? 'deposit-bonus' : 'bonus-credit')
+    setRewardMode(promo.type === 'deposit-bonus' || promo.rewardMode === 'percent' ? 'percent' : 'flat')
     setMinAmount(String(promo.minAmount ?? 25))
     setRewardValue(String(promo.rewardValue ?? 5))
     setStartDate(start.date || new Date().toISOString().slice(0, 10))
@@ -302,7 +324,9 @@ function PromotionsTab() {
     setWinnerCount(String(promo.winnerCount || 1))
     setEntryMode(promo.entryMode === 'total' ? 'total' : 'per_order')
     setImageId(promo.imageId || 0)
+    imageIdRef.current = promo.imageId || 0
     setImageUrl(promo.imageUrl || '')
+    setImageRemoved(false)
     setGameKey(promo.gameKey || '')
     setError('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -313,36 +337,42 @@ function PromotionsTab() {
     if (!isApiConfigured() || saving) return
     setError('')
     setSaving(true)
-    const payload = {
-      title: title.trim(),
-      type: promoType,
-      summary: summary.trim(),
-      minAmount: Number(minAmount),
-      rewardValue: Number(rewardValue),
-      startDate,
-      startTime,
-      endDate,
-      endTime,
-      limitPerPlayer: limitPerPlayer === '' || limitPerPlayer === 'unlimited' ? 0 : Number(limitPerPlayer),
-      limitPerDay: limitPerDay === '' ? 0 : Number(limitPerDay),
-      limitTotal: limitTotal === '' ? 0 : Number(limitTotal),
-      playerTags,
-      imageId: imageId || undefined,
-      gameKey,
-      ...(promoType === 'giveaway'
-        ? {
-            winnerCount: Math.max(1, Number(winnerCount) || 1),
-            entryMode,
-          }
-        : {}),
-    }
     try {
+      if (imageUploadRef.current?.hasPendingFile()) {
+        await imageUploadRef.current.flush()
+      }
+      const nextImageId = imageIdRef.current
+      const payload = {
+        title: title.trim(),
+        type: promoType,
+        rewardMode: needsRewardMode ? rewardMode : undefined,
+        summary: summary.trim(),
+        minAmount: Number(minAmount),
+        rewardValue: Number(rewardValue),
+        startDate,
+        startTime,
+        endDate,
+        endTime,
+        limitPerPlayer: limitPerPlayer === '' || limitPerPlayer === 'unlimited' ? 0 : Number(limitPerPlayer),
+        limitPerDay: limitPerDay === '' ? 0 : Number(limitPerDay),
+        limitTotal: limitTotal === '' ? 0 : Number(limitTotal),
+        playerTags,
+        ...(imageRemoved || nextImageId > 0 ? { imageId: nextImageId } : {}),
+        gameKey,
+        ...(promoType === 'giveaway'
+          ? {
+              winnerCount: Math.max(1, Number(winnerCount) || 1),
+              entryMode,
+            }
+          : {}),
+      }
       if (editingId) {
         const res = await tapstackApi.vendorPromoUpdate(editingId, payload)
         setList((prev) => prev.map((item) => (item.id === editingId ? res.promotion : item)))
         resetForm()
       } else {
         await tapstackApi.vendorPromoCreate(payload)
+        setConfirmCreated(title.trim() || 'Promotion')
         resetForm()
         await load()
       }
@@ -398,57 +428,83 @@ function PromotionsTab() {
       <form className="vendor-promos-form-card" onSubmit={handleSubmit}>
         <p className="vendor-promos-form-label">{editingId ? 'Edit Promotion' : 'New Promotion'}</p>
 
-        <input
-          type="text"
-          className="vendor-promos-input"
-          placeholder="Title (e.g. Weekend Freeplay)"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          required
-        />
+        <label className="vendor-promos-field">
+          <span className="vendor-promos-field-label">Title</span>
+          <input
+            type="text"
+            className="vendor-promos-input"
+            placeholder="Title (e.g. Weekend Bonus)"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            required
+          />
+        </label>
 
-        <div className="vendor-promos-select-wrap">
-          <select
-            className="vendor-promos-select"
-            value={promoType}
-            onChange={(event) => setPromoType(event.target.value)}
-            aria-label="Promotion type"
-          >
-            <option value="bonus-credit">Bonus Credit ($ flat)</option>
-            <option value="deposit-bonus">Deposit Bonus (% match)</option>
-            <option value="freeplay">Freeplay ($ credit)</option>
-            <option value="load-redeem">Load &amp; Redeem ($ flat)</option>
-            <option value="giveaway">Giveaway (pool from TapStack balance)</option>
-          </select>
-          <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+        <label className="vendor-promos-field">
+          <span className="vendor-promos-field-label">Promotion type</span>
+          <div className="vendor-promos-select-wrap">
+            <select
+              className="vendor-promos-select"
+              value={promoType}
+              onChange={(event) => setPromoType(event.target.value)}
+            >
+              <option value="bonus-credit">Bonus Credit</option>
+              <option value="deposit-bonus">Deposit Bonus</option>
+              <option value="giveaway">Giveaway (pool from TapStack Balance)</option>
+            </select>
+            <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </label>
+
+        {needsRewardMode ? (
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">Reward style</span>
+            <div className="vendor-promos-select-wrap">
+              <select
+                className="vendor-promos-select"
+                value={rewardMode}
+                onChange={(event) => setRewardMode(event.target.value === 'percent' ? 'percent' : 'flat')}
+              >
+                <option value="flat">Flat $</option>
+                <option value="percent">Percent %</option>
+              </select>
+              <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </label>
+        ) : null}
 
         <div className="vendor-promos-datetime-row">
-          <input
-            type="number"
-            className="vendor-promos-input"
-            min={1}
-            step="1"
-            placeholder={isGiveaway ? 'Entry amount $' : 'Min load $'}
-            value={minAmount}
-            onChange={(event) => setMinAmount(event.target.value)}
-            required
-            aria-label={isGiveaway ? 'Entry amount' : 'Minimum load amount'}
-          />
-          <input
-            type="number"
-            className="vendor-promos-input"
-            min={0.01}
-            step="0.01"
-            placeholder={rewardHint}
-            value={rewardValue}
-            onChange={(event) => setRewardValue(event.target.value)}
-            required
-            aria-label={isGiveaway ? 'Giveaway amount total' : 'Reward value'}
-            max={isGiveaway && walletUsdc != null ? walletUsdc : undefined}
-          />
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">{isGiveaway ? 'Entry amount' : 'Minimum load'}</span>
+            <input
+              type="number"
+              className="vendor-promos-input"
+              min={1}
+              step="1"
+              placeholder={isGiveaway ? 'Entry amount $' : 'Min load $'}
+              value={minAmount}
+              onChange={(event) => setMinAmount(event.target.value)}
+              required
+            />
+          </label>
+          <label className="vendor-promos-field">
+            <span className="vendor-promos-field-label">{isGiveaway ? 'Giveaway pool' : rewardMode === 'percent' ? 'Bonus percent' : 'Reward amount'}</span>
+            <input
+              type="number"
+              className="vendor-promos-input"
+              min={0.01}
+              step="0.01"
+              placeholder={rewardHint}
+              value={rewardValue}
+              onChange={(event) => setRewardValue(event.target.value)}
+              required
+              max={isGiveaway && walletUsdc != null ? walletUsdc : undefined}
+            />
+          </label>
         </div>
         {isGiveaway ? (
           <>
@@ -621,51 +677,24 @@ function PromotionsTab() {
 
         <fieldset className="vendor-promos-fieldset">
           <legend className="vendor-promos-field-legend">IMAGE</legend>
-          <label className="vendor-promos-upload">
-            {imageUrl ? (
-              <img src={imageUrl} alt="" className="vendor-promos-upload-preview" />
-            ) : (
-              <>
-                <span aria-hidden="true">📷</span>
-                <span>{uploading ? 'Uploading…' : 'Upload a promo image'}</span>
-              </>
-            )}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="vendor-promos-upload-input"
-              disabled={uploading}
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (!file || !isApiConfigured()) return
-                setUploading(true)
-                setError('')
-                void tapstackApi
-                  .uploadPromoImage(file)
-                  .then((res) => {
-                    setImageId(res.imageId)
-                    setImageUrl(res.imageUrl)
-                  })
-                  .catch((err) => {
-                    setError(err instanceof ApiError ? err.message : 'Could not upload image.')
-                  })
-                  .finally(() => setUploading(false))
-              }}
-            />
-          </label>
-          {imageUrl ? (
-            <button
-              type="button"
-              className="vendor-promos-cancel-btn"
-              onClick={() => {
-                setImageId(0)
-                setImageUrl('')
-              }}
-            >
-              Remove image
-            </button>
-          ) : null}
+          <PendingImageUpload
+            ref={imageUploadRef}
+            currentUrl={imageUrl}
+            onClearCurrent={() => {
+              setImageId(0)
+              imageIdRef.current = 0
+              setImageUrl('')
+              setImageRemoved(true)
+            }}
+            onUpload={async (file) => {
+              const res = await tapstackApi.uploadPromoImage(file)
+              setImageId(res.imageId)
+              imageIdRef.current = res.imageId
+              setImageUrl(res.imageUrl)
+              setImageRemoved(false)
+            }}
+            pickLabel="Upload a promo image"
+          />
         </fieldset>
 
         <fieldset className="vendor-promos-fieldset">
@@ -706,6 +735,26 @@ function PromotionsTab() {
           </button>
         </div>
       </form>
+
+      {confirmCreated ? (
+        <div className="vendor-promo-confirm-overlay" role="presentation" onClick={() => setConfirmCreated('')}>
+          <div
+            className="vendor-promo-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vendor-promo-confirm-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="vendor-promo-confirm-title">Promotion created</h3>
+            <p>
+              <strong>{confirmCreated}</strong> is live for players.
+            </p>
+            <button type="button" className="vendor-promos-submit-btn" onClick={() => setConfirmCreated('')}>
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {loading ? <p className="vendor-promos-hint">Loading…</p> : null}
       <ul className="vendor-promo-list">

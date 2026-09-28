@@ -3,6 +3,8 @@ import { ApiError, isApiConfigured, tapstackApi, type VendorOrderItem } from '..
 import { decodeIcon } from '../data/vendors'
 import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
 import VendorOrderDetailModal from './VendorOrderDetailModal'
+import ActivityPager from './ActivityPager'
+import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import './VendorOrdersPage.css'
 
 type OrdersTab = 'loads' | 'redeems' | 'history'
@@ -41,6 +43,20 @@ function PromoNote({ item }: { item: Pick<VendorOrderItem, 'couponCode' | 'coupo
       {extra > 0 ? ` · +${formatUsd(extra)} extra` : ''}
     </p>
   )
+}
+
+function waitingLabel(item: Pick<VendorOrderItem, 'createdAt' | 'date' | 'time'>): string {
+  const raw = item.createdAt || `${item.date || ''} ${item.time || ''}`.trim()
+  const ts = raw ? Date.parse(raw) : NaN
+  if (!Number.isFinite(ts)) return ''
+  const mins = Math.max(0, Math.floor((Date.now() - ts) / 60000))
+  if (mins < 1) return 'Waiting under 1 min'
+  if (mins < 60) return `Waiting ${mins} min`
+  const hours = Math.floor(mins / 60)
+  const rest = mins % 60
+  if (hours < 24) return rest ? `Waiting ${hours}h ${rest}m` : `Waiting ${hours}h`
+  const days = Math.floor(hours / 24)
+  return `Waiting ${days}d`
 }
 
 function formatSignedAmount(amount: string, positive: boolean): string {
@@ -111,11 +127,13 @@ function LoadsTab({
   autoLoads,
   busyId,
   onOpenOrder,
+  onComplete,
 }: {
   manualLoads: VendorOrderItem[]
   autoLoads: VendorOrderItem[]
   busyId: string | null
   onOpenOrder: (id: string) => void
+  onComplete: (id: string) => void
 }) {
   return (
     <div className="vendor-orders-content">
@@ -149,12 +167,12 @@ function LoadsTab({
               <li key={load.id} className="vendor-order-card">
                 <button
                   type="button"
-                  className="vendor-order-check"
-                  aria-label={`Approve ${load.name} load`}
+                  className={`vendor-order-check${busyId === load.id ? ' is-busy' : ''}`}
+                  aria-label={`Complete ${load.game || load.name} load`}
                   disabled={busyId === load.id}
                   onClick={(event) => {
                     event.stopPropagation()
-                    onOpenOrder(load.id)
+                    onComplete(load.id)
                   }}
                 >
                   {busyId === load.id ? '…' : null}
@@ -170,12 +188,35 @@ function LoadsTab({
                   </div>
 
                   <div className="vendor-order-details">
-                    <p className="vendor-order-name">{load.name || 'Player'}</p>
-                    <p className="vendor-order-meta">
-                      {[load.game, load.mobileId, load.method, load.time]
-                        .filter(Boolean)
-                        .join(' · ')}
+                    <p className="vendor-order-name">
+                      {[load.game || 'Game', load.mobileId].filter(Boolean).join(' · ')}
                     </p>
+                    <p className="vendor-order-meta">{[load.name || 'Player', load.method, load.time].filter(Boolean).join(' · ')}</p>
+                    {load.mobileId ? (
+                      <p className="vendor-order-mobile">
+                        Mobile ID {load.mobileId}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="vendor-order-copy"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            event.preventDefault()
+                            void navigator.clipboard.writeText(load.mobileId || '')
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              void navigator.clipboard.writeText(load.mobileId || '')
+                            }
+                          }}
+                        >
+                          Copy
+                        </span>
+                      </p>
+                    ) : null}
+                    {waitingLabel(load) ? <p className="vendor-order-wait">{waitingLabel(load)}</p> : null}
                     {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
                     <PromoNote item={load} />
                     {(load.payoutTags || load.playerTags || []).length > 0 ? (
@@ -369,19 +410,44 @@ function HistoryTab({
 }) {
   const [range, setRange] = useState<HistoryRange>('30d')
   const [filter, setFilter] = useState<HistoryFilter>('all')
+  const [page, setPage] = useState(1)
+  const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
     return history.filter((entry) => {
       if (!inHistoryRange(entry, range)) return false
-      if (filter === 'loads') return entry.type.includes('load')
-      if (filter === 'redeems') return entry.type === 'redeem' || entry.type === 'affiliate-payout'
-      return true
+      if (filter === 'loads') {
+        if (!entry.type.includes('load')) return false
+      }
+      if (filter === 'redeems') {
+        if (entry.type !== 'redeem' && entry.type !== 'affiliate-payout') return false
+      }
+      if (!needle) return true
+      const hay = [entry.name, entry.label, entry.id, entry.game, entry.date, entry.time, entry.mobileId]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(needle)
     })
-  }, [history, range, filter])
+  }, [history, range, filter, query])
+
+  const paged = pageItems(filtered, page)
 
   return (
     <div className="vendor-orders-content">
       <h2 className="vendor-history-title">Order History</h2>
+
+      <input
+        type="search"
+        className="vendor-history-search"
+        placeholder="Search name, handle, order ID, game, date"
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setPage(1)
+        }}
+      />
 
       <div className="vendor-history-select-wrap">
         <select
@@ -423,7 +489,7 @@ function HistoryTab({
         <p className="vendor-orders-empty">No history for this range.</p>
       ) : (
         <ul className="vendor-history-list">
-          {filtered.map((entry) => (
+          {paged.map((entry) => (
             <li key={entry.id}>
               <button
                 type="button"
@@ -438,7 +504,7 @@ function HistoryTab({
                     {entry.label || entry.type} · {entry.name || 'Player'}
                   </p>
                   <p className="vendor-order-meta">
-                    {[entry.date, entry.time].filter(Boolean).join(' · ')}
+                    {[`#${entry.id}`, entry.game, entry.date, entry.time].filter(Boolean).join(' · ')}
                   </p>
                   <PromoNote item={entry} />
                 </div>
@@ -460,6 +526,7 @@ function HistoryTab({
           ))}
         </ul>
       )}
+      <ActivityPager page={page} total={filtered.length} onPage={setPage} />
     </div>
   )
 }
@@ -470,14 +537,17 @@ export default function VendorOrdersPage() {
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!isApiConfigured()) {
       setLoading(false)
       return
     }
-    setLoading(true)
-    setError('')
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const res = await tapstackApi.vendorOrders()
       setOrders({
@@ -491,21 +561,25 @@ export default function VendorOrdersPage() {
         pendingTotal: res.pendingTotal || '$0.00',
       })
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : err instanceof Error
+      if (!silent) {
+        setError(
+          err instanceof ApiError
             ? err.message
-            : 'Could not load orders.',
-      )
+            : err instanceof Error
+              ? err.message
+              : 'Could not load orders.',
+        )
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useIntervalRefresh(() => void refresh(true), MONEY_REFRESH_MS, isApiConfigured())
 
   const tabs: { id: OrdersTab; label: string; count?: number }[] = [
     { id: 'loads', label: 'Loads', count: orders.manualLoads.length },
@@ -543,8 +617,21 @@ export default function VendorOrdersPage() {
         <LoadsTab
           manualLoads={orders.manualLoads}
           autoLoads={orders.autoLoads}
-          busyId={null}
+          busyId={busyId}
           onOpenOrder={setDetailOrderId}
+          onComplete={async (id) => {
+            if (busyId) return
+            setBusyId(id)
+            setError('')
+            try {
+              await tapstackApi.vendorOrderApprove(id, { staffNote: '' })
+              await refresh(true)
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : 'Could not complete order.')
+            } finally {
+              setBusyId(null)
+            }
+          }}
         />
       ) : null}
       {!loading && activeOrdersTab === 'redeems' ? (

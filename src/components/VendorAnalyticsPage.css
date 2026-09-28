@@ -1917,7 +1917,8 @@
 .vendor-customer-stat {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 6px;
   padding: 10px 8px;
   border-radius: 12px;
   background: #f9fafb;
@@ -1936,6 +1937,7 @@
   font-size: 15px;
   font-weight: 750;
   color: #111827;
+  min-height: 1.2em;
 }
 
 .vendor-customer-stat-value--in {
@@ -1951,6 +1953,21 @@
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #fff;
+}
+
+.vendor-customer-force-btn {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 12px;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vendor-customer-force-btn:disabled {
+  opacity: 0.5;
 }
 
 .vendor-customer-section-title {
@@ -2127,4 +2144,18 @@
   .vendor-customer-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.vendor-games-customer-search {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.vendor-financial-stat-sub {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #6b7280;
 }

@@ -344,3 +344,27 @@
 .help-reply--chat-start {
   margin-top: auto;
 }
+
+.help-chatgpt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.help-chatgpt-reply {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.help-chatgpt-connect .help-label {
+  margin-top: 10px;
+  text-align: left;
+}

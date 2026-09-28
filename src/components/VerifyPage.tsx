@@ -257,7 +257,7 @@ export default function VerifyPage({
           : locationNeeded
             ? 'Confirm your location'
             : state.status === 'manual_review'
-              ? 'Documents under review'
+              ? 'Try verification again'
               : state.status === 'block'
                 ? 'Account blocked'
                 : state.status === 'pending'
@@ -458,12 +458,13 @@ export default function VerifyPage({
       {!loading && state.required !== false && state.status === 'manual_review' ? (
         <section className="verify-card">
           <CardHead
-            title="We are reviewing your documents"
-            sub="This usually takes 24–48 hours."
-            tone="wait"
+            title="Verification was not approved"
+            sub="Manual review is turned off. Try again or contact support."
+            tone="bad"
           />
           <p className="verify-card-copy">
-            You will be able to top up, load, and redeem once it is approved.
+            After 3 failed verification attempts this account is blocked. A vendor may still
+            force-approve you for their room only.
           </p>
           {locked ? null : (
             <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
@@ -483,7 +484,9 @@ export default function VerifyPage({
           <p className="verify-card-copy">
             {state.blockedReason === 'duplicate_license'
               ? 'An account already exists with this ID. Sign in to that account, or contact support if this is a mistake.'
-              : 'Contact support@tapstack.io if you believe this is an error.'}
+              : (state.failedAttempts || 0) >= 3
+                ? 'This account is blocked after 3 failed verification attempts. A vendor can force-approve you for their room only. Contact support@tapstack.io if you believe this is an error.'
+                : 'Contact support@tapstack.io if you believe this is an error.'}
           </p>
           {onLogout ? (
             <button type="button" className="verify-btn verify-btn--ghost" onClick={onLogout}>

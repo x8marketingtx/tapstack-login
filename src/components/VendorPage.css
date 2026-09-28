@@ -176,10 +176,9 @@
 
 .vendor-balance-label {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: #94a3b8;
 }
 
@@ -591,12 +590,119 @@
   flex: 1;
 }
 
+.games-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0 6px 0 14px;
+  min-height: 46px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.games-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: text;
+}
+
+.games-search:focus-within {
+  border-color: color-mix(in srgb, var(--vendor-accent, #7c3aed) 45%, #e5e7eb);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--vendor-accent, #7c3aed) 14%, transparent);
+}
+
+.games-search-icon {
+  display: flex;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.games-search:focus-within .games-search-icon {
+  color: var(--vendor-accent, #7c3aed);
+}
+
+.games-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.games-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.games-search-input:focus {
+  outline: none;
+}
+
+.games-search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.games-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.games-search-clear:hover {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.games-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
 .games-title {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: #9ca3af;
+}
+
+.games-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.games-empty {
+  margin: 0 0 12px;
+  padding: 18px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed #e5e7eb;
+  color: #64748b;
+  font-size: 14px;
+  text-align: center;
 }
 
 .games-list {
@@ -984,6 +1090,12 @@
 .game-btn--load {
   border: 1px solid #93c5fd;
   color: #2563eb;
+}
+
+.game-btn--play {
+  border: 1px solid #86efac;
+  color: #047857;
+  background: #ecfdf5;
 }
 
 .game-btn--redeem {

@@ -1205,7 +1205,7 @@ function FinanceFeesTab({
     setDepositsEnabled(Boolean(fees.depositsEnabled))
     setEmailBlastsEnabled(Boolean(fees.emailBlastsEnabled))
     setMaintenanceMode(Boolean(fees.maintenanceMode))
-    setDepositFee(String(fees.depositFeePct ?? 2))
+    setDepositFee(String(fees.depositFeePct ?? 10))
     setRedeemFee(String(fees.redeemFeePct ?? 2))
     setTransferFee(String(fees.transferFeePct ?? fees.depositFeePct ?? 2))
     setPlayerRankUpgrade(String(fees.playerRankUpgradeMo ?? 9.99))

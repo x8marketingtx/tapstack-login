@@ -16,6 +16,8 @@ import DistributorBottomNav from './DistributorBottomNav'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
 import HelpCenter from './HelpCenter'
+import ActivityPager from './ActivityPager'
+import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import {
   consumeVerifyReturn,
   needsVerification,
@@ -680,6 +682,12 @@ export default function DistributorDashboard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, loading])
 
+  useIntervalRefresh(() => {
+    const token = getToken()
+    if (!isApiConfigured() || !token || token.startsWith('demo:') || loading) return
+    if (tab === 'home') void loadHome(earningsRange).catch(() => undefined)
+  }, MONEY_REFRESH_MS, true)
+
   const filteredVendors = useMemo(() => {
     let list = enrichVendorsAffiliateHints(vendors?.vendors || [], dash, analytics)
     const q = vendorQuery.trim().toLowerCase()
@@ -964,6 +972,9 @@ function HomeView({
   earningsRange: EarningsRange
   onRange: (range: EarningsRange) => void
 }) {
+  const [activityPage, setActivityPage] = useState(1)
+  const activity = dash.activity || []
+  const pagedActivity = pageItems(activity, activityPage)
   return (
     <div className="dist-stack">
       <div className="dist-title-row">
@@ -989,7 +1000,7 @@ function HomeView({
                   d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5V9h-3.25a2.75 2.75 0 0 0 0 5.5H21v1.5A2.5 2.5 0 0 1 18.5 18.5h-13A2.5 2.5 0 0 1 3 16V7.5zm15.75 4.25a1.25 1.25 0 1 1 0-2.5H21v2.5h-2.25z"
                 />
               </svg>
-              Wallet Balance
+              Tapstack Balance
             </p>
             <p className="dist-wallet-amount">{money(dash.wallet.balanceFormatted ?? dash.wallet.balance)}</p>
             <p className="dist-wallet-meta">
@@ -1099,7 +1110,7 @@ function HomeView({
       <section className="dist-section">
         <h2>Recent Activity</h2>
         <ul className="dist-activity">
-          {(dash.activity || []).map((item) => (
+          {pagedActivity.map((item) => (
             <li key={item.id}>
               <span className={item.unread ? 'dist-activity-dot' : 'dist-activity-dot is-dim'} />
               <div>
@@ -1108,8 +1119,9 @@ function HomeView({
               </div>
             </li>
           ))}
-          {!dash.activity?.length ? <li className="dist-empty">No recent activity.</li> : null}
+          {!activity.length ? <li className="dist-empty">No recent activity.</li> : null}
         </ul>
+        <ActivityPager page={activityPage} total={activity.length} onPage={setActivityPage} />
       </section>
     </div>
   )
@@ -1514,6 +1526,61 @@ function InvoicesView({
   onFilter: (f: InvoiceFilter) => void
   onRefresh: () => void
 }) {
+  const [creating, setCreating] = useState(false)
+  const [vendor, setVendor] = useState('')
+  const [amount, setAmount] = useState('')
+  const [subject, setSubject] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault()
+    if (!vendor.trim() || !amount.trim()) {
+      setError('Vendor and amount are required.')
+      return
+    }
+    if (file) {
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        setError('Only PDF invoices are allowed.')
+        return
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        setError('PDF must be 2 MB or smaller.')
+        return
+      }
+    }
+    setBusy(true)
+    setError('')
+    try {
+      if (file) {
+        await tapstackApi.distributorUploadInvoice({
+          vendor: vendor.trim(),
+          amount: amount.trim(),
+          subject: subject.trim() || undefined,
+          file,
+        })
+      } else {
+        await tapstackApi.distributorCreateInvoice({
+          vendor: vendor.trim(),
+          amount: amount.trim(),
+          subject: subject.trim() || undefined,
+          description: subject.trim() || undefined,
+        })
+      }
+      setVendor('')
+      setAmount('')
+      setSubject('')
+      setFile(null)
+      setCreating(false)
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create invoice.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="dist-stack">
       <div className="dist-title-row">
@@ -1521,10 +1588,43 @@ function InvoicesView({
           <h1 className="dist-title">Invoices</h1>
           <p className="dist-subtitle">Bill vendors · track payments</p>
         </div>
-        <button type="button" className="dist-btn dist-btn--primary dist-btn--sm" onClick={onRefresh}>
-          + Create
+        <button
+          type="button"
+          className="dist-btn dist-btn--primary dist-btn--sm"
+          onClick={() => setCreating((open) => !open)}
+        >
+          {creating ? 'Close' : '+ Create'}
         </button>
       </div>
+
+      {creating ? (
+        <form className="dist-invoice-form" onSubmit={(event) => void handleCreate(event)}>
+          <label>
+            Vendor
+            <input value={vendor} onChange={(e) => setVendor(e.target.value)} required />
+          </label>
+          <label>
+            Amount
+            <input value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="100.00" />
+          </label>
+          <label>
+            Subject
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invoice subject" />
+          </label>
+          <label>
+            PDF (optional, 2 MB max, deleted after 3 months)
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          {error ? <p className="dist-empty">{error}</p> : null}
+          <button type="submit" className="dist-btn dist-btn--primary" disabled={busy}>
+            {busy ? 'Saving…' : 'Save invoice'}
+          </button>
+        </form>
+      ) : null}
 
       <div className="dist-seg">
         {(['all', 'draft', 'sent', 'paid', 'overdue'] as InvoiceFilter[]).map((f) => (
@@ -1548,9 +1648,19 @@ function InvoicesView({
               </h3>
               <span className={`dist-badge dist-badge--${inv.status.toLowerCase()}`}>{inv.status}</span>
             </div>
-            <p className="dist-muted">{inv.description}</p>
+            <p className="dist-muted">{inv.subject || inv.description}</p>
             <div className="dist-invoice-foot">
-              <span>{inv.attachments ? `📎 ${inv.attachments}` : ''}</span>
+              <span>
+                {inv.pdfUrl ? (
+                  <a href={inv.pdfUrl} target="_blank" rel="noreferrer">
+                    PDF
+                  </a>
+                ) : inv.attachments ? (
+                  `📎 ${inv.attachments}`
+                ) : (
+                  ''
+                )}
+              </span>
               <div>
                 <strong>{inv.amount}</strong>
 				<small>{inv.dueDate}</small>

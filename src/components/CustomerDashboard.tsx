@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createVendorFromInviteCode,
   decodeIcon,
@@ -53,8 +53,10 @@ import {
   parseLocation,
   vendorPathId,
 } from '../lib/routing'
-import { clearPlayerAffiliateRef, detectNewPlayerAffiliates, getPlayerAffiliateRef, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
+import { clearPlayerAffiliateRef, consumePendingPlayVendor, detectNewPlayerAffiliates, getPlayerAffiliateRef, peekPendingPlayVendor, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
+import ActivityPager from './ActivityPager'
+import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import './CustomerDashboard.css'
 
 function vendorStorageKey(vendor: Pick<Vendor, 'id' | 'code' | 'name'>): string {
@@ -277,8 +279,7 @@ function formatMoney(value: number): string {
   return `$${value.toFixed(2)}`
 }
 
-const VENDORS_MOBILE_PREVIEW = 4
-const VENDORS_MOBILE_MQ = '(max-width: 599px)'
+const VENDORS_PREVIEW = 4
 
 const DEMO_ACTIVITIES: ActivityRow[] = [
   {
@@ -302,6 +303,7 @@ function GamesHome({
   onToggleFavorite,
   onVendorSelect,
   onVendorTransfer,
+  onRemoveVendor,
   cashBalance,
   loading,
   activities,
@@ -318,6 +320,7 @@ function GamesHome({
   onToggleFavorite: (vendor: Vendor) => void
   onVendorSelect: (vendor: Vendor) => void
   onVendorTransfer: (vendor: Vendor, intent: 'load' | 'redeem') => void
+  onRemoveVendor: (vendor: Vendor) => void
   cashBalance: string
   loading?: boolean
   activities: ActivityRow[]
@@ -326,24 +329,12 @@ function GamesHome({
 }) {
   const sortedVendors = sortVendorsByFavorite(vendors, favoriteKeys)
   const [vendorsExpanded, setVendorsExpanded] = useState(false)
+  const [vendorSearch, setVendorSearch] = useState('')
   const [vendorTotals, setVendorTotals] = useState<
     Record<string, { status: 'loading' | 'ready'; playable: number; redeemable: number }>
   >({})
-  const [isMobileVendorList, setIsMobileVendorList] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia(VENDORS_MOBILE_MQ).matches : false,
-  )
-
-  useEffect(() => {
-    const mq = window.matchMedia(VENDORS_MOBILE_MQ)
-    const sync = () => setIsMobileVendorList(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  useEffect(() => {
-    if (!isMobileVendorList) setVendorsExpanded(false)
-  }, [isMobileVendorList])
+  const [activityPage, setActivityPage] = useState(1)
+  const pagedActivities = pageItems(activities, activityPage)
 
   const vendorBalanceKey = vendors
     .map((vendor) => `${vendorStorageKey(vendor)}:${vendor.games.length}`)
@@ -422,12 +413,24 @@ function GamesHome({
     }
   }, [vendorBalanceKey, balanceEpoch])
 
-  const hasMoreVendors = sortedVendors.length > VENDORS_MOBILE_PREVIEW
-  const visibleVendors =
-    isMobileVendorList && hasMoreVendors && !vendorsExpanded
-      ? sortedVendors.slice(0, VENDORS_MOBILE_PREVIEW)
-      : sortedVendors
-  const hiddenVendorCount = Math.max(0, sortedVendors.length - VENDORS_MOBILE_PREVIEW)
+  const searchedVendors = vendorSearch.trim()
+    ? sortedVendors.filter((vendor) => {
+        const q = vendorSearch.trim().toLowerCase()
+        return (
+          vendor.name.toLowerCase().includes(q) ||
+          vendor.handle.toLowerCase().includes(q)
+        )
+      })
+    : sortedVendors
+  const favoriteVisible = searchedVendors.filter((vendor) => favoriteKeys.has(vendorStorageKey(vendor)))
+  const otherVisible = searchedVendors.filter((vendor) => !favoriteKeys.has(vendorStorageKey(vendor)))
+  const collapsedVendors = [
+    ...favoriteVisible,
+    ...otherVisible.slice(0, Math.max(0, VENDORS_PREVIEW - favoriteVisible.length)),
+  ]
+  const visibleVendors = vendorsExpanded || searchedVendors.length <= VENDORS_PREVIEW ? searchedVendors : collapsedVendors
+  const hiddenVendorCount = Math.max(0, searchedVendors.length - visibleVendors.length)
+  const hasMoreVendors = hiddenVendorCount > 0 || (vendorsExpanded && searchedVendors.length > VENDORS_PREVIEW)
 
   return (
     <div className="games-home-desktop">
@@ -489,7 +492,22 @@ function GamesHome({
 
       <div className="games-home-main">
         <section className="vendors-section">
-          <h2 className="vendors-title">Your Vendors</h2>
+          <div className="vendors-title-row">
+            <h2 className="vendors-title">Your Vendors</h2>
+            {vendors.length > 0 ? (
+              <input
+                type="search"
+                className="vendors-title-search"
+                placeholder="Search vendors"
+                value={vendorSearch}
+                onChange={(event) => {
+                  setVendorSearch(event.target.value)
+                  setVendorsExpanded(false)
+                }}
+                aria-label="Search vendors"
+              />
+            ) : null}
+          </div>
           <p className="vendors-subtitle">
             {vendors.length === 0
               ? 'Add a vendor by name to get started'
@@ -530,6 +548,22 @@ function GamesHome({
                         onClick={() => onToggleFavorite(vendor)}
                       >
                         {favorited ? '★' : '☆'}
+                      </button>
+                      <button
+                        type="button"
+                        className="vendor-home-trash"
+                        aria-label={`Remove ${vendor.name}`}
+                        onClick={() => onRemoveVendor(vendor)}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path
+                            d="M4 7h16M9 7V5h6v2M8 7l1 12h6l1-12"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       </button>
                       <button
                         type="button"
@@ -624,16 +658,14 @@ function GamesHome({
                 )
               })}
             </div>
-            {isMobileVendorList && hasMoreVendors ? (
+            {hasMoreVendors ? (
               <button
                 type="button"
                 className="vendors-view-all"
                 aria-expanded={vendorsExpanded}
                 onClick={() => setVendorsExpanded((open) => !open)}
               >
-                {vendorsExpanded
-                  ? 'Show less'
-                  : `View all (${hiddenVendorCount} more)`}
+                {vendorsExpanded ? 'Show less' : `View all (${hiddenVendorCount} more)`}
               </button>
             ) : null}
             </>
@@ -659,7 +691,7 @@ function GamesHome({
             </div>
           ) : (
             <ul className="activity-list">
-              {activities.map((item) => (
+              {pagedActivities.map((item) => (
                 <li key={item.id} className="activity-item">
                   <div className="activity-icon" style={{ background: item.iconBg }}>
                     {item.icon}
@@ -682,6 +714,7 @@ function GamesHome({
               ))}
             </ul>
           )}
+          <ActivityPager page={activityPage} total={activities.length} onPage={setActivityPage} />
         </section>
       </div>
     </div>
@@ -718,9 +751,11 @@ export default function CustomerDashboard({
   const [verification, setVerification] = useState<VerificationState>(() =>
     verificationFromUser(cachedUser),
   )
-  const [pendingVendorId, setPendingVendorId] = useState<string | null>(() =>
-    initialRoute.portal === 'customer' && initialRoute.vendorId ? initialRoute.vendorId : null,
-  )
+  const [pendingVendorId, setPendingVendorId] = useState<string | null>(() => {
+    if (initialRoute.portal === 'customer' && initialRoute.vendorId) return initialRoute.vendorId
+    return peekPendingPlayVendor() || null
+  })
+  const [linkingPlayVendor, setLinkingPlayVendor] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [gamePick, setGamePick] = useState<{ vendor: Vendor; intent: 'load' | 'redeem' } | null>(null)
   const [gamePickLoading, setGamePickLoading] = useState(false)
@@ -796,9 +831,42 @@ export default function CustomerDashboard({
     if (!pendingVendorId) return
     const match = matchVendorFromList(vendors, pendingVendorId)
     if (match) {
+      consumePendingPlayVendor()
       setSelectedVendor(match)
       setShowProfile(false)
       setPendingVendorId(null)
+      return
+    }
+    if (!shouldLoadFromApi || linkingPlayVendor) return
+    const code = pendingVendorId.trim().toUpperCase()
+    if (!code) return
+    let cancelled = false
+    setLinkingPlayVendor(true)
+    ;(async () => {
+      try {
+        const res = await tapstackApi.linkVendor(code, getPlayerAffiliateRef() || undefined)
+        if (cancelled) return
+        consumePendingPlayVendor()
+        const next = vendorFromApi(res.vendor)
+        const list = Array.isArray(res.vendors) ? res.vendors.map(vendorFromApi) : null
+        const userId = getSessionUser()?.id
+        setVendors((current) => {
+          const updated = list || [next, ...current.filter((v) => v.id !== next.id)]
+          saveLocalVendors(updated, userId)
+          return updated
+        })
+        setSelectedVendor(next)
+        setShowProfile(false)
+        setPendingVendorId(null)
+        navigate({ portal: 'customer', tab: 'games', vendorId: vendorPathId(next) }, 'replace')
+      } catch {
+        if (!cancelled) setPendingVendorId(null)
+      } finally {
+        if (!cancelled) setLinkingPlayVendor(false)
+      }
+    })()
+    return () => {
+      cancelled = true
     }
   }, [vendors, pendingVendorId])
 
@@ -1113,6 +1181,24 @@ export default function CustomerDashboard({
           nextVendors = apiVendors.length > 0 ? apiVendors : saved
         }
 
+        const bannersById = new Map(
+          apiVendors
+            .filter((vendor) => vendor.id != null)
+            .map((vendor) => [String(vendor.id), vendor]),
+        )
+        nextVendors = nextVendors.map((vendor) => {
+          const fresh = vendor.id != null ? bannersById.get(String(vendor.id)) : undefined
+          if (!fresh) return vendor
+          return {
+            ...vendor,
+            bannerUrl: fresh.bannerUrl || vendor.bannerUrl,
+            bannerId: fresh.bannerId || vendor.bannerId,
+            tagline: fresh.tagline || vendor.tagline,
+            accentColor: fresh.accentColor || vendor.accentColor,
+            accentSolid: fresh.accentSolid || vendor.accentSolid,
+          }
+        })
+
         const token = getToken()
         if (token && !token.startsWith('demo:')) {
           nextVendors = await Promise.all(
@@ -1126,6 +1212,7 @@ export default function CustomerDashboard({
                 return {
                   ...vendor,
                   bannerUrl: fresh.bannerUrl || vendor.bannerUrl,
+                  bannerId: fresh.bannerId || vendor.bannerId,
                   initials: fresh.initials || vendor.initials,
                   color: fresh.color || vendor.color,
                   text: fresh.text || vendor.text,
@@ -1174,6 +1261,23 @@ export default function CustomerDashboard({
       cancelled = true
     }
   }, [shouldLoadFromApi, onRoleMismatch])
+
+  const refreshMoney = useCallback(() => {
+    if (!shouldLoadFromApi) return
+    void tapstackApi
+      .customerWallet()
+      .then((res) => {
+        if (res.wallet?.formatted) setCashBalance(res.wallet.formatted)
+        else if (typeof res.wallet?.balance === 'number') {
+          setCashBalance(`$${res.wallet.balance.toFixed(2)}`)
+        }
+        if (typeof res.wallet?.points === 'number') setPointsBalance(res.wallet.points)
+        if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
+      })
+      .catch(() => undefined)
+  }, [shouldLoadFromApi])
+
+  useIntervalRefresh(refreshMoney, MONEY_REFRESH_MS, shouldLoadFromApi)
 
   async function handleAddVendor() {
     const code = inviteCode.trim().toUpperCase()
@@ -1386,6 +1490,7 @@ export default function CustomerDashboard({
               levelProgressPct={headerProfile?.levelProgressPct}
               tier={headerProfile?.tier}
               initials={headerProfile?.initials}
+              avatarUrl={headerProfile?.avatarUrl}
               onProfileClick={openProfile}
               onLogoClick={goHome}
             />
@@ -1407,11 +1512,12 @@ export default function CustomerDashboard({
                 onToggleFavorite={toggleFavoriteVendor}
                 onVendorSelect={openVendor}
                 onVendorTransfer={startVendorTransfer}
+                onRemoveVendor={(vendor) => void removeVendor(vendor)}
                 cashBalance={cashBalance || '$0.00'}
                 loading={loading}
                 balanceEpoch={vendorBalanceEpoch}
                 activities={
-                  shouldLoadFromApi ? mapTxnsToActivities(walletTxns).slice(0, 8) : DEMO_ACTIVITIES
+                  shouldLoadFromApi ? mapTxnsToActivities(walletTxns) : DEMO_ACTIVITIES
                 }
                 onSeeAllActivity={() => handleTabChange('account')}
               />

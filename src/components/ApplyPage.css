@@ -250,6 +250,10 @@
   line-height: 1.35;
 }
 
+.apply-form .image-agree {
+  margin-top: 12px;
+}
+
 .apply-referral-code {
   margin: 2px 0 0;
   color: #9ca3af;

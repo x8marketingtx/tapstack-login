@@ -3,12 +3,13 @@ import {
   ApiError,
   isApiConfigured,
   tapstackApi,
+  type AdminImageReport,
   type AdminSettings,
 } from '../api/client'
 import { AdminHeader } from './AdminHeader'
 import './AdminSettingsPage.css'
 
-type SettingsSubTab = 'account' | 'comms' | 'chargebacks'
+type SettingsSubTab = 'account' | 'comms' | 'chargebacks' | 'reports'
 
 const SETTINGS_SUB_TABS: { id: SettingsSubTab; label: string; icon: ReactNode }[] = [
   {
@@ -59,6 +60,21 @@ const SETTINGS_SUB_TABS: { id: SettingsSubTab; label: string; icon: ReactNode }[
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+      </svg>
+    ),
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M12 4l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-3z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M12 11v3M12 17.2h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -1401,6 +1417,117 @@ function AdminSettingsChargebacksTab() {
   )
 }
 
+function formatReportTime(value: string): string {
+  if (!value) return ''
+  const date = new Date(value.replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+function AdminSettingsReportsTab() {
+  const [reports, setReports] = useState<AdminImageReport[]>([])
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    tapstackApi
+      .adminImageReports()
+      .then((res) => {
+        if (!cancelled) setReports(res.reports || [])
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Could not load reported images.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function act(imageId: number, action: 'remove' | 'dismiss') {
+    if (busyId) return
+    setBusyId(imageId)
+    setError('')
+    try {
+      const res =
+        action === 'remove'
+          ? await tapstackApi.adminImageReportRemove(imageId)
+          : await tapstackApi.adminImageReportDismiss(imageId)
+      setReports(res.reports || [])
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update this report.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="admin-settings-reports">
+      <section className="admin-settings-card">
+        <div className="admin-settings-card-head">
+          <h2 className="admin-settings-card-title">Reported Images</h2>
+        </div>
+        <p className="admin-settings-reports-copy">
+          Players can flag storefront banners and promo images. Remove an image to take it off the site, or dismiss
+          a report if it does not violate policy.
+        </p>
+        {error ? <p className="admin-settings-error">{error}</p> : null}
+        {loading ? (
+          <p className="admin-settings-reports-empty">Loading reports…</p>
+        ) : reports.length === 0 ? (
+          <p className="admin-settings-reports-empty">No open image reports.</p>
+        ) : (
+          <div className="admin-settings-reports-list">
+            {reports.map((report) => (
+              <article key={report.imageId} className="admin-settings-report-card">
+                {report.imageUrl ? (
+                  <img src={report.imageUrl} alt="" className="admin-settings-report-thumb" />
+                ) : (
+                  <div className="admin-settings-report-thumb admin-settings-report-thumb--empty">Removed</div>
+                )}
+                <div className="admin-settings-report-meta">
+                  <p className="admin-settings-report-name">{report.imageName || `Image #${report.imageId}`}</p>
+                  <p>
+                    {report.flagCount} flag{report.flagCount === 1 ? '' : 's'} · {report.context || 'image'}
+                  </p>
+                  <p>Latest {formatReportTime(report.lastAt)}</p>
+                </div>
+                <div className="admin-settings-report-actions">
+                  <button
+                    type="button"
+                    className="admin-settings-report-dismiss"
+                    disabled={busyId === report.imageId}
+                    onClick={() => void act(report.imageId, 'dismiss')}
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-settings-report-remove"
+                    disabled={busyId === report.imageId}
+                    onClick={() => void act(report.imageId, 'remove')}
+                  >
+                    {busyId === report.imageId ? '…' : 'Remove'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 export default function AdminSettingsPage() {
   const [subTab, setSubTab] = useState<SettingsSubTab>('account')
 
@@ -1429,6 +1556,8 @@ export default function AdminSettingsPage() {
         <AdminSettingsAccountTab />
       ) : subTab === 'comms' ? (
         <AdminSettingsCommsTab />
+      ) : subTab === 'reports' ? (
+        <AdminSettingsReportsTab />
       ) : (
         <AdminSettingsChargebacksTab />
       )}

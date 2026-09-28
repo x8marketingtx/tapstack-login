@@ -414,6 +414,18 @@ export type AdminSettings = {
   }>
 }
 
+export type AdminImageReport = {
+  id: number
+  imageId: number
+  imageUrl: string
+  imageName: string
+  context: string
+  flagCount: number
+  firstAt: string
+  lastAt: string
+  hidden?: boolean
+}
+
 export type VendorPromotion = {
   id: string
   icon: string
@@ -445,6 +457,8 @@ export type VendorPromotion = {
   imageUrl?: string
   gameKey?: string
   gameTitle?: string
+  winners?: Array<{ name: string }>
+  rewardMode?: 'flat' | 'percent' | string
 }
 
 export type VendorCoupon = {
@@ -531,7 +545,10 @@ export type PlayerPromo = {
   entryMode?: 'per_order' | 'total' | string
   poolAmount?: number
   prizeEach?: number
+  imageId?: number
   imageUrl?: string
+  vendorBannerId?: number
+  vendorBannerUrl?: string
   gameKey?: string
   gameTitle?: string
 }
@@ -605,6 +622,8 @@ export type VendorCustomer = {
   vip?: boolean
   operatorVip?: boolean
   affiliate?: VendorAffiliate
+  forceApproved?: boolean
+  identityVerified?: boolean
 }
 
 export type VendorGameAccount = {
@@ -625,6 +644,43 @@ export type VendorGameAccount = {
 export function getApiBase(): string {
   const origin = (import.meta.env.VITE_WP_API_URL as string | undefined)?.replace(/\/$/, '') || ''
   return origin ? `${origin}/wp-json/tapstack/v1` : '/wp-json/tapstack/v1'
+}
+
+export function getWpOrigin(): string {
+  return (import.meta.env.VITE_WP_API_URL as string | undefined)?.replace(/\/$/, '') || ''
+}
+
+/** Make WordPress media URLs load from the WP origin when the app is on localhost. */
+export function absoluteMediaUrl(url?: string | null): string {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (/^(https?:|data:|blob:)/i.test(value)) return value
+  const origin = getWpOrigin()
+  if (!origin) return value
+  return value.startsWith('/') ? `${origin}${value}` : `${origin}/${value}`
+}
+
+const MEDIA_URL_KEYS = new Set([
+  'avatarUrl',
+  'bannerUrl',
+  'imageUrl',
+  'vendorBannerUrl',
+  'pdfUrl',
+])
+
+function absolutizeMediaTree(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(absolutizeMediaTree)
+  if (!value || typeof value !== 'object') return value
+  const input = value as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(input)) {
+    if (typeof child === 'string' && MEDIA_URL_KEYS.has(key)) {
+      out[key] = absoluteMediaUrl(child)
+    } else {
+      out[key] = absolutizeMediaTree(child)
+    }
+  }
+  return out
 }
 
 export function getToken(): string | null {
@@ -648,7 +704,9 @@ export function getSessionUser(): TapstackUser | null {
   const raw = localStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as TapstackUser
+    const user = JSON.parse(raw) as TapstackUser
+    if (user.avatarUrl) user.avatarUrl = absoluteMediaUrl(user.avatarUrl)
+    return user
   } catch {
     return null
   }
@@ -679,7 +737,11 @@ export function normalizeSessionRole(role: unknown): SessionRole | null {
  */
 export function applyAuthSession(token: string, user: TapstackUser): SessionRole {
   const role = normalizeSessionRole(user.role) ?? 'player'
-  setSession({ token, role, user: { ...user, role } })
+  setSession({
+    token,
+    role,
+    user: { ...user, role, avatarUrl: absoluteMediaUrl(user.avatarUrl) },
+  })
   return role
 }
 
@@ -803,7 +865,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new ApiError(message, res.status, code)
   }
 
-  return data as T
+  return absolutizeMediaTree(data) as T
 }
 
 export const tapstackApi = {
@@ -965,14 +1027,30 @@ export const tapstackApi = {
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
       recentTx: WalletTxn[]
     }>('/customer/wallet'),
-  customerWalletTransactions: (beforeId?: number) =>
-    apiRequest<{ transactions: WalletTxn[]; nextBeforeId: number | null }>(
-      `/customer/wallet/transactions?limit=30${beforeId ? `&beforeId=${beforeId}` : ''}`,
-    ),
+  customerWalletTransactions: (opts?: { beforeId?: number; limit?: number; since?: string } | number) => {
+    const query =
+      typeof opts === 'number' || opts === undefined
+        ? { beforeId: opts, limit: 25 }
+        : { limit: 25, ...opts }
+    const params = new URLSearchParams()
+    params.set('limit', String(query.limit || 25))
+    if (query.beforeId) params.set('beforeId', String(query.beforeId))
+    if (query.since) params.set('since', query.since)
+    return apiRequest<{
+      transactions: WalletTxn[]
+      nextBeforeId: number | null
+      olderSummary?: { count: number; inflow: number; outflow: number; net: number }
+    }>(`/customer/wallet/transactions?${params.toString()}`)
+  },
   customerWalletSend: (recipient: string, amount: number) =>
     apiRequest<{ ok: boolean; wallet: { balance: number; points: number } }>('/customer/wallet/send', {
       method: 'POST',
       body: { recipient, amount },
+    }),
+  reportImage: (payload: { imageId: number; context?: string; reason?: string }) =>
+    apiRequest<{ ok: boolean; alreadyReported?: boolean }>('/customer/images/report', {
+      method: 'POST',
+      body: payload,
     }),
   customerPromos: () =>
     apiRequest<{ promos: PlayerPromo[] }>('/customer/promos'),
@@ -1037,6 +1115,9 @@ export const tapstackApi = {
         inviteCode?: string
         code?: string
         membership?: VendorMembership
+        distributorName?: string | null
+        distributorId?: number | null
+        network?: string
       }
       wallet?: { balance?: string; amount?: number; currency?: string }
       monthlyVolume?: {
@@ -1141,6 +1222,12 @@ export const tapstackApi = {
         redeems?: string
         platformFees?: string
         distributorCut?: string
+        promoAnalytics?: {
+          active?: number
+          entries?: number
+          valueGiven?: string
+          valueGivenValue?: number
+        }
       }
       daily?: Array<{
         day: string
@@ -1274,6 +1361,7 @@ export const tapstackApi = {
     const token = getToken()
     const body = new FormData()
     body.append('file', file)
+    body.append('agreed', '1')
     const qs =
       token && !token.startsWith('demo:')
         ? `?access_token=${encodeURIComponent(token)}`
@@ -1297,7 +1385,7 @@ export const tapstackApi = {
         (data as { code?: string }).code,
       )
     }
-    return data as { ok: boolean; imageId: number; imageUrl: string }
+    return absolutizeMediaTree(data) as { ok: boolean; imageId: number; imageUrl: string }
   },
   vendorEmailBlasts: () =>
     apiRequest<{
@@ -1375,10 +1463,37 @@ export const tapstackApi = {
       cadence: 'daily' | 'weekly' | 'monthly' | string
     },
   ) =>
-    apiRequest<{ ok: boolean; affiliate: VendorAffiliate }>(`/vendor/customers/${playerId}/affiliate`, {
+    apiRequest<{ ok: boolean; affiliate: VendorAffiliate     }>(`/vendor/customers/${playerId}/affiliate`, {
       method: 'POST',
       body: payload,
     }),
+  vendorForceApproveCustomer: (playerId: string | number) =>
+    apiRequest<{ ok: boolean; forceApproved: boolean }>(`/vendor/customers/${playerId}/force-approve`, {
+      method: 'POST',
+    }),
+  vendorChatgptComplete: (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>) =>
+    apiRequest<{ ok: boolean; reply: string }>('/vendor/chatgpt', {
+      method: 'POST',
+      body: { messages },
+    }),
+  vendorCompleteOnboarding: (payload: {
+    termsAccepted: boolean
+    fullName?: string
+    phone?: string
+    facebookPage?: string
+    facebookGroup?: string
+    automatedSite?: string
+    mainWebsite?: string
+    monthlyVolume?: string
+  }) =>
+    apiRequest<{
+      ok: boolean
+      onboarding: { required: boolean; termsAccepted: boolean; missingFields: string[] }
+      user?: TapstackUser
+    }>(
+      '/vendor/onboarding',
+      { method: 'POST', body: payload },
+    ),
   vendorSettings: () =>
     apiRequest<{
       profile?: {
@@ -1402,6 +1517,7 @@ export const tapstackApi = {
         bannerId?: number
         bannerUrl?: string
         bannerName?: string
+        openaiConnected?: boolean
       }
       games?: VendorRedeemSettings & { catalog?: VendorGameRecord[] }
       gameCatalog?: VendorGameRecord[]
@@ -1413,6 +1529,7 @@ export const tapstackApi = {
         gameRoomWindowDays?: number
       }
       membership?: VendorMembership
+      staff?: Array<Record<string, unknown>>
     }>('/vendor/settings'),
   saveVendorSettings: (payload: Record<string, unknown>) =>
     apiRequest<{
@@ -1429,18 +1546,31 @@ export const tapstackApi = {
   vendorSubscribePro: (returnUrl?: string) =>
     apiRequest<{
       ok: boolean
-      url: string
+      url?: string
       checkoutId?: string
+      paidFromWallet?: boolean
+      walletPaid?: number
+      cardDue?: number
       membership?: VendorMembership
     }>('/vendor/membership/subscribe', {
       method: 'POST',
       body: returnUrl ? { returnUrl } : {},
     }),
+  cryptoDeposit: () =>
+    apiRequest<{
+      ok?: boolean
+      configured?: boolean
+      network?: string
+      token?: string
+      address?: string
+      message?: string
+    }>('/payments/crypto'),
   uploadVendorBanner: async (file: File) => {
     const base = getApiBase()
     const token = getToken()
     const body = new FormData()
     body.append('file', file)
+    body.append('agreed', '1')
     const qs =
       token && !token.startsWith('demo:')
         ? `?access_token=${encodeURIComponent(token)}`
@@ -1464,7 +1594,43 @@ export const tapstackApi = {
         (data as { code?: string }).code,
       )
     }
-    return data as { ok: boolean; bannerId: number; bannerUrl: string; bannerName: string }
+    return absolutizeMediaTree(data) as { ok: boolean; bannerId: number; bannerUrl: string; bannerName: string }
+  },
+  uploadPlayerAvatar: async (file: File) => {
+    const base = getApiBase()
+    const token = getToken()
+    const body = new FormData()
+    body.append('file', file)
+    body.append('agreed', '1')
+    const qs =
+      token && !token.startsWith('demo:')
+        ? `?access_token=${encodeURIComponent(token)}`
+        : ''
+    const res = await fetch(`${base}/customer/profile/avatar${qs}`, {
+      method: 'POST',
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+            'X-TapStack-Token': token,
+            Accept: 'application/json',
+          }
+        : { Accept: 'application/json' },
+      body,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new ApiError(
+        (data as { message?: string }).message || `Upload failed (${res.status})`,
+        res.status,
+        (data as { code?: string }).code,
+      )
+    }
+    return absolutizeMediaTree(data) as {
+      ok: boolean
+      avatarId: number
+      avatarUrl: string
+      user: TapstackUser
+    }
   },
   vendorGames: () =>
     apiRequest<{
@@ -1482,9 +1648,11 @@ export const tapstackApi = {
     }),
 
   customerVendorGames: (vendorId: number | string) =>
-    apiRequest<{ games: Array<VendorGameRecord & { connected?: boolean; playerMobileId?: string | null }> }>(
-      `/customer/vendors/${vendorId}/games`,
-    ),
+    apiRequest<{
+      games: Array<VendorGameRecord & { connected?: boolean; playerMobileId?: string | null }>
+      loadFeePct?: number
+      playerPaysLoadFee?: boolean
+    }>(`/customer/vendors/${vendorId}/games`),
   connectVendorGame: (
     vendorId: number | string,
     gameKey: string,
@@ -1623,6 +1791,14 @@ export const tapstackApi = {
       }
       login: { email: string; temporaryPassword: string }
     }>('/admin/vendors', { method: 'POST', body: payload }),
+  adminImportVendors: (vendors: Array<Record<string, string>>) =>
+    apiRequest<{
+      ok: boolean
+      created: unknown[]
+      errors: Array<{ row: number; message: string }>
+      createdCount: number
+      errorCount: number
+    }>('/admin/vendors/import', { method: 'POST', body: { vendors } }),
   adminVendorDetail: (id: string | number) =>
     apiRequest<AdminVendorDetail>(`/admin/vendors/${id}`),
   adminVendorUpdateStatus: (
@@ -1714,6 +1890,18 @@ export const tapstackApi = {
   adminSettings: () => apiRequest<AdminSettings>('/admin/settings'),
   adminSettingsUpdate: (payload: { account?: Partial<AdminSettings['account']> }) =>
     apiRequest<{ ok: boolean }>('/admin/settings', { method: 'PUT', body: payload }),
+  adminImageReports: () =>
+    apiRequest<{ ok?: boolean; reports: AdminImageReport[] }>('/admin/image-reports'),
+  adminImageReportRemove: (imageId: number) =>
+    apiRequest<{ ok: boolean; reports: AdminImageReport[] }>(
+      `/admin/image-reports/${imageId}/remove`,
+      { method: 'POST' },
+    ),
+  adminImageReportDismiss: (imageId: number) =>
+    apiRequest<{ ok: boolean; reports: AdminImageReport[] }>(
+      `/admin/image-reports/${imageId}/dismiss`,
+      { method: 'POST' },
+    ),
 
   supportTickets: () =>
     apiRequest<{
@@ -1911,18 +2099,60 @@ export const tapstackApi = {
         amount: string
         dueDate: string
         attachments?: number
+        subject?: string
+        pdfUrl?: string
+        pdfExpiresAt?: number
       }>
     }>('/distributor/invoices'),
   distributorCreateInvoice: (payload: {
     vendor: string
     amount: string
     description?: string
+    subject?: string
     dueDate?: string
   }) =>
     apiRequest<{ ok: boolean; id: number; invoiceId: string }>('/distributor/invoices', {
       method: 'POST',
       body: payload,
     }),
+  distributorUploadInvoice: async (payload: {
+    vendor: string
+    amount: string
+    subject?: string
+    file: File
+  }) => {
+    const base = getApiBase()
+    const token = getToken()
+    const body = new FormData()
+    body.append('vendor', payload.vendor)
+    body.append('amount', payload.amount)
+    if (payload.subject) body.append('subject', payload.subject)
+    body.append('file', payload.file)
+    const qs =
+      token && !token.startsWith('demo:')
+        ? `?access_token=${encodeURIComponent(token)}`
+        : ''
+    const res = await fetch(`${base}/distributor/invoices/upload${qs}`, {
+      method: 'POST',
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+            'X-TapStack-Token': token,
+            Accept: 'application/json',
+          }
+        : { Accept: 'application/json' },
+      body,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new ApiError(
+        (data as { message?: string }).message || `Upload failed (${res.status})`,
+        res.status,
+        (data as { code?: string }).code,
+      )
+    }
+    return absolutizeMediaTree(data) as { ok: boolean; id: number; invoiceId: string; pdfUrl?: string }
+  },
   distributorSettings: () =>
     apiRequest<{
       profile: {
@@ -2073,6 +2303,8 @@ export type TapstackUser = {
   role: 'player' | 'vendor' | 'distributor' | 'admin'
   phone?: string
   username?: string
+  avatarId?: number | null
+  avatarUrl?: string
   level?: number
   tier?: TicketTier
   vendorId?: number | null
@@ -2085,12 +2317,22 @@ export type TapstackUser = {
     canSpend: boolean
     pluginReady: boolean
     required?: boolean
+    kycDeferred?: boolean
+    imported?: boolean
     message?: string
     blockedReason?: string | null
     geoBlocked?: boolean
     geoReason?: string | null
     geoType?: string | null
+    forceApprovedVendorIds?: number[]
+    failedAttempts?: number
   }
+  openaiConnected?: boolean
+  onboarding?: {
+    required: boolean
+    termsAccepted: boolean
+    missingFields: string[]
+  } | null
 }
 
 export type ApiVendor = {
@@ -2150,6 +2392,7 @@ export type CustomerVerifyState = {
   rateLimitReason?: string
   required?: boolean
   message: string
+  failedAttempts?: number
 }
 
 export type LocationAccessState = {

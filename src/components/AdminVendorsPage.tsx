@@ -11,6 +11,8 @@ import {
   type AdminVendorSummary,
 } from '../api/client'
 import { AdminHeader } from './AdminHeader'
+import ActivityPager from './ActivityPager'
+import { pageItems } from '../lib/refresh'
 import './AdminVendorsPage.css'
 
 type VendorStatus = 'active' | 'pending' | 'suspended' | 'deactivated'
@@ -448,6 +450,150 @@ function CreateVendorModal({
   )
 }
 
+const IMPORT_HEADERS = [
+  'fullName',
+  'gameroomName',
+  'phone',
+  'email',
+  'facebookPage',
+  'facebookGroup',
+  'automatedSite',
+  'mainWebsite',
+  'monthlyVolume',
+]
+
+function parseCsv(text: string): Array<Record<string, string>> {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim())
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''))
+  return lines.slice(1).map((line) => {
+    const cells = line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''))
+    const row: Record<string, string> = {}
+    headers.forEach((header, index) => {
+      if (header) row[header] = cells[index] || ''
+    })
+    return row
+  })
+}
+
+function ImportVendorsModal({
+  open,
+  onClose,
+  onImported,
+}: {
+  open: boolean
+  onClose: () => void
+  onImported: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<{ createdCount: number; errorCount: number; errors: Array<{ row: number; message: string }> } | null>(
+    null,
+  )
+
+  useEffect(() => {
+    if (!open) return
+    setError('')
+    setBusy(false)
+    setResult(null)
+  }, [open])
+
+  if (!open) return null
+
+  const host =
+    typeof document !== 'undefined'
+      ? document.querySelector('.admin-dashboard') ??
+        document.querySelector('.screen--admin') ??
+        document.querySelector('.screen') ??
+        document.body
+      : null
+  if (!host) return null
+
+  async function handleFile(file: File) {
+    setBusy(true)
+    setError('')
+    setResult(null)
+    try {
+      const text = await file.text()
+      const vendors = parseCsv(text)
+      if (!vendors.length) {
+        setError('CSV needs a header row matching the registration form and at least one vendor.')
+        return
+      }
+      const res = await tapstackApi.adminImportVendors(vendors)
+      setResult({
+        createdCount: res.createdCount,
+        errorCount: res.errorCount,
+        errors: res.errors || [],
+      })
+      if (res.createdCount > 0) onImported()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not import vendors.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return createPortal(
+    <div className="admin-vendor-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="admin-vendor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-import-vendor-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="admin-vendor-modal-header">
+          <h2 id="admin-import-vendor-title">Import vendors</h2>
+          <button type="button" className="admin-vendor-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="admin-vendor-modal-form">
+          <p className="admin-vendor-modal-copy">
+            Upload a CSV with the same fields as the vendor registration form. Imported vendors must
+            agree to the Terms and complete missing fields on first login.
+          </p>
+          <p className="admin-vendor-modal-copy">
+            Columns: {IMPORT_HEADERS.join(', ')}
+          </p>
+          {error ? <p className="admin-api-error">{error}</p> : null}
+          {result ? (
+            <p className="admin-vendor-modal-success-copy">
+              Created {result.createdCount}. {result.errorCount} row{result.errorCount === 1 ? '' : 's'} failed.
+            </p>
+          ) : null}
+          {result?.errors.length ? (
+            <ul className="admin-vendor-import-errors">
+              {result.errors.map((item) => (
+                <li key={`${item.row}-${item.message}`}>
+                  Row {item.row}: {item.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <label className="admin-vendor-modal-field">
+            <span>CSV file</span>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void handleFile(file)
+              }}
+            />
+          </label>
+          <button type="button" className="admin-vendor-modal-submit" onClick={onClose}>
+            {busy ? 'Importing…' : 'Done'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    host,
+  )
+}
+
 export function VendorDetailView({
   vendorId,
   onBack,
@@ -463,6 +609,7 @@ export function VendorDetailView({
   const [success, setSuccess] = useState('')
   const [statusBusy, setStatusBusy] = useState(false)
   const [detail, setDetail] = useState<AdminVendorDetail | null>(null)
+  const [activityPage, setActivityPage] = useState(1)
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -670,8 +817,9 @@ export function VendorDetailView({
             {(detail.recentOrders || []).length === 0 ? (
               <p className="admin-empty-hint">No recent orders.</p>
             ) : (
+              <>
               <div className="admin-vendor-detail-orders-list">
-                {detail.recentOrders.map((order) => (
+                {pageItems(detail.recentOrders, activityPage).map((order) => (
                   <article key={order.id} className="admin-vendor-detail-order">
                     <div>
                       <p className="admin-vendor-detail-order-title">
@@ -691,6 +839,8 @@ export function VendorDetailView({
                   </article>
                 ))}
               </div>
+              <ActivityPager page={activityPage} total={detail.recentOrders.length} onPage={setActivityPage} />
+              </>
             )}
           </section>
         </>
@@ -709,6 +859,7 @@ export default function AdminVendorsPage() {
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -799,7 +950,11 @@ export default function AdminVendorsPage() {
 
       <div className="admin-vendors-toolbar">
         <h1 className="admin-vendors-title">Vendor Management</h1>
-        <button type="button" className="admin-vendors-create-btn" onClick={() => setCreateOpen(true)}>
+        <div className="admin-vendors-toolbar-actions">
+          <button type="button" className="admin-vendors-import-btn" onClick={() => setImportOpen(true)}>
+            Import
+          </button>
+          <button type="button" className="admin-vendors-create-btn" onClick={() => setCreateOpen(true)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="9" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
             <path
@@ -812,6 +967,7 @@ export default function AdminVendorsPage() {
           </svg>
           Create
         </button>
+        </div>
       </div>
 
       <label className="admin-vendors-search">
@@ -870,6 +1026,11 @@ export default function AdminVendorsPage() {
         distributors={distributors}
         onClose={() => setCreateOpen(false)}
         onCreated={() => setReloadKey((key) => key + 1)}
+      />
+      <ImportVendorsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => setReloadKey((key) => key + 1)}
       />
     </div>
   )

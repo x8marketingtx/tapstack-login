@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, getSessionUser, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
 import { isVerifyApiError, needsVerification, verificationFromUser } from '../lib/verify'
 import type { PlayerProfile } from './ProfilePage'
 import type { Vendor } from '../data/vendors'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
+import ActivityPager from './ActivityPager'
+import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import './AccountPage.css'
 
 const QUICK_POINTS = [500, 1000, 2000]
 
-type TimeFilter = '7d' | '30d' | 'custom'
+type TimeFilter = '7d' | '30d' | '6m'
 
 type TxAmount = {
   text: string
@@ -68,6 +70,16 @@ function txnTime(txn: WalletTxn): number {
   return Number.isFinite(ts) ? ts : 0
 }
 
+function sixMonthsAgo(): string {
+  return new Date(Date.now() - 182 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ')
+}
+
+function mergeTxns(incoming: WalletTxn[], existing: WalletTxn[]): WalletTxn[] {
+  const map = new Map<number, WalletTxn>()
+  for (const txn of [...incoming, ...existing]) map.set(txn.id, txn)
+  return [...map.values()].sort((a, b) => txnTime(b) - txnTime(a) || b.id - a.id)
+}
+
 export default function AccountPage({
   cashBalance = '$0.00',
   pointsBalance = 0,
@@ -93,16 +105,23 @@ export default function AccountPage({
   const [roomFilter, setRoomFilter] = useState('all')
   const [fetchedTxns, setFetchedTxns] = useState<WalletTxn[]>(() => transactions ?? [])
   const [ledgerLoading, setLedgerLoading] = useState(false)
+  const [ledgerPage, setLedgerPage] = useState(1)
+  const [olderSummary, setOlderSummary] = useState<{
+    count: number
+    inflow: number
+    outflow: number
+    net: number
+  } | null>(null)
   const [pointsToRedeem, setPointsToRedeem] = useState('')
   const [selectedQuickPoints, setSelectedQuickPoints] = useState<number | null>(null)
   const [redeeming, setRedeeming] = useState(false)
   const [redeemMsg, setRedeemMsg] = useState('')
   const [redeemError, setRedeemError] = useState('')
 
-  const rawTxns = transactions ?? fetchedTxns
+  const rawTxns = fetchedTxns
   const linkedVendors = vendors.filter((vendor) => vendor.id != null && vendor.name)
 
-  const ledgerRows = useMemo(() => {
+  const filteredTxns = useMemo(() => {
     const now = Date.now()
     const cutoff =
       timeFilter === '7d'
@@ -110,7 +129,7 @@ export default function AccountPage({
         : timeFilter === '30d'
           ? now - 30 * 24 * 60 * 60 * 1000
           : 0
-    const filtered = rawTxns.filter((txn) => {
+    return rawTxns.filter((txn) => {
       if (cutoff > 0) {
         const ts = txnTime(txn)
         if (ts > 0 && ts < cutoff) return false
@@ -118,34 +137,69 @@ export default function AccountPage({
       if (roomFilter !== 'all' && txnVendorId(txn) !== roomFilter) return false
       return true
     })
-    return mapLedgerToRows(filtered)
   }, [rawTxns, timeFilter, roomFilter])
 
-  useEffect(() => {
-    if (transactions) {
-      setFetchedTxns(transactions)
-      return
-    }
+  const ledgerRows = useMemo(
+    () => mapLedgerToRows(pageItems(filteredTxns, ledgerPage)),
+    [filteredTxns, ledgerPage],
+  )
+
+  const loadLedger = useCallback(async (silent = false) => {
     if (!isApiConfigured()) return
+    if (!silent) setLedgerLoading(true)
+    try {
+      const since = sixMonthsAgo()
+      const all: WalletTxn[] = []
+      let beforeId: number | undefined
+      let summary: { count: number; inflow: number; outflow: number; net: number } | null = null
+      for (let i = 0; i < 20; i += 1) {
+        const res = await tapstackApi.customerWalletTransactions({ beforeId, since, limit: 100 })
+        all.push(...(res.transactions || []))
+        if (res.olderSummary) summary = res.olderSummary
+        if (!res.nextBeforeId) break
+        beforeId = res.nextBeforeId
+      }
+      setFetchedTxns(all)
+      setOlderSummary(summary)
+    } catch {
+      if (!silent) setFetchedTxns([])
+    } finally {
+      if (!silent) setLedgerLoading(false)
+    }
+  }, [])
 
-    let cancelled = false
-    setLedgerLoading(true)
-    tapstackApi
-      .customerWallet()
-      .then((res) => {
-        if (!cancelled) setFetchedTxns(res.recentTx || [])
-      })
-      .catch(() => {
-        if (!cancelled) setFetchedTxns([])
-      })
-      .finally(() => {
-        if (!cancelled) setLedgerLoading(false)
-      })
+  useEffect(() => {
+    void loadLedger()
+  }, [loadLedger])
 
-    return () => {
-      cancelled = true
+  useEffect(() => {
+    if (transactions?.length) {
+      setFetchedTxns((prev) => mergeTxns(transactions, prev))
     }
   }, [transactions])
+
+  useEffect(() => {
+    setLedgerPage(1)
+  }, [timeFilter, roomFilter])
+
+  useIntervalRefresh(() => {
+    if (!isApiConfigured()) return
+    void tapstackApi
+      .customerWallet()
+      .then((res) => {
+        if (Array.isArray(res.recentTx)) {
+          setFetchedTxns((prev) => mergeTxns(res.recentTx, prev))
+        }
+        if (onWalletUpdate && res.wallet) {
+          onWalletUpdate({
+            balance: res.wallet.balance,
+            formatted: res.wallet.formatted,
+            points: res.wallet.points,
+          })
+        }
+      })
+      .catch(() => undefined)
+  }, MONEY_REFRESH_MS, isApiConfigured())
 
   function handleQuickPoints(value: number) {
     setSelectedQuickPoints(value)
@@ -332,7 +386,7 @@ export default function AccountPage({
         </div>
 
         <div className="tx-filters" role="tablist" aria-label="Time range">
-          {(['7d', '30d', 'custom'] as TimeFilter[]).map((filter) => (
+          {(['7d', '30d', '6m'] as TimeFilter[]).map((filter) => (
             <button
               key={filter}
               type="button"
@@ -341,7 +395,7 @@ export default function AccountPage({
               className={`tx-filter-btn ${timeFilter === filter ? 'active' : ''}`}
               onClick={() => setTimeFilter(filter)}
             >
-              {filter === '7d' ? '7D' : filter === '30d' ? '30D' : 'Custom'}
+              {filter === '7d' ? '7D' : filter === '30d' ? '30D' : '6M'}
             </button>
           ))}
         </div>
@@ -397,6 +451,16 @@ export default function AccountPage({
             ))
           )}
         </ul>
+        <ActivityPager page={ledgerPage} total={filteredTxns.length} onPage={setLedgerPage} />
+        {olderSummary && olderSummary.count > 0 ? (
+          <div className="tx-older-summary">
+            <p className="tx-title">Older than 6 months</p>
+            <p className="tx-meta">
+              {olderSummary.count} transactions · in ${olderSummary.inflow.toFixed(2)} · out $
+              {Math.abs(olderSummary.outflow).toFixed(2)} · net ${olderSummary.net.toFixed(2)}
+            </p>
+          </div>
+        ) : null}
       </section>
     </div>
   )

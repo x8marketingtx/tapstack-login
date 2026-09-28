@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ApiError,
   applyAuthSession,
+  absoluteMediaUrl,
   getToken,
   isApiConfigured,
   tapstackApi,
@@ -12,13 +13,15 @@ import {
   type VendorRedeemSettings,
 } from '../api/client'
 import './VendorSettingsPage.css'
+import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
 
-type SettingsTab = 'profile' | 'games' | 'billing'
+type SettingsTab = 'profile' | 'games' | 'billing' | 'staff'
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'profile', label: 'Profile' },
   { id: 'games', label: 'Games' },
   { id: 'billing', label: 'Billing' },
+  { id: 'staff', label: 'Staff' },
 ]
 
 function SettingsToggle({
@@ -97,7 +100,9 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [bannerId, setBannerId] = useState(0)
   const [bannerUrl, setBannerUrl] = useState('')
   const [bannerName, setBannerName] = useState('')
-  const [uploadingBanner, setUploadingBanner] = useState(false)
+  const [bannerRemoved, setBannerRemoved] = useState(false)
+  const bannerIdRef = useRef(0)
+  const bannerUploadRef = useRef<PendingImageUploadHandle>(null)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -108,6 +113,10 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [leaveBusy, setLeaveBusy] = useState(false)
   const [leaveError, setLeaveError] = useState('')
+  const [openaiConnected, setOpenaiConnected] = useState(false)
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [openaiBusy, setOpenaiBusy] = useState(false)
+  const [openaiMsg, setOpenaiMsg] = useState('')
 
   const accentColors = [
     { id: 'purple', value: '#7c3aed' },
@@ -155,9 +164,14 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         setWithdrawalAlerts(p.withdrawalAlerts !== false)
         setAccentColor(p.accentColor || 'purple')
         setVenueTagline(p.venueTagline || '')
-        setBannerId(Number(p.bannerId) || 0)
-        setBannerUrl(p.bannerUrl || '')
+        const nextBannerId = Number(p.bannerId) || 0
+        const nextBannerUrl = absoluteMediaUrl(p.bannerUrl || '')
+        setBannerId(nextBannerId)
+        bannerIdRef.current = nextBannerId
+        setBannerUrl(nextBannerUrl)
         setBannerName(p.bannerName || '')
+        setBannerRemoved(false)
+        setOpenaiConnected(Boolean(p.openaiConnected))
       })
       .catch((err) => {
         if (!cancelled) {
@@ -192,18 +206,23 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
     setSaveError('')
     setSaveOk(false)
     try {
+      if (bannerUploadRef.current?.hasPendingFile()) {
+        await bannerUploadRef.current.flush()
+      }
+      const nextBannerId = bannerIdRef.current
       const res = await tapstackApi.saveVendorSettings({
         profile: {
           businessName: businessName.trim(),
           email: email.trim(),
           phone: phone.trim(),
           address: address.trim(),
+          inviteCode: inviteCode.trim(),
           emailAlerts,
           smsAlerts,
           withdrawalAlerts,
           accentColor,
           venueTagline: venueTagline.trim(),
-          bannerId,
+          ...(bannerRemoved || nextBannerId > 0 ? { bannerId: nextBannerId } : {}),
         },
       })
       const p = res.profile || {}
@@ -221,9 +240,21 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
       if (typeof p.initials === 'string') setInitials(p.initials.slice(0, 2).toUpperCase())
       if (typeof p.accentColor === 'string') setAccentColor(p.accentColor)
       if (typeof p.venueTagline === 'string') setVenueTagline(p.venueTagline)
-      if (typeof p.bannerId === 'number') setBannerId(p.bannerId)
-      if (typeof p.bannerUrl === 'string') setBannerUrl(p.bannerUrl)
-      if (typeof p.bannerName === 'string') setBannerName(p.bannerName)
+      const savedBannerUrl = typeof p.bannerUrl === 'string' ? absoluteMediaUrl(p.bannerUrl) : ''
+      if (typeof p.bannerId === 'number' && (p.bannerId > 0 || bannerRemoved)) {
+        setBannerId(p.bannerId)
+        bannerIdRef.current = p.bannerId
+      }
+      if (savedBannerUrl) {
+        setBannerUrl(savedBannerUrl)
+        setBannerRemoved(false)
+      } else if (bannerRemoved) {
+        setBannerUrl('')
+        setBannerName('')
+      }
+      if (typeof p.bannerName === 'string' && (p.bannerName || bannerRemoved)) {
+        setBannerName(p.bannerName)
+      }
       setSaveOk(true)
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Could not save profile.')
@@ -416,9 +447,16 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
             PLAYER INVITE CODE
           </p>
           <div className="vendor-settings-link-field">
-            <span className="vendor-settings-readonly-value vendor-settings-invite-code">
-              {inviteCode || '—'}
-            </span>
+            <input
+              className="vendor-settings-input vendor-settings-invite-code"
+              value={inviteCode}
+              maxLength={16}
+              spellCheck={false}
+              onChange={(event) =>
+                setInviteCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))
+              }
+              aria-label="Vendor code"
+            />
             <button
               type="button"
               className="vendor-settings-copy-btn"
@@ -429,8 +467,7 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
             </button>
           </div>
           <p className="vendor-settings-info-help">
-            Players enter this code under Add Vendor to join your store. Change it from WordPress →
-            Users → Player invite code.
+            Unique 4–16 character code. Players enter it under Add Vendor, or use your Direct Checkout Link.
           </p>
         </div>
       </section>
@@ -476,6 +513,52 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
       </label>
 
       <section className="vendor-settings-panel">
+        <h3 className="vendor-settings-panel-title">CHATGPT</h3>
+        <p className="vendor-settings-info-help">
+          {openaiConnected
+            ? 'Your OpenAI key is connected. Vendor chat and reply drafts use this account.'
+            : 'Connect your own OpenAI API key to use vendor chat. Keys are stored encrypted and never shown again.'}
+        </p>
+        <label className="vendor-settings-field">
+          <span className="vendor-settings-field-label">
+            {openaiConnected ? 'Replace OpenAI API key' : 'OpenAI API key'}
+          </span>
+          <input
+            type="password"
+            className="vendor-settings-input"
+            autoComplete="off"
+            value={openaiKey}
+            placeholder="sk-..."
+            onChange={(event) => setOpenaiKey(event.target.value)}
+          />
+        </label>
+        {openaiMsg ? <p className="vendor-settings-save-ok">{openaiMsg}</p> : null}
+        <button
+          type="button"
+          className="vendor-settings-save-btn"
+          disabled={openaiBusy || openaiKey.trim().length < 8}
+          onClick={() => {
+            setOpenaiBusy(true)
+            setOpenaiMsg('')
+            setSaveError('')
+            void tapstackApi
+              .saveVendorSettings({ profile: { openaiKey: openaiKey.trim() } })
+              .then(() => {
+                setOpenaiConnected(true)
+                setOpenaiKey('')
+                setOpenaiMsg('ChatGPT connected.')
+              })
+              .catch((err) => {
+                setSaveError(err instanceof Error ? err.message : 'Could not save ChatGPT key.')
+              })
+              .finally(() => setOpenaiBusy(false))
+          }}
+        >
+          {openaiBusy ? 'Saving…' : openaiConnected ? 'Update key' : 'Connect ChatGPT'}
+        </button>
+      </section>
+
+      <section className="vendor-settings-panel">
         <h3 className="vendor-settings-panel-title">NOTIFICATIONS</h3>
         <SettingsToggle
           label="Email alerts"
@@ -512,48 +595,31 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
 
         <div className="vendor-settings-branding-block">
           <span className="vendor-settings-field-label">Banner Image</span>
-          {bannerUrl ? (
-            <div className="vendor-settings-banner-preview">
-              <img src={bannerUrl} alt="" />
-            </div>
-          ) : null}
-          <label className="vendor-settings-banner-upload">
-            <input
-              type="file"
-              accept="image/*"
-              className="vendor-settings-banner-input"
-              disabled={uploadingBanner || saving}
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (!file || !isApiConfigured()) return
-                setUploadingBanner(true)
-                setSaveError('')
-                void tapstackApi
-                  .uploadVendorBanner(file)
-                  .then((res) => {
-                    setBannerId(res.bannerId)
-                    setBannerUrl(res.bannerUrl)
-                    setBannerName(res.bannerName || file.name)
-                    setSaveOk(true)
-                  })
-                  .catch((err) => {
-                    setSaveError(err instanceof Error ? err.message : 'Banner upload failed.')
-                  })
-                  .finally(() => setUploadingBanner(false))
-              }}
-            />
-            <span className="vendor-settings-banner-name">
-              {uploadingBanner
-                ? 'Uploading…'
-                : bannerName || bannerUrl
-                  ? bannerName || 'Banner selected'
-                  : 'No banner selected'}
-            </span>
-            <span className="vendor-settings-banner-change">
-              {uploadingBanner ? '…' : 'Change'}
-            </span>
-          </label>
+          <PendingImageUpload
+            ref={bannerUploadRef}
+            accept="image/*"
+            disabled={saving}
+            currentUrl={bannerUrl}
+            currentName={bannerName}
+            onClearCurrent={() => {
+              setBannerId(0)
+              bannerIdRef.current = 0
+              setBannerUrl('')
+              setBannerName('')
+              setBannerRemoved(true)
+            }}
+            onUpload={async (file) => {
+              const res = await tapstackApi.uploadVendorBanner(file)
+              const url = absoluteMediaUrl(res.bannerUrl)
+              setBannerId(res.bannerId)
+              bannerIdRef.current = res.bannerId
+              setBannerUrl(url)
+              setBannerName(res.bannerName || file.name)
+              setBannerRemoved(false)
+              setSaveOk(true)
+            }}
+            pickLabel="Upload a banner"
+          />
         </div>
 
         <div className="vendor-settings-branding-block">
@@ -1453,8 +1519,8 @@ function BillingTab() {
             enabled: true,
             configured: false,
             name: 'TapStack Pro',
-            price: 999,
-            priceFormatted: '$999.00',
+            price: 999.99,
+            priceFormatted: '$999.99',
             interval: 'month',
             intervalCount: 1,
             status: 'none',
@@ -1535,6 +1601,10 @@ function BillingTab() {
     try {
       const returnUrl = `${window.location.origin}/vendor/settings?pro=1`
       const res = await tapstackApi.vendorSubscribePro(returnUrl)
+      if (res.paidFromWallet) {
+        if (res.membership) setMembership(res.membership)
+        return
+      }
       if (res.url) {
         window.location.assign(res.url)
         return
@@ -2140,6 +2210,173 @@ function BillingTab() {
   )
 }
 
+type StaffPermissionKey = 'orders' | 'promos' | 'payouts' | 'tickets' | 'refunds' | 'custom'
+type StaffMember = {
+  id: string
+  name: string
+  email: string
+  role: string
+  permissions: Record<StaffPermissionKey, { view: boolean; edit: boolean }>
+}
+
+const STAFF_KEYS: { id: StaffPermissionKey; label: string }[] = [
+  { id: 'orders', label: 'Orders' },
+  { id: 'promos', label: 'Promos' },
+  { id: 'payouts', label: 'Payouts' },
+  { id: 'tickets', label: 'Support tickets' },
+  { id: 'refunds', label: 'Refunds' },
+  { id: 'custom', label: 'Custom' },
+]
+
+function emptyPerms(): StaffMember['permissions'] {
+  return {
+    orders: { view: true, edit: true },
+    promos: { view: true, edit: false },
+    payouts: { view: false, edit: false },
+    tickets: { view: true, edit: true },
+    refunds: { view: false, edit: false },
+    custom: { view: false, edit: false },
+  }
+}
+
+function StaffTab() {
+  const [staff, setStaff] = useState<StaffMember[]>([])
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isApiConfigured()) return
+    tapstackApi
+      .vendorSettings()
+      .then((res) => {
+        const rows = Array.isArray(res.staff) ? res.staff : []
+        setStaff(rows as StaffMember[])
+      })
+      .catch(() => undefined)
+  }, [])
+
+  async function persist(next: StaffMember[]) {
+    setBusy(true)
+    setError('')
+    try {
+      await tapstackApi.saveVendorSettings({ staff: next })
+      setStaff(next)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save staff roles.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="vendor-settings-content">
+      <section className="vendor-settings-info-card">
+        <p className="vendor-settings-info-label">STAFF ROLES</p>
+        <p className="vendor-settings-info-help">
+          Grant view or edit access for orders, promos, payouts, support tickets, refunds, or a custom set.
+        </p>
+        <div className="vendor-staff-add">
+          <input className="vendor-settings-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="vendor-settings-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <button
+            type="button"
+            className="vendor-settings-save-btn"
+            disabled={busy || (!name.trim() && !email.trim())}
+            onClick={() => {
+              const next: StaffMember = {
+                id: `staff-${Date.now()}`,
+                name: name.trim() || email.trim(),
+                email: email.trim(),
+                role: 'custom',
+                permissions: emptyPerms(),
+              }
+              setName('')
+              setEmail('')
+              void persist([...staff, next])
+            }}
+          >
+            Add
+          </button>
+        </div>
+        {error ? <p className="vendor-settings-save-error">{error}</p> : null}
+      </section>
+
+      {staff.map((member) => (
+        <section key={member.id} className="vendor-settings-info-card">
+          <div className="vendor-staff-head">
+            <strong>{member.name}</strong>
+            <span>{member.email}</span>
+            <button
+              type="button"
+              className="vendor-settings-leave-btn"
+              onClick={() => void persist(staff.filter((row) => row.id !== member.id))}
+            >
+              Remove
+            </button>
+          </div>
+          <ul className="vendor-staff-perms">
+            {STAFF_KEYS.map((key) => (
+              <li key={key.id}>
+                <span>{key.label}</span>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(member.permissions[key.id]?.view)}
+                    onChange={(event) => {
+                      const next = staff.map((row) =>
+                        row.id === member.id
+                          ? {
+                              ...row,
+                              permissions: {
+                                ...row.permissions,
+                                [key.id]: {
+                                  view: event.target.checked,
+                                  edit: event.target.checked ? row.permissions[key.id]?.edit : false,
+                                },
+                              },
+                            }
+                          : row,
+                      )
+                      void persist(next)
+                    }}
+                  />
+                  View
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(member.permissions[key.id]?.edit)}
+                    onChange={(event) => {
+                      const next = staff.map((row) =>
+                        row.id === member.id
+                          ? {
+                              ...row,
+                              permissions: {
+                                ...row.permissions,
+                                [key.id]: {
+                                  view: event.target.checked || row.permissions[key.id]?.view,
+                                  edit: event.target.checked,
+                                },
+                              },
+                            }
+                          : row,
+                      )
+                      void persist(next)
+                    }}
+                  />
+                  Edit
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export default function VendorSettingsPage({
   portal: _portal = 'vendor',
   initialTab,
@@ -2190,6 +2427,9 @@ function VendorStoreSettingsPage({ initialTab }: { initialTab?: SettingsTab }) {
       </div>
       <div role="tabpanel" hidden={activeTab !== 'billing'}>
         <BillingTab />
+      </div>
+      <div role="tabpanel" hidden={activeTab !== 'staff'}>
+        <StaffTab />
       </div>
     </div>
   )

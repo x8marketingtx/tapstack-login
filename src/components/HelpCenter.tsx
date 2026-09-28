@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiError,
+  applyAuthSession,
   getSessionRole,
   getSessionUser,
   getToken,
@@ -155,6 +156,11 @@ export default function HelpCenter({
   const partnerName = vendorName || 'this store'
   const storeDirectChat = directChat && mode === 'store'
   const directChatBooted = useRef(false)
+  const [gptConnected, setGptConnected] = useState(() => Boolean(getSessionUser()?.openaiConnected))
+  const [gptKey, setGptKey] = useState('')
+  const [gptBusy, setGptBusy] = useState(false)
+  const [gptPrompt, setGptPrompt] = useState('')
+  const [gptReply, setGptReply] = useState('')
 
   const openCount = useMemo(
     () => tickets.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
@@ -412,6 +418,43 @@ export default function HelpCenter({
               ? 'Support inbox'
               : 'Help'
 
+  async function connectChatgpt(event: React.FormEvent) {
+    event.preventDefault()
+    if (!gptKey.trim() || gptBusy) return
+    setGptBusy(true)
+    setError('')
+    try {
+      await tapstackApi.saveVendorSettings({ profile: { openaiKey: gptKey.trim() } })
+      const token = getToken()
+      const me = await tapstackApi.me().catch(() => null)
+      if (token && me?.user) applyAuthSession(token, me.user)
+      setGptConnected(true)
+      setGptKey('')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not connect ChatGPT.')
+    } finally {
+      setGptBusy(false)
+    }
+  }
+
+  async function askChatgpt(prompt: string, fillReply = false) {
+    if (!prompt.trim() || gptBusy) return
+    setGptBusy(true)
+    setError('')
+    try {
+      const res = await tapstackApi.vendorChatgptComplete([
+        { role: 'system', content: 'You are a concise gameroom support assistant for this vendor.' },
+        { role: 'user', content: prompt.trim() },
+      ])
+      setGptReply(res.reply || '')
+      if (fillReply && res.reply) setReply(res.reply)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'ChatGPT could not reply. Connect your OpenAI key in Settings.')
+    } finally {
+      setGptBusy(false)
+    }
+  }
+
   function isMine(authorRole: string) {
     if (storeInbox) return authorRole === 'vendor'
     if (mode === 'inbox') return authorRole === 'admin'
@@ -482,7 +525,33 @@ export default function HelpCenter({
 
       {error ? <p className="help-error">{error}</p> : null}
 
-      {view === 'list' && !storeDirectChat ? (
+      {storeInbox && !gptConnected && !demo ? (
+        <form className="help-body help-chatgpt-connect" onSubmit={(event) => void connectChatgpt(event)}>
+          <div className="help-empty-card">
+            <p className="help-empty-title">Connect your ChatGPT account</p>
+            <p className="help-empty-copy">
+              Vendor chat uses your own OpenAI API key. Paste a key from platform.openai.com to
+              unlock player chat and ChatGPT drafts.
+            </p>
+            <label className="help-label">
+              OpenAI API key
+              <input
+                className="help-input"
+                type="password"
+                autoComplete="off"
+                value={gptKey}
+                placeholder="sk-..."
+                onChange={(event) => setGptKey(event.target.value)}
+              />
+            </label>
+            <button type="submit" className="help-primary" disabled={gptBusy || gptKey.trim().length < 8}>
+              {gptBusy ? 'Connecting…' : 'Connect ChatGPT'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {view === 'list' && !storeDirectChat && (!storeInbox || gptConnected || demo) ? (
         <div className="help-body">
           {loading ? <p className="help-empty">Loading tickets…</p> : null}
           {!loading && tickets.length === 0 ? (
@@ -523,6 +592,28 @@ export default function HelpCenter({
                 </li>
               ))}
             </ul>
+          ) : null}
+          {storeInbox && gptConnected ? (
+            <form
+              className="help-chatgpt"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void askChatgpt(gptPrompt)
+              }}
+            >
+              <p className="help-empty-title">ChatGPT</p>
+              <textarea
+                className="help-input help-textarea"
+                rows={3}
+                value={gptPrompt}
+                placeholder="Ask ChatGPT for a player reply, policy wording, or load troubleshooting…"
+                onChange={(event) => setGptPrompt(event.target.value)}
+              />
+              <button type="submit" className="help-ghost" disabled={gptBusy || !gptPrompt.trim()}>
+                {gptBusy ? 'Thinking…' : 'Ask ChatGPT'}
+              </button>
+              {gptReply ? <p className="help-chatgpt-reply">{gptReply}</p> : null}
+            </form>
           ) : null}
           {!store ? (
             <a className="help-mail" href="mailto:support@tapstack.io">
@@ -565,7 +656,7 @@ export default function HelpCenter({
         </div>
       ) : null}
 
-      {view === 'compose' && !storeDirectChat ? (
+      {view === 'compose' && !storeDirectChat && (!storeInbox || gptConnected || demo) ? (
         <form
           className="help-body help-form"
           onSubmit={(event) => {
@@ -610,7 +701,7 @@ export default function HelpCenter({
         </form>
       ) : null}
 
-      {view === 'detail' && selected ? (
+      {view === 'detail' && selected && (!storeInbox || gptConnected || demo) ? (
         <div className="help-body help-detail">
           {!storeDirectChat ? (
             <div className="help-detail-meta">
@@ -721,6 +812,21 @@ export default function HelpCenter({
                 }
                 onChange={(event) => setReply(event.target.value)}
               />
+              {storeInbox && gptConnected ? (
+                <button
+                  type="button"
+                  className="help-ghost"
+                  disabled={gptBusy}
+                  onClick={() =>
+                    void askChatgpt(
+                      `Draft a short, professional reply to this player ticket.\nSubject: ${selected.subject}\nMessage: ${selected.message}`,
+                      true,
+                    )
+                  }
+                >
+                  {gptBusy ? 'Drafting…' : 'Draft with ChatGPT'}
+                </button>
+              ) : null}
               <button
                 type="submit"
                 className="help-primary"

@@ -6,7 +6,7 @@ import {
   isApiConfigured,
   tapstackApi,
 } from '../api/client'
-import { setPendingVendorJoin, setVendorAffiliateWelcome } from '../lib/affiliate'
+import { setPendingVendorJoin } from '../lib/affiliate'
 import { TapStackLogo } from './TapStackLogo'
 import './ApplyPage.css'
 
@@ -66,23 +66,22 @@ export default function JoinPage({
           return
         }
 
-        // Logged-in vendor → attach store to distributor network.
+        // Logged-in vendor with an existing store cannot become an affiliate.
         if (token && role === 'vendor') {
-          setMessage(
-            distributorName
-              ? `Joining ${distributorName}'s network…`
-              : 'Joining distributor network…',
-          )
           if (isApiConfigured() && !token.startsWith('demo:')) {
             try {
-              const joined = await tapstackApi.vendorJoinDistributor(joinSlug)
-              setVendorAffiliateWelcome({
-                distributorName: joined.distributorName || distributorName || 'your distributor',
-                distributorId: joined.distributorId,
-                alreadyJoined: Boolean(joined.alreadyJoined),
-              })
+              await tapstackApi.vendorJoinDistributor(joinSlug)
             } catch (err) {
-              // No store yet → send them through apply with affiliate preserved.
+              if (err instanceof ApiError && err.code === 'tapstack_existing_vendor') {
+                setError(
+                  err.message ||
+                    'Existing vendors cannot join a distributor network. Affiliate links are for new vendor signups only.',
+                )
+                window.setTimeout(() => {
+                  if (!cancelled) onVendorJoined()
+                }, 2200)
+                return
+              }
               if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
                 if (cancelled) return
                 setPendingVendorJoin(joinSlug, distributorName)
@@ -91,8 +90,6 @@ export default function JoinPage({
               }
               throw err
             }
-          } else if (distributorName) {
-            setVendorAffiliateWelcome({ distributorName, alreadyJoined: false })
           }
           if (cancelled) return
           onVendorJoined()

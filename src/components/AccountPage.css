@@ -89,9 +89,9 @@
 
 .account-balance-label {
   margin: 0 0 6px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
   color: #93c5fd;
 }
 
@@ -523,6 +523,22 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.tx-older-summary {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.tx-older-summary .tx-title {
+  margin: 0 0 4px;
+}
+
+.tx-older-summary .tx-meta {
+  margin: 0;
 }
 
 .tx-item {

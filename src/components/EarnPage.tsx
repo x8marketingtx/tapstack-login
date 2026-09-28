@@ -95,8 +95,8 @@ function demoState(pointsBalance: number): EarnState {
     points: pointsBalance || 3400,
     cashBalance: 0,
     cashFormatted: '$0.00',
-    spinsRemaining: 3,
-    spinsTotal: 3,
+    spinsRemaining: 1,
+    spinsTotal: 1,
     spinsUsed: 0,
     wheel: WHEEL_SEGMENTS.map((s) => ({ label: s.label, points: s.points })),
     dailyMissions: [
@@ -365,7 +365,7 @@ export default function EarnPage({ onTopUp, pointsBalance = 0, onWalletUpdate }:
     )
   }
 
-  const spinsTotal = earn?.spinsTotal ?? 3
+  const spinsTotal = earn?.spinsTotal ?? 1
   const claimableDaily = dailyMissions.filter((m) => m.status === 'claim').length
 
   return (

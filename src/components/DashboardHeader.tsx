@@ -7,6 +7,7 @@ type DashboardHeaderProps = {
   levelProgressPct?: number
   tier?: TicketTier | string | null
   initials?: string
+  avatarUrl?: string
   loading?: boolean
   onProfileClick?: () => void
   onLogoClick?: () => void
@@ -16,6 +17,7 @@ export default function DashboardHeader({
   levelProgressPct = 0,
   tier = 'bronze',
   initials = 'P',
+  avatarUrl = '',
   loading = false,
   onProfileClick,
   onLogoClick,
@@ -49,7 +51,7 @@ export default function DashboardHeader({
               aria-label="Open profile"
               onClick={onProfileClick}
             >
-              {initials}
+              {avatarUrl ? <img src={avatarUrl} alt="" className="user-avatar-img" /> : initials}
             </button>
           </>
         )}

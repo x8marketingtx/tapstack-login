@@ -7,7 +7,7 @@
 
 .admin-settings-subtabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   padding-bottom: 4px;
   border-bottom: 1px solid #e5e7eb;
@@ -1522,4 +1522,102 @@
   font: inherit;
   font-size: 14px;
   font-weight: 700;
+}
+
+.admin-settings-reports-copy,
+.admin-settings-reports-empty,
+.admin-settings-error {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-settings-error {
+  color: #b91c1c;
+}
+
+.admin-settings-reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-settings-report-card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.admin-settings-report-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #f3f4f6;
+}
+
+.admin-settings-report-thumb--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.admin-settings-report-meta {
+  min-width: 0;
+}
+
+.admin-settings-report-meta p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.admin-settings-report-name {
+  margin: 0 0 4px !important;
+  color: #111827 !important;
+  font-size: 14px !important;
+  font-weight: 700;
+}
+
+.admin-settings-report-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.admin-settings-report-dismiss,
+.admin-settings-report-remove {
+  flex: 1;
+  height: 36px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.admin-settings-report-dismiss {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #4b5563;
+}
+
+.admin-settings-report-remove {
+  border: none;
+  background: #b91c1c;
+  color: #fff;
+}
+
+.admin-settings-report-dismiss:disabled,
+.admin-settings-report-remove:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }

@@ -1078,3 +1078,32 @@
   font-size: 10px;
   font-weight: 700;
 }
+
+.dist-invoice-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid var(--dist-line);
+}
+
+.dist-invoice-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dist-muted);
+}
+
+.dist-invoice-form input {
+  padding: 10px 12px;
+  border: 1px solid var(--dist-line);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dist-ink);
+}
+}

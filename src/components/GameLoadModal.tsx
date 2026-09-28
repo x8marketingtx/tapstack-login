@@ -7,6 +7,7 @@ import './GameLoadModal.css'
 
 const PRESETS = [10, 25, 50, 100]
 const CARD_MIN = 5
+const LOAD_FEE_PCT = 10
 
 function parseMoney(value: string): number {
   const n = Number(String(value).replace(/[^0-9.-]/g, ''))
@@ -120,6 +121,8 @@ export default function GameLoadModal({
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [success, setSuccess] = useState<SuccessState | null>(null)
+  const [loadFeePct, setLoadFeePct] = useState(LOAD_FEE_PCT)
+  const [playerPaysFee, setPlayerPaysFee] = useState(true)
 
   useEffect(() => {
     if (!open || !game) return
@@ -135,6 +138,8 @@ export default function GameLoadModal({
     setWalletFormatted(cashBalance)
     setGameBalance(game.redeemableBalance || game.gameBalance || '—')
     setPayableBalance(game.payableBalance || game.gameBalance || '—')
+    setLoadFeePct(LOAD_FEE_PCT)
+    setPlayerPaysFee(true)
 
     if (!isApiConfigured()) return
 
@@ -142,16 +147,25 @@ export default function GameLoadModal({
     setLoadingWallet(true)
     ;(async () => {
       try {
-        const [walletRes, balRes] = await Promise.all([
+        const [walletRes, balRes, gamesRes] = await Promise.all([
           tapstackApi.customerWallet().catch(() => null),
           game.mode === 'auto'
             ? tapstackApi.vendorGameBalance(vendorId, game.gameKey).catch(() => null)
+            : Promise.resolve(null),
+          intent === 'load'
+            ? tapstackApi.customerVendorGames(vendorId).catch(() => null)
             : Promise.resolve(null),
         ])
         if (cancelled) return
         if (walletRes?.wallet?.formatted) setWalletFormatted(walletRes.wallet.formatted)
         else if (typeof walletRes?.wallet?.balance === 'number') {
           setWalletFormatted(`$${walletRes.wallet.balance.toFixed(2)}`)
+        }
+        if (typeof gamesRes?.loadFeePct === 'number' && Number.isFinite(gamesRes.loadFeePct)) {
+          setLoadFeePct(gamesRes.loadFeePct)
+        }
+        if (typeof gamesRes?.playerPaysLoadFee === 'boolean') {
+          setPlayerPaysFee(gamesRes.playerPaysLoadFee)
         }
         if (balRes?.formatted) {
           setGameBalance(balRes.redeemableFormatted || balRes.formatted)
@@ -186,10 +200,16 @@ export default function GameLoadModal({
   const availableGame = parseMoney(gameBalance)
   const destGames = games.filter((item) => item.gameKey !== target.gameKey)
   const destGame = destGames.find((item) => item.gameKey === destGameKey) || destGames[0] || null
+  const processingFee =
+    !isRedeem && !isMove && playerPaysFee && Number.isFinite(numericAmount) && numericAmount > 0
+      ? Math.round(numericAmount * (loadFeePct / 100) * 100) / 100
+      : 0
+  const totalDue =
+    !isRedeem && !isMove && Number.isFinite(numericAmount) ? Math.round((numericAmount + processingFee) * 100) / 100 : 0
   const walletUsed =
-    !isRedeem && !isMove && Number.isFinite(numericAmount) ? Math.min(Math.max(0, availableWallet), numericAmount) : 0
+    !isRedeem && !isMove && Number.isFinite(totalDue) ? Math.min(Math.max(0, availableWallet), totalDue) : 0
   const cardNeeded =
-    !isRedeem && !isMove && Number.isFinite(numericAmount) ? Math.max(0, Math.round((numericAmount - walletUsed) * 100) / 100) : 0
+    !isRedeem && !isMove && Number.isFinite(totalDue) ? Math.max(0, Math.round((totalDue - walletUsed) * 100) / 100) : 0
   const cardCharge = cardNeeded > 0 ? Math.max(cardNeeded, CARD_MIN) : 0
   const exceedsGame =
     (isRedeem || isMove) &&
@@ -391,7 +411,7 @@ export default function GameLoadModal({
                   : `$${success.amount.toFixed(0)} move request sent. The vendor will process it shortly. No transfer fee.`
                 : isRedeem
                 ? success.auto
-                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to your TapStack wallet.`
+                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to your Tapstack Balance.`
                   : `$${success.amount.toFixed(0)} redeem request sent for ${game.name}. The vendor will process it shortly.`
                 : success.auto
                   ? success.couponCredit > 0
@@ -403,7 +423,7 @@ export default function GameLoadModal({
             </p>
             <div className="game-load-success-balances">
               <div>
-                <span>Your wallet</span>
+                <span>Tapstack Balance</span>
                 <strong>{success.cashBalance}</strong>
               </div>
               {!isManual ? (
@@ -443,7 +463,7 @@ export default function GameLoadModal({
             <div className="game-load-balances">
               {!isMove ? (
                 <div className="game-load-balance-card">
-                  <span className="game-load-balance-label">Your wallet</span>
+                  <span className="game-load-balance-label">Tapstack Balance</span>
                   <strong className="game-load-balance-value">
                     {loadingWallet ? '…' : walletFormatted}
                   </strong>
@@ -469,10 +489,10 @@ export default function GameLoadModal({
                 : isRedeem
                 ? isManual
                   ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
-                  : 'Pull credits from your connected game account into your TapStack wallet.'
+                  : 'Pull credits from your connected game account into your Tapstack Balance.'
                 : isManual
-                  ? 'Wallet is used first. If it isn’t enough, the rest is charged to your card. Include your game Mobile ID so the vendor can credit the right account.'
-                  : 'Wallet is used first. If it isn’t enough, the rest is charged to your card, then credits move into the connected game account.'}
+                  ? 'Tapstack Balance is used first. If it isn’t enough, the rest is charged to your card. Include your game Mobile ID so the vendor can credit the right account.'
+                  : 'Tapstack Balance is used first. If it isn’t enough, the rest is charged to your card, then credits move into the connected game account.'}
             </p>
 
             {isMove ? (
@@ -581,9 +601,32 @@ export default function GameLoadModal({
                     autoComplete="off"
                   />
                   <p className="game-load-optional">
-                    $ Credit and freeplay extras are added to this game load, not your TapStack wallet.
+                    $ Credit and freeplay extras are added to this game load, not your Tapstack Balance.
                   </p>
                 </>
+              ) : null}
+
+              {!isRedeem && !isMove && Number.isFinite(numericAmount) && numericAmount > 0 ? (
+                <div className="game-load-split">
+                  <p className="game-load-split-title">Load total</p>
+                  <div className="game-load-split-row">
+                    <span>Game credit</span>
+                    <strong>{money(numericAmount)}</strong>
+                  </div>
+                  {processingFee > 0 ? (
+                    <div className="game-load-split-row">
+                      <span>Processing fee {loadFeePct}%</span>
+                      <strong>+{money(processingFee)}</strong>
+                    </div>
+                  ) : null}
+                  <div className="game-load-split-row">
+                    <span>You pay</span>
+                    <strong>{money(totalDue)}</strong>
+                  </div>
+                  <p className="game-load-split-note">
+                    The 10% processing fee is added on top. The game still receives the full load amount.
+                  </p>
+                </div>
               ) : null}
 
               {cardCharge > 0 ? (

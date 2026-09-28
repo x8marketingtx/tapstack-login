@@ -25,7 +25,7 @@ import {
   type SessionRole,
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
-import { consumePendingVendorJoin } from './lib/affiliate'
+import { consumePendingVendorJoin, peekPendingPlayVendor, setPendingPlayVendor } from './lib/affiliate'
 import { isLocationVerificationEnabled } from './lib/verify'
 import {
   applyDocumentTitle,
@@ -66,6 +66,7 @@ function viewFromRoute(route: RouteState): AppView {
   if (route.portal === 'otp') return 'otp'
   if (route.portal === 'apply') return 'apply'
   if (route.portal === 'join') return 'join'
+  if (route.portal === 'play') return getSessionRole() === 'player' ? 'customer' : 'login'
   if (route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns') {
     return route.portal
   }
@@ -135,6 +136,14 @@ function App() {
         navigate(routeForView(target), 'replace')
       })
       return
+    }
+    if (role === 'player') {
+      const playCode = peekPendingPlayVendor()
+      if (playCode) {
+        setView('customer')
+        navigate({ portal: 'customer', tab: 'games', vendorId: playCode }, 'replace')
+        return
+      }
     }
     setView(target)
     navigate(routeForView(target), 'replace')
@@ -248,6 +257,17 @@ function App() {
       const role = getSessionRole()
       setSessionRole(role)
       const route = parseLocation()
+      if (route.portal === 'play') {
+        setPendingPlayVendor(route.code)
+        if (role === 'player') {
+          navigate({ portal: 'customer', tab: 'games', vendorId: route.code }, 'replace')
+          setView('customer')
+          return
+        }
+        navigate({ portal: 'login' }, 'replace')
+        setView('login')
+        return
+      }
       const requested = viewFromRoute(route)
       const resolved = resolveView(requested, role)
       setView(resolved)

@@ -164,6 +164,14 @@ export const TERMS_POLICY_SECTIONS: { heading: string; body: string[] }[] = [
     ],
   },
   {
+    heading: "7.6 Vendor Force Approval of Players",
+    body: [
+      "A gameroom Operator (\"Vendor\") may request that TapStack force-approve a player who has not completed, or has not passed, identity verification, so that the player may use that Vendor's room. Force approval is an exception granted solely at the requesting Vendor's request and risk. It does not constitute TapStack's verification of the player's identity, age, residence, or eligibility, and it does not waive TapStack's right to require full KYC at any time.",
+      "If a player is force approved upon the request of a Vendor, that Vendor is solely responsible for the player's actions on the platform while using that Vendor's room, including without limitation loss, chargebacks, fraud, exploitation, bonus abuse, identity misrepresentation, and any other associated monetary loss, claim, fine, or assessment. TapStack may debit, set off, withhold, or recover such amounts from the requesting Vendor's Tapstack Balance, settlements, and other amounts owed to the Vendor.",
+      "A force-approved player may play only in the room of each Vendor that has force-approved that player. Access to another Vendor's room requires a separate force approval from that other Vendor, or completion of TapStack identity verification. Force approval of a player by one Vendor does not authorize play, loads, redeems, or tips at any other Vendor.",
+    ],
+  },
+  {
     heading: "8. Purchases — Digital Items and Gold Coin Packages",
     body: [
       "Purchases are for specific Digital Items or Gold Coin packages at a preset Purchase Price. The subsections below describe delivery, Gold Coins, Digital Items, marketplace listings, wallets, and pricing errors.",

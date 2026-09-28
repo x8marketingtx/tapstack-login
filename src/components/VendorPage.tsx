@@ -10,6 +10,7 @@ import {
 import type { Vendor } from '../data/vendors'
 import { decodeIcon, vendorFromApi } from '../data/vendors'
 import { gameArtUrl } from '../data/gameArt'
+import { gamePlayUrl, openGamePlay } from '../data/gamePlay'
 import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
 import BottomNav, { type DashboardTab } from './BottomNav'
@@ -19,6 +20,7 @@ import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './G
 import { VerifyBanner } from './VerifyPage'
 import type { VerificationState } from '../lib/verify'
 import HelpCenter from './HelpCenter'
+import ReportImageButton from './ReportImageButton'
 import './CustomerDashboard.css'
 import './VendorPage.css'
 
@@ -284,6 +286,7 @@ export default function VendorPage({
     >
   >({})
   const [gamesLoading, setGamesLoading] = useState(isApiConfigured() && Boolean(initialVendor.id))
+  const [gameSearch, setGameSearch] = useState('')
   const [connectionResolved, setConnectionResolved] = useState(
     !(isApiConfigured() && Boolean(initialVendor.id)),
   )
@@ -854,6 +857,26 @@ export default function VendorPage({
     '--vendor-accent': accent,
     '--vendor-accent-soft': vendor.color || '#ede9fe',
   } as CSSProperties
+  const searchQuery = gameSearch.trim().toLowerCase()
+  const visibleGames = [...vendor.games]
+    .sort((a, b) => {
+      const aKey =
+        a.id ||
+        a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const bKey =
+        b.id ||
+        b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const aFav = favoriteGames.has(aKey) ? 0 : 1
+      const bFav = favoriteGames.has(bKey) ? 0 : 1
+      return aFav - bFav
+    })
+    .filter((game) => {
+      if (!searchQuery) return true
+      return (
+        game.name.toLowerCase().includes(searchQuery) ||
+        (game.platform || '').toLowerCase().includes(searchQuery)
+      )
+    })
 
   return (
     <div className="dashboard vendor-page" style={pageStyle}>
@@ -863,6 +886,7 @@ export default function VendorPage({
           levelProgressPct={profile?.levelProgressPct}
           tier={profile?.tier}
           initials={profile?.initials}
+          avatarUrl={profile?.avatarUrl}
           onProfileClick={onProfileClick}
           onLogoClick={onLogoClick}
         />
@@ -876,6 +900,7 @@ export default function VendorPage({
             {vendor.bannerUrl ? (
               <div className="vendor-storefront-banner">
                 <img src={vendor.bannerUrl} alt="" />
+                <ReportImageButton imageId={vendor.bannerId} context="vendor-banner" />
               </div>
             ) : (
               <div className="vendor-storefront-hero" aria-hidden="true" />
@@ -1006,22 +1031,57 @@ export default function VendorPage({
           </button>
 
           <section className="games-section">
-            <h2 className="games-title">Available Games</h2>
+            <div className="games-heading">
+              <h2 className="games-title">Available Games</h2>
+              {vendor.games.length > 0 ? (
+                <span className="games-count">
+                  {searchQuery
+                    ? `${visibleGames.length} of ${vendor.games.length}`
+                    : `${vendor.games.length}`}
+                </span>
+              ) : null}
+            </div>
 
+            <div className="games-search">
+              <label className="games-search-field" htmlFor="vendor-games-search">
+                <span className="games-search-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="11" cy="11" r="6.25" stroke="currentColor" strokeWidth="1.8" />
+                    <path d="M16 16.5 20 20.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <input
+                  id="vendor-games-search"
+                  type="search"
+                  className="games-search-input"
+                  placeholder="Search games"
+                  value={gameSearch}
+                  onChange={(event) => setGameSearch(event.target.value)}
+                />
+              </label>
+              {gameSearch ? (
+                <button
+                  type="button"
+                  className="games-search-clear"
+                  aria-label="Clear search"
+                  onClick={() => setGameSearch('')}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+
+            {visibleGames.length === 0 ? (
+              <p className="games-empty">
+                {searchQuery
+                  ? `No games match “${gameSearch.trim()}”.`
+                  : 'No games are listed for this store yet.'}
+              </p>
+            ) : null}
+
+            {visibleGames.length > 0 ? (
             <ul className="games-list">
-              {[...vendor.games]
-                .sort((a, b) => {
-                  const aKey =
-                    a.id ||
-                    a.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-                  const bKey =
-                    b.id ||
-                    b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-                  const aFav = favoriteGames.has(aKey) ? 0 : 1
-                  const bFav = favoriteGames.has(bKey) ? 0 : 1
-                  return aFav - bFav
-                })
-                .map((game) => {
+              {visibleGames.map((game) => {
                 const gameKey =
                   game.id ||
                   game.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -1116,6 +1176,15 @@ export default function VendorPage({
                       {game.mode === 'auto' ? (
                         connected ? (
                           <div className="game-actions">
+                            {gamePlayUrl(game.name, game.platform) ? (
+                              <button
+                                type="button"
+                                className="game-btn game-btn--play"
+                                onClick={() => openGamePlay(game.name, game.platform)}
+                              >
+                                Play
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="game-btn game-btn--load"
@@ -1225,6 +1294,16 @@ export default function VendorPage({
                             <span className="game-action-skeleton game-action-skeleton--icon" />
                           </div>
                         ) : (
+                          <div className="game-actions">
+                            {gamePlayUrl(game.name, game.platform) ? (
+                              <button
+                                type="button"
+                                className="game-btn game-btn--play"
+                                onClick={() => openGamePlay(game.name, game.platform)}
+                              >
+                                Play
+                              </button>
+                            ) : null}
                           <button
                             type="button"
                             className="game-connect game-connect--side"
@@ -1256,9 +1335,19 @@ export default function VendorPage({
                             </svg>
                             Connect
                           </button>
+                          </div>
                         )
                       ) : (
                         <div className="game-actions">
+                            {gamePlayUrl(game.name, game.platform) ? (
+                              <button
+                                type="button"
+                                className="game-btn game-btn--play"
+                                onClick={() => openGamePlay(game.name, game.platform)}
+                              >
+                                Play
+                              </button>
+                            ) : null}
                           <button
                             type="button"
                             className="game-btn game-btn--load"
@@ -1290,6 +1379,7 @@ export default function VendorPage({
                 )
               })}
             </ul>
+            ) : null}
           </section>
         </div>
 
@@ -1905,7 +1995,7 @@ export default function VendorPage({
         <div className="vendor-tip-overlay" role="dialog" aria-modal="true" aria-labelledby="vendor-tip-title">
           <div className="vendor-tip-card">
             <h3 id="vendor-tip-title">Tip {vendor.name}</h3>
-            <p>Send a thank-you from your TapStack wallet to this gameroom.</p>
+            <p>Send a thank-you from your Tapstack Balance to this gameroom.</p>
             <label className="vendor-tip-field">
               <span>Amount</span>
               <div className="vendor-tip-input-wrap">

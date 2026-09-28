@@ -1,4 +1,5 @@
 import type { ApiVendor } from '../api/client'
+import { absoluteMediaUrl } from '../api/client'
 
 export type VendorGame = {
   id?: string
@@ -21,6 +22,7 @@ export type Vendor = {
   text: string
   code?: string
   bannerUrl?: string
+  bannerId?: number
   accentColor?: string
   accentSolid?: string
   tagline?: string
@@ -177,7 +179,8 @@ export function vendorFromApi(vendor: ApiVendor): Vendor {
     color: vendor.color || '#dbeafe',
     text: vendor.text || '#2563eb',
     code: vendor.code,
-    bannerUrl: vendor.bannerUrl || '',
+    bannerUrl: absoluteMediaUrl(vendor.bannerUrl),
+    bannerId: vendor.bannerId || 0,
     accentColor: vendor.accentColor || 'purple',
     accentSolid: vendor.accentSolid || '#7c3aed',
     tagline: vendor.tagline || '',
