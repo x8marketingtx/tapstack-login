@@ -268,7 +268,7 @@ export default function GameLoadModal({
 
       setStatus(
         isMove
-          ? 'Moving credits between games…'
+          ? 'Transferring credits between games…'
           : isRedeem
           ? isManual
             ? 'Submitting redeem request…'
@@ -360,7 +360,7 @@ export default function GameLoadModal({
             : isRedeem
               ? 'Could not redeem credits.'
               : isMove
-                ? 'Could not move credits.'
+                ? 'Could not transfer credits.'
                 : 'Could not load credits.',
       )
     } finally {
@@ -394,8 +394,8 @@ export default function GameLoadModal({
             <h2 id="game-load-title" className="game-load-success-title">
               {isMove
                 ? success.auto
-                  ? 'Successfully moved'
-                  : 'Move submitted'
+                  ? 'Transfer complete'
+                  : 'Transfer submitted'
                 : isRedeem
                 ? success.auto
                   ? 'Successfully redeemed'
@@ -407,8 +407,8 @@ export default function GameLoadModal({
             <p className="game-load-success-copy">
               {isMove
                 ? success.auto
-                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to ${destGame?.name || 'another game'}. No transfer fee.`
-                  : `$${success.amount.toFixed(0)} move request sent. The vendor will process it shortly. No transfer fee.`
+                  ? `$${success.amount.toFixed(0)} transferred from ${game.name} to ${destGame?.name || 'another game'}. No transfer fee.`
+                  : `$${success.amount.toFixed(0)} transfer request sent. The vendor will process it shortly. No transfer fee.`
                 : isRedeem
                 ? success.auto
                   ? `$${success.amount.toFixed(0)} moved from ${game.name} to your Tapstack Balance.`
@@ -450,7 +450,7 @@ export default function GameLoadModal({
                 </div>
                 <div>
                   <h2 id="game-load-title">
-                    {isMove ? 'Move' : isRedeem ? 'Redeem' : 'Load'} {game.name}
+                    {isMove ? 'Transfer' : isRedeem ? 'Redeem' : 'Load'} {game.name}
                   </h2>
                   <p className="game-load-sub">{vendorName}</p>
                 </div>
@@ -485,7 +485,7 @@ export default function GameLoadModal({
 
             <p className="game-load-copy">
               {isMove
-                ? 'Move credits from this game to another game at the same vendor. No transfer fee.'
+                ? 'Transfer credits from this game to another game at the same vendor. No transfer fee.'
                 : isRedeem
                 ? isManual
                   ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
@@ -662,14 +662,14 @@ export default function GameLoadModal({
               >
                 {submitting
                   ? isMove
-                    ? 'Moving…'
+                    ? 'Transferring…'
                     : isRedeem
                       ? 'Redeeming…'
                       : cardCharge > 0
                         ? 'Paying…'
                         : 'Loading…'
                   : isMove
-                    ? `Move $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
+                    ? `Transfer $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
                     : isRedeem
                       ? `Redeem $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`
                       : cardCharge > 0

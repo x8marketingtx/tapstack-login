@@ -24,6 +24,47 @@ body {
   overflow-x: hidden;
 }
 
+/*
+  Title case for headings, field labels, and title utility classes.
+  capitalize only changes the first letter of each word; other letters stay as typed
+  (e.g. "STAFF ROLES" stays uppercase, "enter code" becomes "Enter Code").
+*/
+:is(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  legend,
+  .apply-field-label,
+  .vendor-settings-field-label,
+  .vendor-settings-info-label,
+  .vendor-settings-toggle-label,
+  .vendor-settings-modal-label,
+  .topup-label,
+  [class*='-field-label'],
+  [class*='-info-label'],
+  [class*='-stat-label'],
+  [class*='-metric-label'],
+  [class*='-hero-label'],
+  [class*='-toggle-label']:not([class*='-toggle-desc']),
+  [class*='-nav-label'],
+  [class*='-eyebrow'],
+  [class*='-kicker'],
+  [class*='-heading'],
+  [class*='-section-title'],
+  [class*='-card-title'],
+  [class*='-panel-title'],
+  [class*='-modal-label'],
+  [class*='-title']:not([class*='-title-row']):not([class*='-title-icon']),
+  label[class*='-label']:not([class*='-label-desc']),
+  span[class*='-label']:not([class*='-label-desc']):not([class*='-label-icon']),
+  p[class*='-label']:not([class*='-label-desc']),
+  [class*='-btn-copy'] strong
+) {
+  text-transform: capitalize;
+}
+
 button,
 input,
 select,

@@ -1113,7 +1113,7 @@ export default function VendorPage({
               📋
             </span>
             <span className="vendor-pending-btn-copy">
-              <strong>Pending orders</strong>
+              <strong>Pending Orders</strong>
               <small>
                 {pendingLoading
                   ? 'Checking…'
@@ -1297,7 +1297,7 @@ export default function VendorPage({
                                 className="game-btn game-btn--move"
                                 onClick={() => openTransferGame(game, 'move')}
                               >
-                                Move
+                                Transfer
                               </button>
                             ) : null}
                             {gamePlayUrl(game.name, game.platform) ? (
@@ -1382,7 +1382,7 @@ export default function VendorPage({
                               className="game-btn game-btn--move"
                               onClick={() => openTransferGame(game, 'move')}
                             >
-                              Move
+                              Transfer
                             </button>
                           ) : null}
                           {gamePlayUrl(game.name, game.platform) ? (
@@ -1961,7 +1961,7 @@ export default function VendorPage({
             <div className="vendor-pending-sheet-head">
               <div>
                 <p className="vendor-pending-eyebrow">{vendor.name}</p>
-                <h2 id="vendor-pending-title">Pending orders</h2>
+                <h2 id="vendor-pending-title">Pending Orders</h2>
                 <p className="vendor-pending-sub">Loads and redeems waiting on the vendor</p>
               </div>
               <button
