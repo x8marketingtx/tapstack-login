@@ -8,7 +8,8 @@ import AdminDashboard from './components/AdminDashboard'
 import DistributorDashboard from './components/DistributorDashboard'
 import ApplyPage from './components/ApplyPage'
 import JoinPage from './components/JoinPage'
-import LegalPage, { type LegalDoc } from './components/LegalPage'
+import LegalPage, { type InfoPage, type LegalDoc } from './components/LegalPage'
+import PublicCompanyPage, { type PublicSitePage } from './components/PublicCompanyPage'
 import GeoBlockedPage from './components/GeoBlockedPage'
 import {
   applyAuthSession,
@@ -47,6 +48,8 @@ type AppView =
   | 'distributor'
   | 'apply'
   | 'join'
+  | 'about'
+  | 'contact'
   | 'terms'
   | 'privacy'
   | 'returns'
@@ -61,12 +64,17 @@ function isLegalView(view: AppView): view is LegalDoc {
   return view === 'terms' || view === 'privacy' || view === 'returns'
 }
 
+function isPublicSiteView(view: AppView): view is PublicSitePage {
+  return view === 'about' || view === 'contact' || isLegalView(view)
+}
+
 function viewFromRoute(route: RouteState): AppView {
   if (route.portal === 'signup') return 'player-signup'
   if (route.portal === 'otp') return 'otp'
   if (route.portal === 'apply') return 'apply'
   if (route.portal === 'join') return 'join'
   if (route.portal === 'play') return getSessionRole() === 'player' ? 'customer' : 'login'
+  if (route.portal === 'about' || route.portal === 'contact') return route.portal
   if (route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns') {
     return route.portal
   }
@@ -82,6 +90,7 @@ function routeForView(view: AppView): RouteState {
   if (view === 'otp') return { portal: 'otp' }
   if (view === 'apply') return { portal: 'apply' }
   if (view === 'join') return { portal: 'apply' }
+  if (view === 'about' || view === 'contact') return { portal: view }
   if (view === 'terms' || view === 'privacy' || view === 'returns') return { portal: view }
   if (view === 'customer') return { portal: 'customer', tab: 'games' }
   if (view === 'vendor') return { portal: 'vendor', tab: 'home' }
@@ -206,6 +215,32 @@ function App() {
     setLegalSection(section)
     navigate(section ? { portal: doc, section } : { portal: doc })
     setView(doc)
+  }
+
+  function goToInfo(page: InfoPage, section?: string) {
+    if (page === 'about' || page === 'contact') {
+      setLegalSection(undefined)
+      navigate({ portal: page })
+      setView(page)
+      return
+    }
+    goToLegal(page, section)
+  }
+
+  function goToAppHome() {
+    if (sessionRole) {
+      const home = homeViewForRole(sessionRole)
+      setView(home)
+      navigate(routeForView(home))
+      return
+    }
+    navigate({ portal: 'login' })
+    setView('login')
+  }
+
+  function goToLoginPage() {
+    navigate({ portal: 'login' })
+    setView('login')
   }
 
   function backFromLegal() {
@@ -383,13 +418,13 @@ function App() {
   }, [view])
 
   const screenClass =
-    sessionRole && (locationGate === 'blocked' || locationGate === 'loading') && !isLegalView(view)
+    sessionRole && (locationGate === 'blocked' || locationGate === 'loading')
       ? 'screen--otp'
       : view === 'customer' || view === 'vendor' || view === 'admin' || view === 'distributor'
       ? 'screen--dashboard'
       : view === 'apply' || view === 'join'
         ? 'screen--apply'
-        : view === 'otp' || view === 'player-signup' || isLegalView(view)
+        : view === 'otp' || view === 'player-signup'
           ? 'screen--otp'
           : ''
 
@@ -398,18 +433,41 @@ function App() {
     return route.portal === 'join' ? route.slug : ''
   })()
 
+  if (isPublicSiteView(view)) {
+    return (
+      <PublicCompanyPage
+        page={view}
+        loggedIn={Boolean(sessionRole)}
+        onOpen={goToInfo}
+        onHome={goToAppHome}
+        onLogoClick={goToLoginPage}
+      >
+        {isLegalView(view) ? (
+          <LegalPage
+            doc={view}
+            section={legalSection}
+            onBack={backFromLegal}
+            onOpenDoc={goToLegal}
+            onOpenPage={goToInfo}
+            variant="public"
+          />
+        ) : null}
+      </PublicCompanyPage>
+    )
+  }
+
   return (
     <div className="page">
       <div className="phone-frame">
         <div className={`screen ${screenClass}`}>
           {sessionRole && locationGate === 'loading' && isDashboardView(view) ? (
             <GeoBlockedPage status="checking" />
-          ) : sessionRole && locationGate === 'blocked' && !isLegalView(view) ? (
+          ) : sessionRole && locationGate === 'blocked' && !isPublicSiteView(view) ? (
             <GeoBlockedPage
               reason={locationBlock?.reason}
               type={locationBlock?.type}
               country={locationBlock?.country}
-              onOpenLegal={goToLegal}
+              onOpenLegal={goToInfo}
               onRetry={checkLocationAccess}
               onLogout={goToLogin}
             />
@@ -429,7 +487,7 @@ function App() {
               onAdminLogin={() => enterSession('admin')}
               onSignUp={goToPlayerSignup}
               onApply={goToApply}
-              onOpenLegal={goToLegal}
+              onOpenLegal={goToInfo}
             />
           )}
 
@@ -459,7 +517,7 @@ function App() {
             <PlayerSignupPage
               onComplete={() => enterSession('player')}
               onBack={goToLogin}
-              onOpenLegal={goToLegal}
+              onOpenLegal={goToInfo}
             />
           )}
 
@@ -477,15 +535,6 @@ function App() {
           )}
 
           {view === 'apply' && <ApplyPage onBack={goToLogin} />}
-
-          {isLegalView(view) && (
-            <LegalPage
-              doc={view}
-              section={legalSection}
-              onBack={backFromLegal}
-              onOpenDoc={goToLegal}
-            />
-          )}
             </>
           )}
         </div>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
 import { ApiError, applyAuthSession, clearSession, isApiConfigured, setDemoSession, tapstackApi } from '../api/client'
 import { getPendingVendorJoin, getPendingVendorJoinName } from '../lib/affiliate'
-import { LegalLinks, type LegalDoc } from './LegalPage'
+import { LegalLinks, type InfoPage } from './LegalPage'
 import SmsConsentCheckbox, { SmsShareNote } from './SmsConsentCheckbox'
 import { TapStackLogo } from './TapStackLogo'
 import './LoginPage.css'
@@ -127,7 +127,7 @@ function PortalLogin({
   userType: UserType
   onUserTypeChange: (type: UserType) => void
   onApply: () => void
-  onOpenLegal: (doc: LegalDoc, section?: string) => void
+  onOpenLegal: (doc: InfoPage, section?: string) => void
 }) {
   const copy = PORTAL_COPY[portalType]
   const pendingAffiliate =
@@ -276,7 +276,7 @@ function PlayersLogin({
   onUserTypeChange: (type: UserType) => void
   onSubmitPhone: (phone: string) => void
   onSignUp: () => void
-  onOpenLegal: (doc: LegalDoc, section?: string) => void
+  onOpenLegal: (doc: InfoPage, section?: string) => void
 }) {
   const [phone, setPhone] = useState('')
   const [smsConsent, setSmsConsent] = useState(false)
@@ -395,7 +395,7 @@ type LoginPageProps = {
   onAdminLogin: () => void
   onSignUp: () => void
   onApply: () => void
-  onOpenLegal: (doc: LegalDoc, section?: string) => void
+  onOpenLegal: (doc: InfoPage, section?: string) => void
 }
 
 export default function LoginPage({

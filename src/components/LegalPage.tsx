@@ -3,14 +3,15 @@ import { PRIVACY_POLICY_SECTIONS } from '../data/privacyPolicy'
 import { RETURNS_POLICY_SECTIONS } from '../data/returnsPolicy'
 import { TERMS_POLICY_SECTIONS } from '../data/termsPolicy'
 import {
-  PRIMARY_LEGAL_LINKS,
+  PRIMARY_INFO_LINKS,
   SECTION_LINKS_BY_DOC,
   legalSectionId,
+  type InfoPage,
   type LegalDoc,
 } from '../lib/legalSections'
 import './LegalPage.css'
 
-export type { LegalDoc }
+export type { InfoPage, LegalDoc }
 
 const DOCS: Record<
   LegalDoc,
@@ -39,6 +40,9 @@ type LegalPageProps = {
   section?: string
   onBack: () => void
   onOpenDoc: (doc: LegalDoc, section?: string) => void
+  onOpenPage?: (page: InfoPage) => void
+  /** Full-page public site chrome instead of the in-app back header. */
+  variant?: 'app' | 'public'
 }
 
 function SectionBody({ body }: { body: string[] }) {
@@ -119,18 +123,31 @@ function PolicySectionJump({
   )
 }
 
-export default function LegalPage({ doc, section, onBack, onOpenDoc }: LegalPageProps) {
+export default function LegalPage({
+  doc,
+  section,
+  onBack,
+  onOpenDoc,
+  onOpenPage,
+  variant = 'app',
+}: LegalPageProps) {
   const content = DOCS[doc]
   const scrollRef = useRef<HTMLDivElement>(null)
+  const isPublic = variant === 'public'
 
   useEffect(() => {
     if (!section) return
     const root = scrollRef.current
-    if (!root) return
 
     const scrollToTarget = () => {
-      const target = root.querySelector<HTMLElement>(`#legal-section-${CSS.escape(section)}`)
+      const target = (isPublic ? document : root)?.querySelector<HTMLElement>(
+        `#legal-section-${CSS.escape(section)}`,
+      )
       if (!target) return false
+      if (isPublic || !root) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return true
+      }
       const rootRect = root.getBoundingClientRect()
       const targetRect = target.getBoundingClientRect()
       const nextTop = root.scrollTop + (targetRect.top - rootRect.top) - 12
@@ -151,14 +168,16 @@ export default function LegalPage({ doc, section, onBack, onOpenDoc }: LegalPage
       window.cancelAnimationFrame(raf)
       window.clearTimeout(timer)
     }
-  }, [doc, section])
+  }, [doc, section, isPublic])
 
   return (
-    <div className="legal-page">
+    <div className={`legal-page${isPublic ? ' legal-page--public' : ''}`}>
       <header className="legal-header">
-        <button type="button" className="legal-back" onClick={onBack}>
-          ← Back
-        </button>
+        {isPublic ? null : (
+          <button type="button" className="legal-back" onClick={onBack}>
+            ← Back
+          </button>
+        )}
         <p className="legal-kicker">TapStack</p>
         <h1 className="legal-title">{content.title}</h1>
         <PolicySectionJump currentDoc={doc} currentSection={section} onOpenDoc={onOpenDoc} />
@@ -184,6 +203,8 @@ export default function LegalPage({ doc, section, onBack, onOpenDoc }: LegalPage
         <nav className="legal-related" aria-label="Related policies">
           {(
             [
+              ['about', 'About Us'],
+              ['contact', 'Contact Us'],
               ['terms', 'Terms and Conditions'],
               ['privacy', 'Privacy Policy'],
               ['returns', 'Refund & Returns Policy'],
@@ -191,7 +212,12 @@ export default function LegalPage({ doc, section, onBack, onOpenDoc }: LegalPage
           )
             .filter(([id]) => id !== doc)
             .map(([id, label]) => (
-              <button key={id} type="button" className="legal-related-link" onClick={() => onOpenDoc(id)}>
+              <button
+                key={id}
+                type="button"
+                className="legal-related-link"
+                onClick={() => (id === 'about' || id === 'contact' ? onOpenPage?.(id) : onOpenDoc(id))}
+              >
                 {label}
               </button>
             ))}
@@ -204,20 +230,30 @@ export default function LegalPage({ doc, section, onBack, onOpenDoc }: LegalPage
 export function LegalLinks({
   onOpen,
 }: {
-  onOpen: (doc: LegalDoc, section?: string) => void
+  onOpen: (page: InfoPage, section?: string) => void
 }) {
   return (
-    <nav className="legal-links" aria-label="Legal">
-      {PRIMARY_LEGAL_LINKS.map((link, index) => (
-        <span key={link.doc} className="legal-links-chunk">
+    <nav className="legal-links" aria-label="Company and legal">
+      {PRIMARY_INFO_LINKS.map((link, index) => (
+        <span key={link.page} className="legal-links-chunk">
           {index > 0 ? (
             <span className="legal-links-sep" aria-hidden="true">
               ·
             </span>
           ) : null}
-          <button type="button" className="legal-links-item" onClick={() => onOpen(link.doc)}>
+          <a
+            href={link.href}
+            className="legal-links-item"
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+                return
+              }
+              event.preventDefault()
+              onOpen(link.page)
+            }}
+          >
             {link.label}
-          </button>
+          </a>
         </span>
       ))}
     </nav>

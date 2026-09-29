@@ -1,6 +1,6 @@
 /** Lightweight path router — keeps URLs in sync and supports deep links. */
 
-export type AppPortal = 'login' | 'otp' | 'signup' | 'apply' | 'join' | 'play' | 'terms' | 'privacy' | 'returns'
+export type AppPortal = 'login' | 'otp' | 'signup' | 'apply' | 'join' | 'play' | 'about' | 'contact' | 'terms' | 'privacy' | 'returns'
 export type DashboardPortal = 'customer' | 'vendor' | 'admin' | 'distributor'
 
 export type CustomerTab = 'games' | 'earn' | 'giveaway' | 'promos' | 'account'
@@ -15,6 +15,8 @@ export type RouteState =
   | { portal: 'apply' }
   | { portal: 'join'; slug: string }
   | { portal: 'play'; code: string }
+  | { portal: 'about' }
+  | { portal: 'contact' }
   | { portal: 'terms' | 'privacy' | 'returns'; section?: string }
   | {
       portal: 'customer'
@@ -51,6 +53,8 @@ export function migrateLegacyHash(): void {
     signup: '/signup',
     'player-signup': '/signup',
     apply: '/apply',
+    about: '/about',
+    contact: '/contact',
     terms: '/terms',
     privacy: '/privacy',
     returns: '/returns',
@@ -74,6 +78,8 @@ export function parseLocation(pathname = window.location.pathname, hash = window
     else if (h === 'distributor') path = '/distributor'
     else if (h === 'signup' || h === 'player-signup') path = '/signup'
     else if (h === 'apply') path = '/apply'
+    else if (h === 'about') path = '/about'
+    else if (h === 'contact') path = '/contact'
     else if (h === 'terms') path = '/terms'
     else if (h === 'privacy') path = '/privacy'
     else if (h === 'returns' || h === 'return-policy') path = '/returns'
@@ -82,6 +88,8 @@ export function parseLocation(pathname = window.location.pathname, hash = window
   const parts = path.split('/').filter(Boolean)
   const root = parts[0] || ''
 
+  if (root === 'about') return { portal: 'about' }
+  if (root === 'contact') return { portal: 'contact' }
   if (root === 'terms' || root === 'privacy' || root === 'returns' || root === 'return-policy') {
     const portal = root === 'return-policy' ? 'returns' : root
     const section = parts[1] ? decodeURIComponent(parts[1]) : undefined
@@ -158,6 +166,10 @@ export function pathForRoute(route: RouteState): string {
       return `/join/${encodeURIComponent(route.slug)}`
     case 'play':
       return `/play/${encodeURIComponent(route.code)}`
+    case 'about':
+      return '/about'
+    case 'contact':
+      return '/contact'
     case 'terms':
     case 'privacy':
     case 'returns':
@@ -229,6 +241,10 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
       return `Join · ${TITLE_BRAND}`
     case 'play':
       return `Play · ${TITLE_BRAND}`
+    case 'about':
+      return `About Us · ${TITLE_BRAND}`
+    case 'contact':
+      return `Contact Us · ${TITLE_BRAND}`
     case 'terms':
       return `Terms of Service · ${TITLE_BRAND}`
     case 'privacy':

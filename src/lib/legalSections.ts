@@ -11,6 +11,7 @@ export function legalSectionId(heading: string): string {
 }
 
 export type LegalDoc = 'terms' | 'privacy' | 'returns'
+export type InfoPage = LegalDoc | 'about' | 'contact'
 
 export type LegalPolicyLink = {
   label: string
@@ -24,6 +25,15 @@ export const PRIMARY_LEGAL_LINKS: Array<{ label: string; doc: LegalDoc }> = [
   { label: 'Terms and Conditions', doc: 'terms' },
   { label: 'Privacy Policy', doc: 'privacy' },
   { label: 'Refund & Returns Policy', doc: 'returns' },
+]
+
+/** Public company and policy pages shown in login and site footers. */
+export const PRIMARY_INFO_LINKS: Array<{ label: string; page: InfoPage; href: string }> = [
+  { label: 'About', page: 'about', href: '/about' },
+  { label: 'Contact', page: 'contact', href: '/contact' },
+  { label: 'Terms and Conditions', page: 'terms', href: '/terms' },
+  { label: 'Privacy Policy', page: 'privacy', href: '/privacy' },
+  { label: 'Refund & Returns Policy', page: 'returns', href: '/returns' },
 ]
 
 /** Jump-to-section options for Terms and Conditions. */

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { TapStackLogo } from './TapStackLogo'
-import { LegalLinks, type LegalDoc } from './LegalPage'
+import { LegalLinks, type InfoPage } from './LegalPage'
 import './GeoBlockedPage.css'
 
 type GeoBlockedPageProps = {
@@ -8,7 +8,7 @@ type GeoBlockedPageProps = {
   reason?: string | null
   type?: string | null
   country?: string | null
-  onOpenLegal?: (doc: LegalDoc, section?: string) => void
+  onOpenLegal?: (doc: InfoPage, section?: string) => void
   onRetry?: () => Promise<boolean> | boolean | void
   onLogout?: () => void
 }
