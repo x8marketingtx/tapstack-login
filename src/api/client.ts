@@ -436,6 +436,10 @@ export type VendorPromotion = {
   status: 'active' | 'draft' | 'expired'
   entries: number
   completions?: number
+  /** Players who saw this promo on the player Promos tab. */
+  viewed?: number
+  /** Promo activations (giveaway: entries via orange action). */
+  activated?: number
   valueGiven: string
   minAmount?: number
   rewardValue?: number
@@ -1062,6 +1066,10 @@ export const tapstackApi = {
     apiRequest<{ ok: boolean; promo: PlayerPromo }>(`/customer/promos/${id}/activate`, {
       method: 'POST',
     }),
+  customerPromoView: (id: number | string) =>
+    apiRequest<{ ok: boolean }>(`/customer/promos/${encodeURIComponent(String(id))}/view`, {
+      method: 'POST',
+    }),
   customerPromoClaim: (id: number | string) =>
     apiRequest<{
       ok: boolean
@@ -1224,6 +1232,9 @@ export const tapstackApi = {
         netProfit?: string
         deposits?: string
         redeems?: string
+        /** Total vendor-covered loadback fees for the selected period (when billing loadback is on). */
+        loadbackFees?: string
+        loadbackFeesValue?: number
         platformFees?: string
         distributorCut?: string
         promoAnalytics?: {
@@ -1545,6 +1556,17 @@ export const tapstackApi = {
       method: 'PUT',
       body: payload,
     }),
+  vendorStaffCreate: (payload: {
+    name: string
+    email: string
+    password: string
+    permissions: Record<string, { view: boolean; edit: boolean }>
+    role?: string
+  }) =>
+    apiRequest<{
+      ok: boolean
+      staff: Record<string, unknown>
+    }>('/vendor/staff', { method: 'POST', body: payload }),
   vendorMembership: () =>
     apiRequest<{ ok?: boolean; membership: VendorMembership }>('/vendor/membership'),
   vendorSubscribePro: (returnUrl?: string) =>

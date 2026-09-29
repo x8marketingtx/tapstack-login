@@ -9,6 +9,7 @@ import {
   type VendorCustomer,
   type VendorGameAccount,
   type VendorOrderItem,
+  type VendorRedeemSettings,
 } from '../api/client'
 import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
 import './VendorAnalyticsPage.css'
@@ -19,6 +20,22 @@ type CustomerRow = VendorCustomer
 
 function isDemoSession() {
   return !isApiConfigured() || Boolean(getToken()?.startsWith('demo:'))
+}
+
+function readDemoCoverLoadbackFees(): boolean {
+  try {
+    const raw = localStorage.getItem('tapstack_vendor_redeem_settings')
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as VendorRedeemSettings
+    return Boolean(parsed.coverLoadbackFees)
+  } catch {
+    return false
+  }
+}
+
+function formatLoadbackFeesDisplay(coverLoadbackFees: boolean, raw?: string): string {
+  if (!coverLoadbackFees) return '$0'
+  return raw?.trim() || '$0'
 }
 
 const DEMO_CUSTOMERS: CustomerRow[] = [
@@ -1225,7 +1242,8 @@ type FinancialSummary = {
   netProfit: string
   deposits: string
   redeems: string
-  platformFees: string
+  loadbackFees: string
+  coverLoadbackFees: boolean
   promoValue: string
   promoEntries: number
 }
@@ -1236,7 +1254,8 @@ const EMPTY_SUMMARY: FinancialSummary = {
   netProfit: '$0',
   deposits: '$0',
   redeems: '$0',
-  platformFees: '$0',
+  loadbackFees: '$0',
+  coverLoadbackFees: false,
   promoValue: '$0',
   promoEntries: 0,
 }
@@ -1251,7 +1270,12 @@ function FinancialTab() {
   useEffect(() => {
     if (!isApiConfigured()) {
       setLoading(false)
-      setSummary(EMPTY_SUMMARY)
+      const coverLoadbackFees = readDemoCoverLoadbackFees()
+      setSummary({
+        ...EMPTY_SUMMARY,
+        coverLoadbackFees,
+        loadbackFees: formatLoadbackFeesDisplay(coverLoadbackFees),
+      })
       setDaily([])
       return
     }
@@ -1261,12 +1285,14 @@ function FinancialTab() {
       setLoading(true)
       setError('')
       try {
-        const [res, promos] = await Promise.all([
+        const [res, promos, settings] = await Promise.all([
           tapstackApi.vendorAnalytics(queryRange),
           tapstackApi.vendorPromos().catch(() => ({ promotions: [] as { entries?: number; valueGiven?: string }[] })),
+          tapstackApi.vendorSettings().catch(() => ({ games: undefined })),
         ])
         if (cancelled) return
         const financial = res.financial || {}
+        const coverLoadbackFees = Boolean(settings.games?.coverLoadbackFees)
         const promoList = promos.promotions || []
         const promoEntries = promoList.reduce((sum, item) => sum + (item.entries || 0), 0)
         const promoValue =
@@ -1281,7 +1307,8 @@ function FinancialTab() {
           netProfit: financial.netProfit || '$0',
           deposits: financial.deposits || '$0',
           redeems: financial.redeems || '$0',
-          platformFees: financial.platformFees || '$0',
+          coverLoadbackFees,
+          loadbackFees: formatLoadbackFeesDisplay(coverLoadbackFees, financial.loadbackFees),
           promoValue: typeof promoValue === 'string' ? promoValue : `$${promoValue.toFixed(2)}`,
           promoEntries,
         })
@@ -1377,8 +1404,8 @@ function FinancialTab() {
         </article>
 
         <article className="vendor-financial-stat-card">
-          <span className="vendor-financial-stat-label">Platform Fees</span>
-          <p className="vendor-financial-stat-value vendor-financial-stat-value--red">{summary.platformFees}</p>
+          <span className="vendor-financial-stat-label">Load-Back Fees</span>
+          <p className="vendor-financial-stat-value vendor-financial-stat-value--red">{summary.loadbackFees}</p>
         </article>
 
         <article className="vendor-financial-stat-card">

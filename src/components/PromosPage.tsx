@@ -56,6 +56,7 @@ export default function PromosPage({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const loadedOnce = useRef(Boolean(promosCache))
+  const viewedPromoIds = useRef(new Set<string>())
 
   const load = useCallback(async (force = false) => {
     if (!isApiConfigured()) {
@@ -110,6 +111,15 @@ export default function PromosPage({
         .includes(q),
     )
   }, [scopedPromos, filter, query])
+
+  useEffect(() => {
+    if (!active || history || !isApiConfigured()) return
+    for (const promo of visible) {
+      if (viewedPromoIds.current.has(promo.id)) continue
+      viewedPromoIds.current.add(promo.id)
+      void tapstackApi.customerPromoView(promo.id).catch(() => undefined)
+    }
+  }, [active, history, visible])
 
   function canActOnPromo(promo: PlayerPromo): boolean {
     if (promo.claimStatus === 'available') return true

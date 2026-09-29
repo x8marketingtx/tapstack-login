@@ -2234,12 +2234,102 @@ function emptyPerms(): StaffMember['permissions'] {
   }
 }
 
+function StaffPasswordEyeIcon({ hidden }: { hidden: boolean }) {
+  if (hidden) {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M2 12C2 12 5.5 5 12 5C18.5 5 22 12 22 12C22 12 18.5 19 12 19C5.5 19 2 12 2 12Z"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    )
+  }
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 3L21 21"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10.5 10.5C10.2 11 10 11.5 10 12C10 13.7 11.3 15 13 15C13.5 15 14 14.8 14.5 14.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6.7 6.7C4.6 8.1 3 10.2 2 12C2 12 5.5 19 12 19C13.8 19 15.4 18.4 16.7 17.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M17.3 17.3C19.4 15.9 21 13.8 22 12C22 12 18.5 5 12 5C10.2 5 8.6 5.6 7.3 6.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function generateStrongPassword(length = 16): string {
+  const lower = 'abcdefghjkmnpqrstuvwxyz'
+  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
+  const digits = '23456789'
+  const symbols = '!@#$%^&*-_+='
+  const all = lower + upper + digits + symbols
+  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)]
+  const required = [pick(lower), pick(upper), pick(digits), pick(symbols)]
+  const rest = Array.from({ length: Math.max(4, length) - required.length }, () => pick(all))
+  const combined = [...required, ...rest]
+  for (let i = combined.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[combined[i], combined[j]] = [combined[j], combined[i]]
+  }
+  return combined.join('')
+}
+
+function staffForSettings(rows: StaffMember[]) {
+  return rows.map(({ id, name, email, role, permissions }) => ({
+    id,
+    name,
+    email,
+    role,
+    permissions,
+  }))
+}
+
+function cloneStaffMembers(rows: StaffMember[]): StaffMember[] {
+  return JSON.parse(JSON.stringify(rows)) as StaffMember[]
+}
+
+function staffPermissionsDirty(current: StaffMember, saved: StaffMember | undefined): boolean {
+  if (!saved) return false
+  return JSON.stringify(current.permissions) !== JSON.stringify(saved.permissions)
+}
+
 function StaffTab() {
   const [staff, setStaff] = useState<StaffMember[]>([])
+  const [savedStaff, setSavedStaff] = useState<StaffMember[]>([])
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showStaffPassword, setShowStaffPassword] = useState(false)
+  const [passwordCopied, setPasswordCopied] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [openStaffMenuId, setOpenStaffMenuId] = useState<string | null>(null)
+  const [staffRemoveTarget, setStaffRemoveTarget] = useState<StaffMember | null>(null)
+  const [savingStaffId, setSavingStaffId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isApiConfigured()) return
@@ -2247,69 +2337,288 @@ function StaffTab() {
       .vendorSettings()
       .then((res) => {
         const rows = Array.isArray(res.staff) ? res.staff : []
-        setStaff(rows as StaffMember[])
+        const loaded = rows as StaffMember[]
+        setStaff(loaded)
+        setSavedStaff(cloneStaffMembers(loaded))
       })
       .catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    if (!openStaffMenuId) return
+    function onDocumentClick(event: MouseEvent) {
+      const target = event.target as HTMLElement
+      if (target.closest('[data-staff-menu]')) return
+      setOpenStaffMenuId(null)
+    }
+    document.addEventListener('mousedown', onDocumentClick)
+    return () => document.removeEventListener('mousedown', onDocumentClick)
+  }, [openStaffMenuId])
 
   async function persist(next: StaffMember[]) {
     setBusy(true)
     setError('')
     try {
-      await tapstackApi.saveVendorSettings({ staff: next })
+      await tapstackApi.saveVendorSettings({ staff: staffForSettings(next) })
       setStaff(next)
+      setSavedStaff(cloneStaffMembers(next))
+      return true
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save staff roles.')
+      return false
     } finally {
       setBusy(false)
     }
   }
+
+  async function confirmRemoveStaff() {
+    if (!staffRemoveTarget) return
+    const next = staff.filter((row) => row.id !== staffRemoveTarget.id)
+    const ok = await persist(next)
+    if (ok) setStaffRemoveTarget(null)
+  }
+
+  async function saveStaffPermissions(memberId: string) {
+    const member = staff.find((row) => row.id === memberId)
+    const saved = savedStaff.find((row) => row.id === memberId)
+    if (!member || !staffPermissionsDirty(member, saved)) return
+    setSavingStaffId(memberId)
+    try {
+      await persist(staff)
+    } finally {
+      setSavingStaffId(null)
+    }
+  }
+
+  function updateStaffPermissions(
+    memberId: string,
+    permKey: StaffPermissionKey,
+    patch: Partial<{ view: boolean; edit: boolean }>,
+  ) {
+    setStaff((prev) =>
+      prev.map((row) => {
+        if (row.id !== memberId) return row
+        const current = row.permissions[permKey] || { view: false, edit: false }
+        return {
+          ...row,
+          permissions: {
+            ...row.permissions,
+            [permKey]: { ...current, ...patch },
+          },
+        }
+      }),
+    )
+  }
+
+  async function handleCopyStaffPassword() {
+    const value = password.trim()
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      setPasswordCopied(true)
+      window.setTimeout(() => setPasswordCopied(false), 1600)
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
+  async function addStaffAccount() {
+    const trimmedName = name.trim()
+    const trimmedEmail = email.trim()
+    const trimmedPassword = password.trim()
+    if (!trimmedName) {
+      setError('Staff name is required.')
+      return
+    }
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('A valid staff login email is required.')
+      return
+    }
+    if (trimmedPassword.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    const permissions = emptyPerms()
+    try {
+      if (isApiConfigured()) {
+        const res = await tapstackApi.vendorStaffCreate({
+          name: trimmedName,
+          email: trimmedEmail,
+          password: trimmedPassword,
+          permissions,
+          role: 'custom',
+        })
+        const created = res.staff as StaffMember
+        const nextMember: StaffMember = {
+          id: String(created.id || `staff-${Date.now()}`),
+          name: created.name || trimmedName,
+          email: created.email || trimmedEmail,
+          role: created.role || 'custom',
+          permissions: (created.permissions as StaffMember['permissions']) || permissions,
+        }
+        setStaff((prev) => [...prev, nextMember])
+        setSavedStaff((prev) => [...prev, cloneStaffMembers([nextMember])[0]])
+      } else {
+        const nextMember: StaffMember = {
+          id: `staff-${Date.now()}`,
+          name: trimmedName,
+          email: trimmedEmail,
+          role: 'custom',
+          permissions,
+        }
+        await persist([...staff, nextMember])
+      }
+      setName('')
+      setEmail('')
+      setPassword('')
+      setShowStaffPassword(false)
+      setPasswordCopied(false)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create staff login.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const canAddStaff =
+    name.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.trim().length >= 8 &&
+    !busy
 
   return (
     <div className="vendor-settings-content">
       <section className="vendor-settings-info-card">
         <p className="vendor-settings-info-label">STAFF ROLES</p>
         <p className="vendor-settings-info-help">
-          Grant view or edit access for orders, promos, payouts, support tickets, refunds, or a custom set.
+          Create staff logins for your team. Each person gets their own email and password, plus view or
+          edit access for orders, promos, payouts, support tickets, refunds, or a custom set.
         </p>
         <div className="vendor-staff-add">
-          <input className="vendor-settings-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="vendor-settings-input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <div className="vendor-staff-add-row">
+            <input
+              className="vendor-settings-input"
+              placeholder="Full name"
+              value={name}
+              autoComplete="name"
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="vendor-settings-input"
+              type="email"
+              placeholder="Login email"
+              value={email}
+              autoComplete="off"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="vendor-staff-password-row">
+            <div className="vendor-staff-password-wrap">
+              <input
+                className="vendor-settings-input vendor-staff-password-input"
+                type={showStaffPassword ? 'text' : 'password'}
+                placeholder="Password (min 8 characters)"
+                value={password}
+                autoComplete="new-password"
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordCopied(false)
+                }}
+              />
+              <button
+                type="button"
+                className="vendor-staff-password-eye"
+                aria-label={showStaffPassword ? 'Hide password' : 'Show password'}
+                disabled={busy}
+                onClick={() => setShowStaffPassword((open) => !open)}
+              >
+                <StaffPasswordEyeIcon hidden={!showStaffPassword} />
+              </button>
+            </div>
+            <div className="vendor-staff-password-actions">
+              <button
+                type="button"
+                className="vendor-staff-gen-btn"
+                disabled={busy}
+                onClick={() => {
+                  setPassword(generateStrongPassword())
+                  setPasswordCopied(false)
+                }}
+              >
+                Generate password
+              </button>
+              <button
+                type="button"
+                className={`vendor-staff-gen-btn vendor-staff-copy-btn${passwordCopied ? ' vendor-staff-copy-btn--copied' : ''}`}
+                disabled={busy || !password.trim()}
+                onClick={() => void handleCopyStaffPassword()}
+              >
+                {passwordCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
           <button
             type="button"
-            className="vendor-settings-save-btn"
-            disabled={busy || (!name.trim() && !email.trim())}
-            onClick={() => {
-              const next: StaffMember = {
-                id: `staff-${Date.now()}`,
-                name: name.trim() || email.trim(),
-                email: email.trim(),
-                role: 'custom',
-                permissions: emptyPerms(),
-              }
-              setName('')
-              setEmail('')
-              void persist([...staff, next])
-            }}
+            className="vendor-settings-save-btn vendor-staff-add-btn"
+            disabled={!canAddStaff}
+            onClick={() => void addStaffAccount()}
           >
-            Add
+            Create staff account
           </button>
         </div>
         {error ? <p className="vendor-settings-save-error">{error}</p> : null}
       </section>
 
-      {staff.map((member) => (
-        <section key={member.id} className="vendor-settings-info-card">
-          <div className="vendor-staff-head">
-            <strong>{member.name}</strong>
-            <span>{member.email}</span>
-            <button
-              type="button"
-              className="vendor-settings-leave-btn"
-              onClick={() => void persist(staff.filter((row) => row.id !== member.id))}
-            >
-              Remove
-            </button>
+      {staff.map((member) => {
+        const menuOpen = openStaffMenuId === member.id
+        const savedMember = savedStaff.find((row) => row.id === member.id)
+        const permissionsDirty = staffPermissionsDirty(member, savedMember)
+        return (
+        <section key={member.id} className="vendor-settings-info-card vendor-staff-card">
+          <div className="vendor-staff-card-header">
+            <div className="vendor-staff-head">
+              <strong>{member.name}</strong>
+              <span>{member.email}</span>
+            </div>
+            <div className="vendor-staff-more" data-staff-menu={member.id}>
+              <button
+                type="button"
+                className={`vendor-staff-more-toggle${menuOpen ? ' is-open' : ''}`}
+                aria-label={`${member.name} options`}
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                disabled={busy}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setOpenStaffMenuId((current) => (current === member.id ? null : member.id))
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="3.5" r="1.35" fill="currentColor" />
+                  <circle cx="8" cy="8" r="1.35" fill="currentColor" />
+                  <circle cx="8" cy="12.5" r="1.35" fill="currentColor" />
+                </svg>
+              </button>
+              {menuOpen ? (
+                <div className="vendor-staff-more-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="vendor-staff-more-item vendor-staff-more-item--danger"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setOpenStaffMenuId(null)
+                      setStaffRemoveTarget(member)
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
           <ul className="vendor-staff-perms">
             {STAFF_KEYS.map((key) => (
@@ -2319,22 +2628,13 @@ function StaffTab() {
                   <input
                     type="checkbox"
                     checked={Boolean(member.permissions[key.id]?.view)}
+                    disabled={busy}
                     onChange={(event) => {
-                      const next = staff.map((row) =>
-                        row.id === member.id
-                          ? {
-                              ...row,
-                              permissions: {
-                                ...row.permissions,
-                                [key.id]: {
-                                  view: event.target.checked,
-                                  edit: event.target.checked ? row.permissions[key.id]?.edit : false,
-                                },
-                              },
-                            }
-                          : row,
-                      )
-                      void persist(next)
+                      const checked = event.target.checked
+                      updateStaffPermissions(member.id, key.id, {
+                        view: checked,
+                        edit: checked ? member.permissions[key.id]?.edit : false,
+                      })
                     }}
                   />
                   View
@@ -2343,22 +2643,13 @@ function StaffTab() {
                   <input
                     type="checkbox"
                     checked={Boolean(member.permissions[key.id]?.edit)}
+                    disabled={busy}
                     onChange={(event) => {
-                      const next = staff.map((row) =>
-                        row.id === member.id
-                          ? {
-                              ...row,
-                              permissions: {
-                                ...row.permissions,
-                                [key.id]: {
-                                  view: event.target.checked || row.permissions[key.id]?.view,
-                                  edit: event.target.checked,
-                                },
-                              },
-                            }
-                          : row,
-                      )
-                      void persist(next)
+                      const checked = event.target.checked
+                      updateStaffPermissions(member.id, key.id, {
+                        view: checked || Boolean(member.permissions[key.id]?.view),
+                        edit: checked,
+                      })
                     }}
                   />
                   Edit
@@ -2366,8 +2657,77 @@ function StaffTab() {
               </li>
             ))}
           </ul>
+          <div className="vendor-staff-card-footer">
+            <button
+              type="button"
+              className="vendor-staff-save-btn"
+              disabled={!permissionsDirty || busy}
+              onClick={() => void saveStaffPermissions(member.id)}
+            >
+              {savingStaffId === member.id ? 'Saving…' : 'Save'}
+            </button>
+          </div>
         </section>
-      ))}
+        )
+      })}
+
+      {staffRemoveTarget
+        ? createPortal(
+            <div
+              className="ts-leave-overlay"
+              role="presentation"
+              onClick={() => {
+                if (!busy) setStaffRemoveTarget(null)
+              }}
+            >
+              <div
+                className="ts-leave-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="vendor-staff-remove-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span className="ts-leave-icon" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 7h16M9 7V5.6A1.6 1.6 0 0 1 10.6 4h2.8A1.6 1.6 0 0 1 15 5.6V7M6.5 7l.8 12.2A1.6 1.6 0 0 0 8.9 21h6.2a1.6 1.6 0 0 0 1.6-1.8L17.5 7"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <h2 id="vendor-staff-remove-title" className="ts-leave-title">
+                  Remove {staffRemoveTarget.name}?
+                </h2>
+                <p className="ts-leave-copy">
+                  Are you sure you want to remove this staff member? They will no longer be able to log in
+                  to your vendor dashboard.
+                </p>
+                <div className="ts-leave-actions">
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--ghost"
+                    disabled={busy}
+                    onClick={() => setStaffRemoveTarget(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--danger"
+                    disabled={busy}
+                    onClick={() => void confirmRemoveStaff()}
+                  >
+                    {busy ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

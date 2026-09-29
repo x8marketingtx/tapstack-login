@@ -118,9 +118,6 @@ function VendorHeader({
             {notificationCount > 0 ? <span className="vendor-badge">{badge}</span> : null}
           </button>
 
-          <button type="button" className="vendor-help-button" onClick={onHelpClick}>
-            Help
-          </button>
           <button
             type="button"
             className="vendor-icon-button vendor-chat-button"

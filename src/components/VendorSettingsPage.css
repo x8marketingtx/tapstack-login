@@ -1452,22 +1452,216 @@
 }
 
 .vendor-staff-add {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-top: 10px;
 }
 
-.vendor-staff-head {
+.vendor-staff-add-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.vendor-staff-password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.vendor-staff-password-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.vendor-staff-password-input {
+  padding-right: 44px;
+}
+
+.vendor-staff-password-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.vendor-staff-password-eye:hover:not(:disabled) {
+  color: #7c3aed;
+  background: #f5f3ff;
+}
+
+.vendor-staff-password-eye:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vendor-staff-password-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+}
+
+.vendor-staff-copy-btn--copied {
+  border-color: #86efac;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.vendor-staff-gen-btn {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.vendor-staff-gen-btn:hover:not(:disabled) {
+  border-color: #7c3aed;
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.vendor-staff-gen-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vendor-staff-add-btn {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 520px) {
+  .vendor-staff-add-row {
+    grid-template-columns: 1fr;
+  }
+
+  .vendor-staff-password-row {
+    grid-template-columns: 1fr;
+  }
+
+  .vendor-staff-password-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vendor-staff-password-actions .vendor-staff-gen-btn {
+    width: 100%;
+  }
+}
+
+.vendor-staff-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.vendor-staff-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.vendor-staff-head strong {
+  font-size: 15px;
+  color: #111827;
 }
 
 .vendor-staff-head span {
   color: #6b7280;
   font-size: 12px;
+}
+
+.vendor-staff-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.vendor-staff-more-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.vendor-staff-more-toggle:hover:not(:disabled),
+.vendor-staff-more-toggle.is-open {
+  border-color: rgba(109, 40, 217, 0.35);
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.vendor-staff-more-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vendor-staff-more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 140px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.vendor-staff-more-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vendor-staff-more-item:hover {
+  background: #f8fafc;
+}
+
+.vendor-staff-more-item--danger {
+  color: #dc2626;
+}
+
+.vendor-staff-more-item--danger:hover {
+  background: #fef2f2;
 }
 
 .vendor-staff-perms {
@@ -1492,4 +1686,30 @@
   align-items: center;
   gap: 4px;
   color: #4b5563;
+}
+
+.vendor-staff-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.vendor-staff-save-btn {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed 0%, #a78bfa 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.vendor-staff-save-btn:hover:not(:disabled) {
+  filter: brightness(1.03);
+}
+
+.vendor-staff-save-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

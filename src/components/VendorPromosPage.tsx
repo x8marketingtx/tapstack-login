@@ -11,6 +11,7 @@ import {
   type VendorGameRecord,
   type VendorPromotion,
 } from '../api/client'
+import { normalizeVendorPromotion } from '../lib/vendorPromotions'
 import './VendorPromosPage.css'
 import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
 
@@ -103,6 +104,9 @@ function PromotionCard({
     winnerNames.length > 0
       ? `Winner${winnerNames.length === 1 ? '' : 's'}: ${winnerNames.join(', ')}`
       : 'Winner not drawn yet'
+  const isGiveaway = promo.type === 'giveaway'
+  const viewed = promo.viewed ?? 0
+  const activated = promo.activated ?? 0
 
   return (
     <article className="vendor-promo-list-card">
@@ -162,6 +166,16 @@ function PromotionCard({
             <span className="vendor-promo-list-stat-label">Value Given</span>
             <span className="vendor-promo-list-stat-value vendor-promo-list-stat-value--pink">
               {promo.valueGiven}
+            </span>
+          </div>
+          <div className="vendor-promo-list-stat">
+            <span className="vendor-promo-list-stat-label">Viewed</span>
+            <span className="vendor-promo-list-stat-value">{viewed}</span>
+          </div>
+          <div className="vendor-promo-list-stat">
+            <span className="vendor-promo-list-stat-label">{isGiveaway ? 'Entered' : 'Activated'}</span>
+            <span className="vendor-promo-list-stat-value vendor-promo-list-stat-value--blue">
+              {activated}
             </span>
           </div>
         </div>
@@ -253,7 +267,7 @@ function PromotionsTab() {
     setLoading(true)
     try {
       const res = await tapstackApi.vendorPromos()
-      setList(res.promotions || [])
+      setList((res.promotions || []).map(normalizeVendorPromotion))
     } catch {
       setList([])
     } finally {
@@ -365,7 +379,9 @@ function PromotionsTab() {
       }
       if (editingId) {
         const res = await tapstackApi.vendorPromoUpdate(editingId, payload)
-        setList((prev) => prev.map((item) => (item.id === editingId ? res.promotion : item)))
+        setList((prev) =>
+          prev.map((item) => (item.id === editingId ? normalizeVendorPromotion(res.promotion) : item)),
+        )
         resetForm()
       } else {
         await tapstackApi.vendorPromoCreate(payload)
@@ -393,7 +409,9 @@ function PromotionsTab() {
     setError('')
     try {
       const res = await tapstackApi.vendorPromoSetStatus(promo.id, next)
-      setList((prev) => prev.map((item) => (item.id === promo.id ? res.promotion : item)))
+      setList((prev) =>
+        prev.map((item) => (item.id === promo.id ? normalizeVendorPromotion(res.promotion) : item)),
+      )
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not update promotion.')
     } finally {

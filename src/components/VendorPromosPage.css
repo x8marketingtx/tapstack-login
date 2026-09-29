@@ -415,6 +415,10 @@
   color: #db2777;
 }
 
+.vendor-promo-list-stat-value--blue {
+  color: #2563eb;
+}
+
 .vendor-promo-list-actions {
   display: flex;
   flex-direction: column;

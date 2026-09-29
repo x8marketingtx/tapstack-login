@@ -146,7 +146,7 @@ export default function TopUpModal({
               className={`topup-method ${method === 'metamask' ? 'is-active' : ''}`}
               onClick={() => setMethod('metamask')}
             >
-              MetaMask
+              Crypto
             </button>
           </div>
         ) : null}
@@ -165,7 +165,7 @@ export default function TopUpModal({
             {status ? <p className="topup-status">{status}</p> : null}
             {error ? <p className="topup-error">{error}</p> : null}
             <button type="button" className="topup-submit" disabled={loading} onClick={() => void handleMetaMask()}>
-              {loading ? 'Connecting…' : walletAccount ? 'Refresh deposit address' : 'Connect MetaMask'}
+              {loading ? 'Connecting…' : walletAccount ? 'Refresh deposit address' : 'Connect wallet'}
             </button>
           </div>
         ) : (
