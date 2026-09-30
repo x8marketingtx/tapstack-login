@@ -88,6 +88,37 @@ function saveFavoriteVendorKeys(keys: string[], userId?: number | string | null)
   }
 }
 
+function favoriteKeysFromIds(ids: Array<number | string>): Set<string> {
+  return new Set(
+    ids
+      .map((id) => Number(id))
+      .filter((id) => id > 0)
+      .map((id) => `id:${id}`),
+  )
+}
+
+function vendorIdsFromFavoriteKeys(keys: Iterable<string>, vendors: Vendor[]): number[] {
+  const ids = new Set<number>()
+  const byKey = new Map(vendors.map((vendor) => [vendorStorageKey(vendor), vendor]))
+  for (const key of keys) {
+    if (key.startsWith('id:')) {
+      const n = Number(key.slice(3))
+      if (n > 0) ids.add(n)
+      continue
+    }
+    const vendor = byKey.get(key)
+    const n = Number(vendor?.id)
+    if (n > 0 && !String(vendor?.id).startsWith('local-')) ids.add(n)
+  }
+  return [...ids]
+}
+
+function persistFavoriteIds(ids: Array<number | string>, userId?: number | string | null): Set<string> {
+  const keys = favoriteKeysFromIds(ids)
+  saveFavoriteVendorKeys([...keys], userId)
+  return keys
+}
+
 function sortVendorsByFavorite(vendors: Vendor[], favoriteKeys: Set<string>): Vendor[] {
   return [...vendors].sort((a, b) => {
     const aFav = favoriteKeys.has(vendorStorageKey(a)) ? 0 : 1
@@ -1003,13 +1034,36 @@ export default function CustomerDashboard({
 
   function toggleFavoriteVendor(vendor: Vendor) {
     const key = vendorStorageKey(vendor)
+    const userId = getSessionUser()?.id ?? cachedUser?.id
+    let nextFav = false
     setFavoriteKeys((current) => {
       const next = new Set(current)
       if (next.has(key)) next.delete(key)
       else next.add(key)
-      saveFavoriteVendorKeys([...next], getSessionUser()?.id ?? cachedUser?.id)
+      nextFav = next.has(key)
+      saveFavoriteVendorKeys([...next], userId)
       return next
     })
+
+    const vendorId = Number(vendor.id)
+    if (!shouldLoadFromApi || !vendorId || String(vendor.id).startsWith('local-')) return
+
+    void (async () => {
+      try {
+        const res = await tapstackApi.setVendorFavorite(vendorId, nextFav)
+        if (Array.isArray(res.favoriteIds)) {
+          setFavoriteKeys(persistFavoriteIds(res.favoriteIds, userId))
+        }
+      } catch {
+        setFavoriteKeys((current) => {
+          const next = new Set(current)
+          if (nextFav) next.delete(key)
+          else next.add(key)
+          saveFavoriteVendorKeys([...next], userId)
+          return next
+        })
+      }
+    })()
   }
 
   async function removeVendor(vendor: Vendor) {
@@ -1029,6 +1083,9 @@ export default function CustomerDashboard({
             saveLocalVendors(next, userId)
             return next
           })
+        }
+        if (Array.isArray((res as { favoriteIds?: number[] }).favoriteIds)) {
+          setFavoriteKeys(persistFavoriteIds((res as { favoriteIds: number[] }).favoriteIds, userId))
         }
       } else {
         setVendors((current) => {
@@ -1318,6 +1375,30 @@ export default function CustomerDashboard({
 
         setVendors(nextVendors)
         saveLocalVendors(nextVendors, userId)
+
+        const serverFavs = Array.isArray((vendorRes as { favoriteIds?: number[] }).favoriteIds)
+          ? ((vendorRes as { favoriteIds: number[] }).favoriteIds || []).map(Number).filter((id) => id > 0)
+          : null
+        const localKeys = loadFavoriteVendorKeys(userId)
+        const localIds = vendorIdsFromFavoriteKeys(localKeys, nextVendors)
+        if (serverFavs) {
+          const merged = [...new Set([...serverFavs, ...localIds])]
+          setFavoriteKeys(persistFavoriteIds(merged, userId))
+          const missing = localIds.filter((id) => !serverFavs.includes(id))
+          if (missing.length) {
+            void tapstackApi
+              .mergeVendorFavorites(missing)
+              .then((res) => {
+                if (cancelled || !Array.isArray(res.favoriteIds)) return
+                setFavoriteKeys(persistFavoriteIds(res.favoriteIds, userId))
+              })
+              .catch(() => {
+                /* keep merged local copy until the next refresh */
+              })
+          }
+        } else {
+          setFavoriteKeys(new Set(localKeys))
+        }
 
         if (token && isMeForCurrentSession(user)) {
           applyAuthSession(token, user)

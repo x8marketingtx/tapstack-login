@@ -980,14 +980,30 @@ export const tapstackApi = {
 
   customerDashboard: () => apiRequest<CustomerDashboard>('/customer/dashboard'),
   customerVendors: () =>
-    apiRequest<{ vendors: ApiVendor[]; linkedOnly?: boolean; linkedCount?: number }>(
-      '/customer/my-vendors',
-    ).catch(() =>
+    apiRequest<{
+      vendors: ApiVendor[]
+      linkedOnly?: boolean
+      linkedCount?: number
+      favoriteIds?: number[]
+    }>('/customer/my-vendors').catch(() =>
       // Fallback for older plugin builds that only expose /customer/vendors.
-      apiRequest<{ vendors: ApiVendor[]; linkedOnly?: boolean; linkedCount?: number }>(
-        '/customer/vendors',
-      ),
+      apiRequest<{
+        vendors: ApiVendor[]
+        linkedOnly?: boolean
+        linkedCount?: number
+        favoriteIds?: number[]
+      }>('/customer/vendors'),
     ),
+  setVendorFavorite: (vendorId: number | string, favorite: boolean) =>
+    apiRequest<{ ok: boolean; favorite?: boolean; favoriteIds: number[] }>('/customer/vendors/favorite', {
+      method: 'POST',
+      body: { vendorId: Number(vendorId), id: Number(vendorId), favorite },
+    }),
+  mergeVendorFavorites: (vendorIds: Array<number | string>) =>
+    apiRequest<{ ok: boolean; favoriteIds: number[] }>('/customer/vendors/favorite', {
+      method: 'POST',
+      body: { vendorIds: vendorIds.map((id) => Number(id)).filter((id) => id > 0) },
+    }),
   linkVendor: (inviteCode: string, affiliateCode?: string) =>
     apiRequest<{
       ok: boolean
@@ -1010,6 +1026,7 @@ export const tapstackApi = {
       vendors: ApiVendor[]
       linkedOnly?: boolean
       linkedCount?: number
+      favoriteIds?: number[]
     }>('/customer/vendors/unlink', {
       method: 'POST',
       body: { vendorId: Number(vendorId), id: Number(vendorId) },
