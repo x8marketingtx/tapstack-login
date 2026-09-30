@@ -19,10 +19,6 @@ export const COMPANY = {
   },
   products: [
     {
-      title: 'Payment facilitation',
-      body: 'TapStack helps Operators accept and settle customer payments under agreements with acquiring and sponsor banks, in accordance with payment-network rules.',
-    },
-    {
       title: 'Operator technology',
       body: 'We provide technology, compliance tooling, and promotional infrastructure that business clients use to run their own consumer-facing platforms.',
     },

@@ -121,9 +121,9 @@ function AboutBody({ onOpen }: { onOpen: (page: PublicSitePage) => void }) {
       <header className="public-intro">
         <h1 className="public-title">About TapStack</h1>
         <p className="public-lead">
-          {COMPANY.brand} provides payment facilitation, technology, and promotional infrastructure
-          for Operators, and a consumer marketplace with free sweepstakes, giveaways, and rewards
-          where we offer them in our own name.
+          {COMPANY.brand} provides technology and promotional infrastructure for Operators, and a
+          consumer marketplace with free sweepstakes, giveaways, and rewards where we offer them in
+          our own name.
         </p>
       </header>
 
