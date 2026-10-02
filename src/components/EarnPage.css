@@ -71,17 +71,30 @@
   color: rgba(237, 233, 254, 0.75);
 }
 
-.earn-wallet-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  font-size: 22px;
+.earn-wallet-redeem-btn {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
   backdrop-filter: blur(6px);
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.35),
+    0 0 22px rgba(255, 255, 255, 0.18),
+    inset 0 0 12px rgba(255, 255, 255, 0.08);
+}
+
+.earn-wallet-redeem-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 0 14px rgba(255, 255, 255, 0.45),
+    0 0 28px rgba(255, 255, 255, 0.25),
+    inset 0 0 14px rgba(255, 255, 255, 0.12);
 }
 
 .earn-wallet-stats {

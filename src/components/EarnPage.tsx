@@ -7,10 +7,12 @@ import {
   type EarnDepositMission,
   type EarnState,
 } from '../api/client'
+import { POINTS_PER_DOLLAR } from '../lib/pointsRedeem'
 import './EarnPage.css'
 
 type EarnPageProps = {
   onTopUp?: () => void
+  onRedeem?: () => void
   pointsBalance?: number
   onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
 }
@@ -138,7 +140,7 @@ function demoState(pointsBalance: number): EarnState {
     },
     missions: DEMO_DEPOSIT_MISSIONS,
     lifetimeDeposited: 35,
-    redeemRate: { points: 100, cash: 1, minPoints: 100 },
+    redeemRate: { points: POINTS_PER_DOLLAR, cash: 1, minPoints: POINTS_PER_DOLLAR },
   }
 }
 
@@ -182,7 +184,7 @@ function rotationForPrize(index: number, currentRotation: number) {
   return currentRotation + delta + 360 * 5
 }
 
-export default function EarnPage({ onTopUp, pointsBalance = 0, onWalletUpdate }: EarnPageProps) {
+export default function EarnPage({ onTopUp, onRedeem, pointsBalance = 0, onWalletUpdate }: EarnPageProps) {
   const useApi = isApiConfigured()
   const [earn, setEarn] = useState<EarnState | null>(useApi ? null : demoState(pointsBalance))
   const [loading, setLoading] = useState(useApi)
@@ -378,9 +380,11 @@ export default function EarnPage({ onTopUp, pointsBalance = 0, onWalletUpdate }:
             <p className="earn-wallet-balance">{points.toLocaleString()}</p>
             <p className="earn-wallet-unit">pts available</p>
           </div>
-          <div className="earn-wallet-badge" aria-hidden="true">
-            ⚡
-          </div>
+          {onRedeem ? (
+            <button type="button" className="earn-wallet-redeem-btn" onClick={onRedeem}>
+              Redeem
+            </button>
+          ) : null}
         </div>
         <div className="earn-wallet-stats">
           <div className="earn-wallet-stat">
@@ -394,7 +398,7 @@ export default function EarnPage({ onTopUp, pointsBalance = 0, onWalletUpdate }:
           </div>
           <div className="earn-wallet-stat-divider" aria-hidden="true" />
           <div className="earn-wallet-stat">
-            <span className="earn-wallet-stat-value">100:1</span>
+            <span className="earn-wallet-stat-value">{POINTS_PER_DOLLAR.toLocaleString()}:1</span>
             <span className="earn-wallet-stat-label">pts → $</span>
           </div>
         </div>

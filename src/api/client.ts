@@ -4,6 +4,10 @@
  * Set VITE_WP_API_URL in `.env` to your WordPress origin, e.g. http://localhost:8080
  */
 
+import { buildReportRangeQuery, type CustomDateRange } from '../lib/reportRange'
+
+export type ReportRangeCustom = Pick<CustomDateRange, 'from' | 'to'>
+
 const TOKEN_KEY = 'tapstack_token'
 const ROLE_KEY = 'tapstack_role'
 const USER_KEY = 'tapstack_user'
@@ -1239,7 +1243,7 @@ export const tapstackApi = {
       orders: VendorOrderItem[]
       affiliate?: VendorAffiliate
     }>(`/vendor/customers/${playerId}`),
-  vendorAnalytics: (range = '7d') =>
+  vendorAnalytics: (range = '7d', custom?: ReportRangeCustom | null) =>
     apiRequest<{
       ok?: boolean
       range?: string
@@ -1277,8 +1281,8 @@ export const tapstackApi = {
         netAmount: string
       }>
       customers?: VendorCustomer[]
-    }>(`/vendor/analytics?range=${encodeURIComponent(range)}`),
-  vendorGameAnalytics: (gameKey: string, range = '7d') =>
+    }>(`/vendor/analytics?${buildReportRangeQuery(range, custom)}`),
+  vendorGameAnalytics: (gameKey: string, range = '7d', custom?: ReportRangeCustom | null) =>
     apiRequest<{
       ok?: boolean
       range?: string
@@ -1299,7 +1303,7 @@ export const tapstackApi = {
         }
       >
     }>(
-      `/vendor/analytics?range=${encodeURIComponent(range)}&gameKey=${encodeURIComponent(gameKey)}`,
+      `/vendor/analytics?${buildReportRangeQuery(range, custom)}&gameKey=${encodeURIComponent(gameKey)}`,
     ),
   vendorPromos: () =>
     apiRequest<{ promotions: VendorPromotion[] }>('/vendor/promos'),
@@ -1815,8 +1819,8 @@ export const tapstackApi = {
       vendor?: { id?: number | string; name?: string }
     }>(`/customer/orders/${encodeURIComponent(String(orderId))}`),
 
-  adminOverview: (range = 'today') =>
-    apiRequest<AdminOverview>(`/admin/overview?range=${encodeURIComponent(range)}`),
+  adminOverview: (range = 'today', custom?: ReportRangeCustom | null) =>
+    apiRequest<AdminOverview>(`/admin/overview?${buildReportRangeQuery(range, custom)}`),
   adminVendors: (search = '') =>
     apiRequest<{ vendors: AdminVendor[]; summary?: AdminVendorSummary }>(
       `/admin/vendors${search ? `?search=${encodeURIComponent(search)}` : ''}`,
@@ -1881,8 +1885,8 @@ export const tapstackApi = {
       method: 'PATCH',
       body: { status },
     }),
-  adminFinance: (range = '30d') =>
-    apiRequest<AdminFinance>(`/admin/finance?range=${encodeURIComponent(range)}`),
+  adminFinance: (range = '30d', custom?: ReportRangeCustom | null) =>
+    apiRequest<AdminFinance>(`/admin/finance?${buildReportRangeQuery(range, custom)}`),
   adminGiveawayEligible: (date = '') =>
     apiRequest<{
       ok: boolean
@@ -2030,7 +2034,7 @@ export const tapstackApi = {
       body: { status },
     }),
 
-  distributorDashboard: (range = 'today') =>
+  distributorDashboard: (range = 'today', custom?: ReportRangeCustom | null) =>
     apiRequest<{
       name: string
       initials?: string
@@ -2077,8 +2081,8 @@ export const tapstackApi = {
         badge?: string
       }>
       activity: Array<{ id: string; text: string; time: string; unread: boolean }>
-    }>(`/distributor/dashboard?range=${encodeURIComponent(range)}`),
-  distributorVendors: (range = '30d') =>
+    }>(`/distributor/dashboard?${buildReportRangeQuery(range, custom)}`),
+  distributorVendors: (range = '30d', custom?: ReportRangeCustom | null) =>
     apiRequest<{
       vendors: Array<{
         id: string
@@ -2098,7 +2102,7 @@ export const tapstackApi = {
       total?: number
       active?: number
       range?: string
-    }>(`/distributor/vendors?range=${encodeURIComponent(range)}`),
+    }>(`/distributor/vendors?${buildReportRangeQuery(range, custom)}`),
   distributorRemoveVendor: (vendorId: number | string) =>
     apiRequest<{ ok: boolean; vendorId: number; message?: string }>(
       `/distributor/vendors/${encodeURIComponent(String(vendorId))}/remove`,
@@ -2112,7 +2116,7 @@ export const tapstackApi = {
       distributorName?: string
       message?: string
     }>('/vendor/network/leave', { method: 'POST', body: {} }),
-  distributorAnalytics: (range = '30d') =>
+  distributorAnalytics: (range = '30d', custom?: ReportRangeCustom | null) =>
     apiRequest<{
       totalEarned: string
       thisMonth: string
@@ -2140,7 +2144,7 @@ export const tapstackApi = {
       }>
       affiliatesTotal?: number
       range?: string
-    }>(`/distributor/analytics?range=${encodeURIComponent(range)}`),
+    }>(`/distributor/analytics?${buildReportRangeQuery(range, custom)}`),
   distributorInvoices: () =>
     apiRequest<{
       invoices: Array<{

@@ -55,8 +55,13 @@ import {
 } from '../lib/routing'
 import { clearPlayerAffiliateRef, consumePendingPlayVendor, detectNewPlayerAffiliates, getPlayerAffiliateRef, peekPendingPlayVendor, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
-import ActivityPager from './ActivityPager'
-import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
+import {
+  correctCashBalanceForLegacyPointRedemptions,
+  formatTapstackCash,
+  normalizeCustomerWalletFromApi,
+  parseTapstackCash,
+} from '../lib/pointsRedeem'
+import { MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
 import './CustomerDashboard.css'
 
 function vendorStorageKey(vendor: Pick<Vendor, 'id' | 'code' | 'name'>): string {
@@ -117,6 +122,40 @@ function persistFavoriteIds(ids: Array<number | string>, userId?: number | strin
   const keys = favoriteKeysFromIds(ids)
   saveFavoriteVendorKeys([...keys], userId)
   return keys
+}
+
+/** Apply server favorite IDs when the API returns a non-empty list; otherwise keep local keys. */
+function favoriteKeysFromServerOrLocal(
+  serverIds: number[] | undefined,
+  localKeys: Set<string>,
+  userId?: number | string | null,
+): Set<string> {
+  if (!Array.isArray(serverIds) || serverIds.length === 0) {
+    saveFavoriteVendorKeys([...localKeys], userId)
+    return new Set(localKeys)
+  }
+  return persistFavoriteIds(serverIds, userId)
+}
+
+/** Map legacy code:/name: favorite keys to id: keys once vendor IDs are known. */
+function normalizeFavoriteKeys(vendors: Vendor[], keys: Iterable<string>): Set<string> {
+  const next = new Set<string>()
+  const byKey = new Map(vendors.map((vendor) => [vendorStorageKey(vendor), vendor]))
+  for (const key of keys) {
+    next.add(key)
+    const vendor = byKey.get(key)
+    if (vendor) next.add(vendorStorageKey(vendor))
+  }
+  return next
+}
+
+function loadPersistedFavoriteKeys(vendors: Vendor[], userId?: number | string | null): Set<string> {
+  const stored = loadFavoriteVendorKeys(userId)
+  const normalized = normalizeFavoriteKeys(vendors, stored)
+  if (normalized.size !== stored.length) {
+    saveFavoriteVendorKeys([...normalized], userId)
+  }
+  return normalized
 }
 
 function sortVendorsByFavorite(vendors: Vendor[], favoriteKeys: Set<string>): Vendor[] {
@@ -349,6 +388,7 @@ function formatMoney(value: number): string {
 }
 
 const VENDORS_PREVIEW = 4
+const GAMES_HOME_ACTIVITY_LIMIT = 10
 
 const DEMO_ACTIVITIES: ActivityRow[] = [
   {
@@ -403,8 +443,7 @@ function GamesHome({
   const [vendorTotals, setVendorTotals] = useState<
     Record<string, { status: 'loading' | 'ready'; playable: number; redeemable: number }>
   >({})
-  const [activityPage, setActivityPage] = useState(1)
-  const pagedActivities = pageItems(activities, activityPage)
+  const recentActivities = activities.slice(0, GAMES_HOME_ACTIVITY_LIMIT)
 
   useEffect(() => {
     if (!openVendorMenuKey) return
@@ -669,7 +708,11 @@ function GamesHome({
                         className={`game-favorite${favorited ? ' is-on' : ''}`}
                         aria-label={favorited ? `Unfavorite ${vendor.name}` : `Favorite ${vendor.name}`}
                         aria-pressed={favorited}
-                        onClick={() => onToggleFavorite(vendor)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          event.preventDefault()
+                          onToggleFavorite(vendor)
+                        }}
                       >
                         {favorited ? '★' : '☆'}
                       </button>
@@ -799,7 +842,7 @@ function GamesHome({
             </div>
           ) : (
             <ul className="activity-list">
-              {pagedActivities.map((item) => (
+              {recentActivities.map((item) => (
                 <li key={item.id} className="activity-item">
                   <div className="activity-icon" style={{ background: item.iconBg }}>
                     {item.icon}
@@ -822,7 +865,6 @@ function GamesHome({
               ))}
             </ul>
           )}
-          <ActivityPager page={activityPage} total={activities.length} onPage={setActivityPage} />
         </section>
       </div>
     </div>
@@ -841,8 +883,8 @@ export default function CustomerDashboard({
   const initialRoute = parseLocation()
   const [inviteCode, setInviteCode] = useState('')
   const [vendors, setVendors] = useState<Vendor[]>(() => loadLocalVendors(cachedUser?.id))
-  const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(
-    () => new Set(loadFavoriteVendorKeys(cachedUser?.id)),
+  const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(() =>
+    loadPersistedFavoriteKeys(loadLocalVendors(cachedUser?.id), cachedUser?.id),
   )
   const [addingVendor, setAddingVendor] = useState(false)
   const [addError, setAddError] = useState('')
@@ -850,6 +892,7 @@ export default function CustomerDashboard({
   const [activeTab, setActiveTab] = useState<DashboardTab>(() =>
     initialRoute.portal === 'customer' ? initialRoute.tab : 'games',
   )
+  const [accountScrollTarget, setAccountScrollTarget] = useState<string | null>(null)
   const [promosHistory, setPromosHistory] = useState(
     () => initialRoute.portal === 'customer' && Boolean(initialRoute.promosHistory),
   )
@@ -1051,17 +1094,14 @@ export default function CustomerDashboard({
     void (async () => {
       try {
         const res = await tapstackApi.setVendorFavorite(vendorId, nextFav)
-        if (Array.isArray(res.favoriteIds)) {
-          setFavoriteKeys(persistFavoriteIds(res.favoriteIds, userId))
-        }
+        setFavoriteKeys((current) =>
+          normalizeFavoriteKeys(
+            vendors,
+            favoriteKeysFromServerOrLocal(res.favoriteIds, current, userId),
+          ),
+        )
       } catch {
-        setFavoriteKeys((current) => {
-          const next = new Set(current)
-          if (nextFav) next.delete(key)
-          else next.add(key)
-          saveFavoriteVendorKeys([...next], userId)
-          return next
-        })
+        /* Keep optimistic local favorite; dashboard load will merge with server when available. */
       }
     })()
   }
@@ -1085,7 +1125,9 @@ export default function CustomerDashboard({
           })
         }
         if (Array.isArray((res as { favoriteIds?: number[] }).favoriteIds)) {
-          setFavoriteKeys(persistFavoriteIds((res as { favoriteIds: number[] }).favoriteIds, userId))
+          setFavoriteKeys((current) =>
+            favoriteKeysFromServerOrLocal((res as { favoriteIds: number[] }).favoriteIds, current, userId),
+          )
         }
       } else {
         setVendors((current) => {
@@ -1134,6 +1176,11 @@ export default function CustomerDashboard({
     setPendingVendorId(null)
     setActiveTab(tab)
     navigate({ portal: 'customer', tab })
+  }
+
+  function openAccountPointsWallet() {
+    setAccountScrollTarget('points-wallet')
+    handleTabChange('account')
   }
 
   function openProfile() {
@@ -1295,11 +1342,17 @@ export default function CustomerDashboard({
         const nextProfile = profileFromUser(user, level, levelProgressPct)
         const userId = user?.id
 
-        setCashBalance(dash.wallet.cashBalance)
-        setPointsBalance(dash.wallet.points)
         if (Array.isArray(dash.recentTx)) {
           setWalletTxns(dash.recentTx)
+          const corrected = correctCashBalanceForLegacyPointRedemptions(
+            parseTapstackCash(dash.wallet.cashBalance ?? dash.wallet.balance),
+            dash.recentTx,
+          )
+          setCashBalance(formatTapstackCash(corrected))
+        } else {
+          setCashBalance(dash.wallet.cashBalance)
         }
+        setPointsBalance(dash.wallet.points)
         setProfile(nextProfile)
         setVerification(verificationFromUser(user))
 
@@ -1381,23 +1434,31 @@ export default function CustomerDashboard({
           : null
         const localKeys = loadFavoriteVendorKeys(userId)
         const localIds = vendorIdsFromFavoriteKeys(localKeys, nextVendors)
+        const normalizedLocal = normalizeFavoriteKeys(nextVendors, localKeys)
+        saveFavoriteVendorKeys([...normalizedLocal], userId)
         if (serverFavs) {
           const merged = [...new Set([...serverFavs, ...localIds])]
-          setFavoriteKeys(persistFavoriteIds(merged, userId))
+          const mergedKeys = persistFavoriteIds(merged, userId)
+          setFavoriteKeys(normalizeFavoriteKeys(nextVendors, mergedKeys))
           const missing = localIds.filter((id) => !serverFavs.includes(id))
           if (missing.length) {
             void tapstackApi
               .mergeVendorFavorites(missing)
               .then((res) => {
                 if (cancelled || !Array.isArray(res.favoriteIds)) return
-                setFavoriteKeys(persistFavoriteIds(res.favoriteIds, userId))
+                setFavoriteKeys((current) =>
+                  normalizeFavoriteKeys(
+                    nextVendors,
+                    favoriteKeysFromServerOrLocal(res.favoriteIds, current, userId),
+                  ),
+                )
               })
               .catch(() => {
                 /* keep merged local copy until the next refresh */
               })
           }
         } else {
-          setFavoriteKeys(new Set(localKeys))
+          setFavoriteKeys(normalizedLocal)
         }
 
         if (token && isMeForCurrentSession(user)) {
@@ -1439,12 +1500,15 @@ export default function CustomerDashboard({
     void tapstackApi
       .customerWallet()
       .then((res) => {
-        if (res.wallet?.formatted) setCashBalance(res.wallet.formatted)
-        else if (typeof res.wallet?.balance === 'number') {
-          setCashBalance(`$${res.wallet.balance.toFixed(2)}`)
+        const recentTx = Array.isArray(res.recentTx) ? res.recentTx : []
+        if (Array.isArray(res.recentTx)) setWalletTxns(recentTx)
+        if (res.wallet) {
+          const normalized = normalizeCustomerWalletFromApi(res.wallet, recentTx)
+          if (normalized) {
+            setCashBalance(normalized.formatted)
+            setPointsBalance(normalized.points)
+          }
         }
-        if (typeof res.wallet?.points === 'number') setPointsBalance(res.wallet.points)
-        if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
       })
       .catch(() => undefined)
   }, [shouldLoadFromApi])
@@ -1727,6 +1791,7 @@ export default function CustomerDashboard({
                   if (!requireVerified()) return
                   setTopUpOpen(true)
                 }}
+                onRedeem={openAccountPointsWallet}
                 pointsBalance={pointsBalance}
                 onWalletUpdate={(wallet) => {
                   if (typeof wallet.points === 'number') setPointsBalance(wallet.points)
@@ -1764,6 +1829,8 @@ export default function CustomerDashboard({
                 loading={loading}
                 transactions={walletTxns}
                 vendors={vendors}
+                scrollToSectionId={accountScrollTarget}
+                onScrollToSectionDone={() => setAccountScrollTarget(null)}
                 onOpenProfile={openProfile}
                 onVerifyRequired={openVerify}
                 onWalletUpdate={(wallet) => {

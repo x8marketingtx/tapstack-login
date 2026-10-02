@@ -17,7 +17,10 @@ import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } fr
 import VerifyPage, { VerifyBanner } from './VerifyPage'
 import HelpCenter from './HelpCenter'
 import ActivityPager from './ActivityPager'
+import { useCustomReportRange } from '../hooks/useCustomReportRange'
+import { formatCustomDateRangeLabel } from '../lib/reportRange'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
+import CustomDateRangeModal from './CustomDateRangeModal'
 import {
   consumeVerifyReturn,
   needsVerification,
@@ -456,9 +459,12 @@ export default function DistributorDashboard({
   const [invoices, setInvoices] = useState<InvoicesData | null>(null)
   const [settings, setSettings] = useState<SettingsData | null>(null)
 
-  const [earningsRange, setEarningsRange] = useState<EarningsRange>('today')
-  const [vendorsRange, setVendorsRange] = useState<EarningsRange>('30d')
-  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRange>('30d')
+  const earningsRangeFilter = useCustomReportRange<EarningsRange>('today')
+  const vendorsRangeFilter = useCustomReportRange<EarningsRange>('30d')
+  const analyticsRangeFilter = useCustomReportRange<AnalyticsRange>('30d')
+  const earningsRange = earningsRangeFilter.preset
+  const vendorsRange = vendorsRangeFilter.preset
+  const analyticsRange = analyticsRangeFilter.preset
   const [analyticsSub, setAnalyticsSub] = useState<AnalyticsSub>('overview')
   const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>('all')
   const [settingsSub, setSettingsSub] = useState<SettingsSub>('profile')
@@ -565,29 +571,35 @@ export default function DistributorDashboard({
     navigate({ portal: 'distributor', tab })
   }
 
-  async function loadHome(range: EarningsRange = earningsRange) {
-    const data = await tapstackApi.distributorDashboard(range)
+  async function loadHome() {
+    const data = await tapstackApi.distributorDashboard(
+      earningsRangeFilter.preset,
+      earningsRangeFilter.apiCustom,
+    )
     setDash(data)
   }
 
-  async function loadVendors(range: EarningsRange = vendorsRange) {
+  async function loadVendors() {
     const token = getToken()
     if (!isApiConfigured() || token?.startsWith('demo:')) {
       setVendors(normalizeDistributorVendors(DEMO_DIST_VENDORS))
       return
     }
-    const data = normalizeDistributorVendors(await tapstackApi.distributorVendors(range))
+    const data = normalizeDistributorVendors(
+      await tapstackApi.distributorVendors(vendorsRangeFilter.preset, vendorsRangeFilter.apiCustom),
+    )
     setVendors(data)
   }
 
-  async function loadAnalytics(range: AnalyticsRange = analyticsRange) {
-    const mapped = range === '90d' ? '30d' : range
+  async function loadAnalytics() {
+    const range = analyticsRangeFilter.preset
+    const mapped = range === 'custom' ? 'custom' : range === '90d' ? '30d' : range
     const token = getToken()
     if (!isApiConfigured() || token?.startsWith('demo:')) {
       setAnalytics({ ...DEMO_DIST_ANALYTICS, range: mapped })
       return
     }
-    const data = (await tapstackApi.distributorAnalytics(mapped)) as AnalyticsData & {
+    const data = (await tapstackApi.distributorAnalytics(mapped, analyticsRangeFilter.apiCustom)) as AnalyticsData & {
       by_affiliate?: NonNullable<AnalyticsData>['byAffiliate']
     }
     const byAffiliate = Array.isArray(data.byAffiliate)
@@ -649,7 +661,7 @@ export default function DistributorDashboard({
           const token = getToken()
           if (token) applyAuthSession(token, me.user)
         }
-        await Promise.all([loadHome('today'), loadVendors('30d')])
+        await Promise.all([loadHome(), loadVendors()])
         if (cancelled) return
         setError('')
       } catch (err) {
@@ -673,10 +685,10 @@ export default function DistributorDashboard({
   useEffect(() => {
     if (loading) return
     if (tab === 'vendors') {
-      if (!vendors) void loadVendors(vendorsRange).catch(() => undefined)
-      if (!analytics) void loadAnalytics(analyticsRange).catch(() => undefined)
+      if (!vendors) void loadVendors().catch(() => undefined)
+      if (!analytics) void loadAnalytics().catch(() => undefined)
     }
-    if (tab === 'analytics' && !analytics) void loadAnalytics(analyticsRange).catch(() => undefined)
+    if (tab === 'analytics' && !analytics) void loadAnalytics().catch(() => undefined)
     if (tab === 'invoices' && !invoices) void loadInvoices().catch(() => undefined)
     if (tab === 'settings' && !settings) void loadSettings().catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -685,8 +697,26 @@ export default function DistributorDashboard({
   useIntervalRefresh(() => {
     const token = getToken()
     if (!isApiConfigured() || !token || token.startsWith('demo:') || loading) return
-    if (tab === 'home') void loadHome(earningsRange).catch(() => undefined)
+    if (tab === 'home') void loadHome().catch(() => undefined)
   }, MONEY_REFRESH_MS, true)
+
+  useEffect(() => {
+    if (loading || tab !== 'home') return
+    void loadHome().catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earningsRangeFilter.queryKey, tab, loading])
+
+  useEffect(() => {
+    if (loading || tab !== 'vendors') return
+    void loadVendors().catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendorsRangeFilter.queryKey, tab, loading])
+
+  useEffect(() => {
+    if (loading || tab !== 'analytics') return
+    void loadAnalytics().catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsRangeFilter.queryKey, tab, loading])
 
   const filteredVendors = useMemo(() => {
     let list = enrichVendorsAffiliateHints(vendors?.vendors || [], dash, analytics)
@@ -754,7 +784,7 @@ export default function DistributorDashboard({
       }
       const res = await tapstackApi.distributorRemoveVendor(vendor.id)
       setNotice(res.message || `${vendor.name} was removed from your network.`)
-      await Promise.all([loadVendors(vendorsRange), loadHome(earningsRange).catch(() => undefined)])
+      await Promise.all([loadVendors(), loadHome().catch(() => undefined)])
     } catch (err) {
       setNotice(err instanceof ApiError ? err.message : 'Could not remove this vendor.')
     } finally {
@@ -864,14 +894,8 @@ export default function DistributorDashboard({
                 vendorsTotal={vendorsTotal}
                 vendorsActive={vendorsActive}
                 earningsRange={earningsRange}
-                onRange={async (range) => {
-                  setEarningsRange(range)
-                  try {
-                    await loadHome(range)
-                  } catch {
-                    /* keep prior */
-                  }
-                }}
+                onRange={(range) => earningsRangeFilter.pickPreset(range)}
+                earningsRangeCustom={earningsRangeFilter.isCustom ? earningsRangeFilter.customRange : null}
               />
             ) : null}
 
@@ -885,16 +909,10 @@ export default function DistributorDashboard({
                 total={vendors?.total ?? vendorsTotal}
                 active={vendors?.active ?? vendorsActive}
                 range={vendorsRange}
+                rangeCustom={vendorsRangeFilter.isCustom ? vendorsRangeFilter.customRange : null}
                 query={vendorQuery}
                 onQuery={setVendorQuery}
-                onRange={async (range) => {
-                  setVendorsRange(range)
-                  try {
-                    await loadVendors(range)
-                  } catch {
-                    /* keep prior */
-                  }
-                }}
+                onRange={(range) => vendorsRangeFilter.pickPreset(range)}
                 onRemove={removeVendorFromNetwork}
                 affiliateLink={affiliate.url}
               />
@@ -907,14 +925,8 @@ export default function DistributorDashboard({
                 sub={analyticsSub}
                 onSub={setAnalyticsSub}
                 range={analyticsRange}
-                onRange={async (range) => {
-                  setAnalyticsRange(range)
-                  try {
-                    await loadAnalytics(range)
-                  } catch {
-                    /* keep prior */
-                  }
-                }}
+                rangeCustom={analyticsRangeFilter.isCustom ? analyticsRangeFilter.customRange : null}
+                onRange={(range) => analyticsRangeFilter.pickPreset(range)}
               />
             ) : null}
 
@@ -953,6 +965,9 @@ export default function DistributorDashboard({
       {!showProfile && !showHelp ? (
         <DistributorBottomNav activeTab={tab} onTabChange={changeTab} vendorsBadge={vendorsTotal || undefined} />
       ) : null}
+      <CustomDateRangeModal {...earningsRangeFilter.modalProps} />
+      <CustomDateRangeModal {...vendorsRangeFilter.modalProps} />
+      <CustomDateRangeModal {...analyticsRangeFilter.modalProps} />
     </div>
   )
 }
@@ -963,6 +978,7 @@ function HomeView({
   vendorsTotal,
   vendorsActive,
   earningsRange,
+  earningsRangeCustom,
   onRange,
 }: {
   dash: DashData
@@ -970,6 +986,7 @@ function HomeView({
   vendorsTotal: number
   vendorsActive: number
   earningsRange: EarningsRange
+  earningsRangeCustom?: { from: string; to: string } | null
   onRange: (range: EarningsRange) => void
 }) {
   const [activityPage, setActivityPage] = useState(1)
@@ -1046,7 +1063,15 @@ function HomeView({
                 className={`dist-seg-btn${earningsRange === r ? ' is-active' : ''}`}
                 onClick={() => onRange(r)}
               >
-                {r === 'today' ? 'Today' : r === '7d' ? '7 Days' : r === '30d' ? '30 Days' : 'Custom'}
+                {r === 'today'
+                  ? 'Today'
+                  : r === '7d'
+                    ? '7 Days'
+                    : r === '30d'
+                      ? '30 Days'
+                      : earningsRange === 'custom' && earningsRangeCustom
+                        ? formatCustomDateRangeLabel(earningsRangeCustom.from, earningsRangeCustom.to)
+                        : 'Custom'}
               </button>
             ))}
           </div>
@@ -1132,6 +1157,7 @@ function VendorsView({
   total,
   active,
   range,
+  rangeCustom,
   query,
   onQuery,
   onRange,
@@ -1142,6 +1168,7 @@ function VendorsView({
   total: number
   active: number
   range: EarningsRange
+  rangeCustom?: { from: string; to: string } | null
   query: string
   onQuery: (q: string) => void
   onRange: (range: EarningsRange) => void
@@ -1196,7 +1223,15 @@ function VendorsView({
             className={`dist-seg-btn${range === r ? ' is-active' : ''}`}
             onClick={() => onRange(r)}
           >
-            {r === 'today' ? 'Today' : r === '7d' ? '7 Days' : r === '30d' ? '30 Days' : 'Custom'}
+            {r === 'today'
+              ? 'Today'
+              : r === '7d'
+                ? '7 Days'
+                : r === '30d'
+                  ? '30 Days'
+                  : range === 'custom' && rangeCustom
+                    ? formatCustomDateRangeLabel(rangeCustom.from, rangeCustom.to)
+                    : 'Custom'}
           </button>
         ))}
       </div>
@@ -1334,6 +1369,7 @@ function AnalyticsView({
   sub,
   onSub,
   range,
+  rangeCustom,
   onRange,
 }: {
   data: AnalyticsData
@@ -1341,6 +1377,7 @@ function AnalyticsView({
   sub: AnalyticsSub
   onSub: (s: AnalyticsSub) => void
   range: AnalyticsRange
+  rangeCustom?: { from: string; to: string } | null
   onRange: (r: AnalyticsRange) => void
 }) {
   const maxBar = Math.max(1, ...(data.monthlyEarnings || []).map((m) => m.amount))
@@ -1374,7 +1411,9 @@ function AnalyticsView({
                 className={`dist-seg-btn${range === r ? ' is-active' : ''}`}
                 onClick={() => onRange(r)}
               >
-                {r}
+                {r === 'custom' && range === 'custom' && rangeCustom
+                  ? formatCustomDateRangeLabel(rangeCustom.from, rangeCustom.to)
+                  : r}
               </button>
             ))}
           </div>

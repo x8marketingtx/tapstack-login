@@ -78,16 +78,18 @@ export default function LoadReceiptModal({ txn, vendors = [], onClose }: LoadRec
 
   const orderId = txn ? txnOrderId(txn) : ''
   const fallbackVendor = txn ? txnVendorName(txn, vendors) : ''
+  const receiptKey = txn ? `${txn.id}:${orderId || 'summary'}` : ''
 
   useEffect(() => {
     if (!txn) {
       setOrder(null)
       setError('')
       setVendorName('')
+      setLoading(false)
       return
     }
 
-    const name = fallbackVendor
+    const name = txnVendorName(txn, vendors)
     setVendorName(name)
 
     if (!orderId || !isApiConfigured()) {
@@ -122,7 +124,9 @@ export default function LoadReceiptModal({ txn, vendors = [], onClose }: LoadRec
     return () => {
       cancelled = true
     }
-  }, [txn, orderId, fallbackVendor, vendors])
+    // Load once per opened receipt; parent wallet refresh must not re-fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- receiptKey captures txn.id + orderId
+  }, [receiptKey])
 
   const shown = useMemo(() => {
     if (!txn) return null

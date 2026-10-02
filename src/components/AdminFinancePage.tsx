@@ -11,6 +11,9 @@ import {
   type AdminFinanceVendor,
   type AdminPeriodStats,
 } from '../api/client'
+import { useCustomReportRange } from '../hooks/useCustomReportRange'
+import { formatCustomDateRangeLabel } from '../lib/reportRange'
+import CustomDateRangeModal from './CustomDateRangeModal'
 import { AdminHeader } from './AdminHeader'
 import { VendorDetailView } from './AdminVendorsPage'
 import './AdminFinancePage.css'
@@ -315,12 +318,14 @@ function FinanceAnalyticsTab({
   useApi,
   loading,
   range,
+  rangeLabel,
   onRangeChange,
 }: {
   finance: AdminFinance | null
   useApi: boolean
   loading: boolean
   range: FinanceRange
+  rangeLabel: string
   onRangeChange: (range: FinanceRange) => void
 }) {
   if (loading) return <FinanceAnalyticsSkeleton />
@@ -380,7 +385,7 @@ function FinanceAnalyticsTab({
         <p className="admin-finance-revenue-label">PLATFORM REVENUE</p>
         <p className="admin-finance-revenue-value">{platformRevenue}</p>
         <p className="admin-finance-revenue-meta">
-          {RANGE_META_LABEL[range]} · fees + subscriptions + Google Ads + loyalty retention
+          {rangeLabel} · fees + subscriptions + Google Ads + loyalty retention
         </p>
       </article>
 
@@ -926,12 +931,14 @@ function FinanceVendorsTab({
   useApi,
   loading,
   range,
+  rangeLabel,
   onRangeChange,
 }: {
   finance: AdminFinance | null
   useApi: boolean
   loading: boolean
   range: FinanceRange
+  rangeLabel: string
   onRangeChange: (range: FinanceRange) => void
 }) {
   const period = RANGE_TO_VENDOR_PERIOD[range]
@@ -989,7 +996,7 @@ function FinanceVendorsTab({
       <div className="admin-finance-vendors-intro">
         <h1 className="admin-finance-vendors-title">Vendor Financials</h1>
         <p className="admin-finance-vendors-subtitle">
-          Deposits &amp; redeems per vendor · {RANGE_META_LABEL[range]}
+          Deposits &amp; redeems per vendor · {rangeLabel}
         </p>
       </div>
 
@@ -2141,15 +2148,19 @@ function FinanceGiveawayTab({ useApi }: { useApi: boolean }) {
 export default function AdminFinancePage() {
   const useApi = isApiConfigured() && !getToken()?.startsWith('demo:')
   const [subTab, setSubTab] = useState<FinanceSubTab>('analytics')
-  const [range, setRange] = useState<FinanceRange>('30d')
+  const financeRange = useCustomReportRange<FinanceRange>('30d')
+  const range = financeRange.preset
+  const rangeLabel = financeRange.isCustom
+    ? formatCustomDateRangeLabel(financeRange.customRange.from, financeRange.customRange.to)
+    : RANGE_META_LABEL[range]
   const [finance, setFinance] = useState<AdminFinance | null>(null)
   const [loading, setLoading] = useState(useApi)
   const [error, setError] = useState('')
   const [reserveWallet, setReserveWallet] = useState(EMPTY_RESERVE_WALLET)
 
-  async function refreshFinance(nextRange = range) {
+  async function refreshFinance() {
     if (!useApi) return
-    const res = await tapstackApi.adminFinance(nextRange)
+    const res = await tapstackApi.adminFinance(financeRange.preset, financeRange.apiCustom)
     setFinance(res)
     if (res.reserveWallet) setReserveWallet(res.reserveWallet)
   }
@@ -2168,7 +2179,7 @@ export default function AdminFinancePage() {
     setError('')
 
     tapstackApi
-      .adminFinance(range)
+      .adminFinance(financeRange.preset, financeRange.apiCustom)
       .then((res) => {
         if (cancelled) return
         setFinance(res)
@@ -2185,11 +2196,12 @@ export default function AdminFinancePage() {
     return () => {
       cancelled = true
     }
-  }, [range, useApi])
+  }, [financeRange.queryKey, useApi])
 
   return (
     <div className="admin-finance-page">
       <AdminHeader />
+      <CustomDateRangeModal {...financeRange.modalProps} />
 
       <nav className="admin-finance-subtabs" aria-label="Finance sections">
         {FINANCE_SUB_TABS.map((tab) => {
@@ -2218,7 +2230,8 @@ export default function AdminFinancePage() {
           useApi={useApi}
           loading={loading}
           range={range}
-          onRangeChange={setRange}
+          rangeLabel={rangeLabel}
+          onRangeChange={financeRange.pickPreset}
         />
       ) : subTab === 'customers' ? (
         <FinanceCustomersTab finance={finance} useApi={useApi} loading={loading} />
@@ -2228,7 +2241,8 @@ export default function AdminFinancePage() {
           useApi={useApi}
           loading={loading}
           range={range}
-          onRangeChange={setRange}
+          rangeLabel={rangeLabel}
+          onRangeChange={financeRange.pickPreset}
         />
       ) : subTab === 'fees' ? (
         loading ? (

@@ -5,6 +5,9 @@ import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
 import VendorOrderDetailModal from './VendorOrderDetailModal'
 import ActivityPager from './ActivityPager'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
+import { formatCustomDateRangeLabel, timestampInCustomRange, type CustomDateRange } from '../lib/reportRange'
+import { useCustomReportRange } from '../hooks/useCustomReportRange'
+import CustomDateRangeModal from './CustomDateRangeModal'
 import './VendorOrdersPage.css'
 
 type OrdersTab = 'loads' | 'redeems' | 'history'
@@ -110,9 +113,11 @@ function parseOrderDate(item: VendorOrderItem): number {
   return Date.now()
 }
 
-function inHistoryRange(item: VendorOrderItem, range: HistoryRange): boolean {
-  if (range === 'custom') return true
+function inHistoryRange(item: VendorOrderItem, range: HistoryRange, custom?: CustomDateRange | null): boolean {
   const ts = parseOrderDate(item)
+  if (range === 'custom') {
+    return custom ? timestampInCustomRange(ts, custom) : true
+  }
   const now = Date.now()
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
@@ -408,7 +413,8 @@ function HistoryTab({
   history: VendorOrderItem[]
   onOpenOrder: (id: string) => void
 }) {
-  const [range, setRange] = useState<HistoryRange>('30d')
+  const rangeFilter = useCustomReportRange<HistoryRange>('30d')
+  const { preset: range, apiCustom, pickPreset, modalProps, isCustom, customRange } = rangeFilter
   const [filter, setFilter] = useState<HistoryFilter>('all')
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
@@ -416,7 +422,7 @@ function HistoryTab({
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return history.filter((entry) => {
-      if (!inHistoryRange(entry, range)) return false
+      if (!inHistoryRange(entry, range, apiCustom)) return false
       if (filter === 'loads') {
         if (!entry.type.includes('load')) return false
       }
@@ -430,7 +436,7 @@ function HistoryTab({
         .toLowerCase()
       return hay.includes(needle)
     })
-  }, [history, range, filter, query])
+  }, [history, range, apiCustom, filter, query])
 
   const paged = pageItems(filtered, page)
 
@@ -467,7 +473,15 @@ function HistoryTab({
 
       <div className="vendor-history-filters">
         <span className="vendor-history-filters-label">
-          {range === 'today' ? 'Today' : range === '7d' ? 'Last 7 days' : range === '30d' ? 'Last 30 days' : 'Custom'}
+          {range === 'today'
+            ? 'Today'
+            : range === '7d'
+              ? 'Last 7 days'
+              : range === '30d'
+                ? 'Last 30 days'
+                : isCustom
+                  ? formatCustomDateRangeLabel(customRange.from, customRange.to)
+                  : 'Custom'}
         </span>
         <div className="vendor-history-filter-pills" role="tablist" aria-label="Time range">
           {HISTORY_RANGES.map((item) => (
@@ -477,13 +491,15 @@ function HistoryTab({
               role="tab"
               aria-selected={range === item.id}
               className={`vendor-history-filter-btn ${range === item.id ? 'vendor-history-filter-btn--active' : ''}`}
-              onClick={() => setRange(item.id)}
+              onClick={() => pickPreset(item.id)}
             >
               {item.label}
             </button>
           ))}
         </div>
       </div>
+
+      <CustomDateRangeModal {...modalProps} />
 
       {filtered.length === 0 ? (
         <p className="vendor-orders-empty">No history for this range.</p>

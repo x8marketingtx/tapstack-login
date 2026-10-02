@@ -13,9 +13,19 @@ import PlayerAffiliateSection from './PlayerAffiliateSection'
 import ActivityPager from './ActivityPager'
 import LoadReceiptModal from './LoadReceiptModal'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
+import {
+  formatPointsToCash,
+  isValidRedeemPoints,
+  MIN_REDEEM_POINTS,
+  normalizeCustomerWalletFromApi,
+  parseTapstackCash,
+  pointsPerDollarLabel,
+  pointsToCash,
+  QUICK_REDEEM_POINTS,
+  REDEEM_POINTS_STEP,
+  walletAfterPointsRedeem,
+} from '../lib/pointsRedeem'
 import './AccountPage.css'
-
-const QUICK_POINTS = [500, 1000, 2000]
 
 type TimeFilter = '7d' | '30d' | '6m'
 
@@ -99,6 +109,8 @@ export default function AccountPage({
   onOpenProfile,
   onWalletUpdate,
   onVerifyRequired,
+  scrollToSectionId,
+  onScrollToSectionDone,
 }: {
   cashBalance?: string
   pointsBalance?: number
@@ -109,6 +121,8 @@ export default function AccountPage({
   onOpenProfile?: () => void
   onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
   onVerifyRequired?: () => void
+  scrollToSectionId?: string | null
+  onScrollToSectionDone?: () => void
 }) {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d')
   const [roomFilter, setRoomFilter] = useState('all')
@@ -192,21 +206,29 @@ export default function AccountPage({
     setLedgerPage(1)
   }, [timeFilter, roomFilter])
 
+  useEffect(() => {
+    if (!scrollToSectionId || loading) return
+    const targetId = scrollToSectionId
+    const timer = window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      onScrollToSectionDone?.()
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [scrollToSectionId, loading, onScrollToSectionDone])
+
   useIntervalRefresh(() => {
     if (!isApiConfigured()) return
     void tapstackApi
       .customerWallet()
       .then((res) => {
-        if (Array.isArray(res.recentTx)) {
-          setFetchedTxns((prev) => mergeTxns(res.recentTx, prev))
-        }
-        if (onWalletUpdate && res.wallet) {
-          onWalletUpdate({
-            balance: res.wallet.balance,
-            formatted: res.wallet.formatted,
-            points: res.wallet.points,
-          })
-        }
+        setFetchedTxns((prev) => {
+          const merged = Array.isArray(res.recentTx) ? mergeTxns(res.recentTx, prev) : prev
+          if (onWalletUpdate && res.wallet) {
+            const normalized = normalizeCustomerWalletFromApi(res.wallet, merged)
+            if (normalized) onWalletUpdate(normalized)
+          }
+          return merged
+        })
       })
       .catch(() => undefined)
   }, MONEY_REFRESH_MS, isApiConfigured())
@@ -224,8 +246,10 @@ export default function AccountPage({
   async function handleRedeem(event: React.FormEvent) {
     event.preventDefault()
     const pts = Math.floor(Number(pointsToRedeem))
-    if (!Number.isFinite(pts) || pts < 100 || pts % 100 !== 0) {
-      setRedeemError('Redeem in increments of 100 points (min 100).')
+    if (!isValidRedeemPoints(pts)) {
+      setRedeemError(
+        `Redeem in increments of ${REDEEM_POINTS_STEP.toLocaleString()} points (min ${MIN_REDEEM_POINTS.toLocaleString()}).`,
+      )
       return
     }
     if (pts > pointsBalance) {
@@ -244,26 +268,27 @@ export default function AccountPage({
 
     try {
       if (isApiConfigured()) {
+        const cashBefore = parseTapstackCash(cashBalance)
         const res = await tapstackApi.customerRedeemPoints(pts)
-        onWalletUpdate?.(res.wallet)
-        setRedeemMsg(`Redeemed ${pts.toLocaleString()} pts → $${(pts / 100).toFixed(2)}`)
+        onWalletUpdate?.(walletAfterPointsRedeem(pts, cashBefore, pointsBalance, res.wallet))
+        setRedeemMsg(`Redeemed ${pts.toLocaleString()} pts → ${formatPointsToCash(pts)}`)
         setPointsToRedeem('')
         setSelectedQuickPoints(null)
         const walletRes = await tapstackApi.customerWallet()
-        setFetchedTxns(walletRes.recentTx || [])
-        if (walletRes.wallet) {
-          onWalletUpdate?.({
-            balance: walletRes.wallet.balance,
-            formatted: walletRes.wallet.formatted,
-            points: walletRes.wallet.points,
-          })
-        }
+        setFetchedTxns((prev) => {
+          const merged = mergeTxns(walletRes.recentTx || [], prev)
+          if (walletRes.wallet) {
+            const normalized = normalizeCustomerWalletFromApi(walletRes.wallet, merged)
+            if (normalized) onWalletUpdate?.(normalized)
+          }
+          return merged
+        })
       } else {
-        const cashNum = Number(String(cashBalance).replace(/[^0-9.]/g, '') || 0)
+        const cashNum = parseTapstackCash(cashBalance)
         onWalletUpdate?.({
           points: Math.max(0, pointsBalance - pts),
-          balance: cashNum + pts / 100,
-          formatted: `$${(cashNum + pts / 100).toFixed(2)}`,
+          balance: cashNum + pointsToCash(pts),
+          formatted: `$${(cashNum + pointsToCash(pts)).toFixed(2)}`,
         })
         setRedeemMsg(`Demo redeemed ${pts.toLocaleString()} pts`)
         setPointsToRedeem('')
@@ -282,8 +307,8 @@ export default function AccountPage({
   }
 
   const cashPreview =
-    pointsToRedeem && Number(pointsToRedeem) >= 100
-      ? `≈ $${(Math.floor(Number(pointsToRedeem) / 100)).toFixed(2)}`
+    pointsToRedeem && Number(pointsToRedeem) >= MIN_REDEEM_POINTS
+      ? `≈ ${formatPointsToCash(Math.floor(Number(pointsToRedeem)))}`
       : null
 
   return (
@@ -325,7 +350,7 @@ export default function AccountPage({
         </div>
       </section>
 
-      <section className="points-card">
+      <section id="points-wallet" className="points-card">
         <div className="points-top">
           <div>
             <p className="points-label">POINTS WALLET</p>
@@ -345,15 +370,15 @@ export default function AccountPage({
             ⇄
           </span>
           <span>
-            Rate: <strong>100 pts = $1.00</strong>
+            Rate: <strong>{pointsPerDollarLabel()}</strong>
           </span>
-          <span className="points-rate-min">Min 100 pts</span>
+          <span className="points-rate-min">Min {MIN_REDEEM_POINTS.toLocaleString()} pts</span>
         </div>
 
         <form className="points-redeem-form" onSubmit={(e) => void handleRedeem(e)}>
           <span className="send-field-label">POINTS TO REDEEM</span>
           <div className="points-quick-row">
-            {QUICK_POINTS.map((value) => (
+            {QUICK_REDEEM_POINTS.map((value) => (
               <button
                 key={value}
                 type="button"
@@ -370,8 +395,8 @@ export default function AccountPage({
               type="number"
               className="points-redeem-input"
               placeholder="Enter points to redeem..."
-              min={100}
-              step={100}
+              min={MIN_REDEEM_POINTS}
+              step={REDEEM_POINTS_STEP}
               value={pointsToRedeem}
               onChange={(event) => handlePointsChange(event.target.value)}
               disabled={loading || redeeming}

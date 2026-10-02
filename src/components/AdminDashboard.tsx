@@ -22,7 +22,10 @@ import ProfilePage, {
   type PlayerProfile,
 } from './ProfilePage'
 import HelpCenter from './HelpCenter'
+import { useCustomReportRange } from '../hooks/useCustomReportRange'
+import { formatCustomDateRangeLabel } from '../lib/reportRange'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
+import CustomDateRangeModal from './CustomDateRangeModal'
 import './AdminDashboard.css'
 import './ProfilePage.css'
 
@@ -197,7 +200,8 @@ function AdminOverviewPage({
 }: {
   onStats?: (stats: AdminOverview['platformStats']) => void
 }) {
-  const [range, setRange] = useState<OverviewRange>('today')
+  const overviewRange = useCustomReportRange<OverviewRange>('today')
+  const range = overviewRange.preset
   const [data, setData] = useState<AdminOverview>(EMPTY_OVERVIEW)
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
@@ -215,7 +219,7 @@ function AdminOverviewPage({
     setError('')
 
     tapstackApi
-      .adminOverview(range)
+      .adminOverview(overviewRange.preset, overviewRange.apiCustom)
       .then((res) => {
         if (cancelled) return
         setData({
@@ -253,7 +257,7 @@ function AdminOverviewPage({
     return () => {
       cancelled = true
     }
-  }, [range, onStats])
+  }, [overviewRange.queryKey, onStats])
 
   const detailRows = data.detailRows?.length ? data.detailRows : EMPTY_DETAIL_ROWS
   const platformStats = [
@@ -364,14 +368,21 @@ function AdminOverviewPage({
                 role="tab"
                 aria-selected={range === item.id}
                 className={`admin-range-btn ${range === item.id ? 'admin-range-btn--active' : ''}`}
-                onClick={() => setRange(item.id)}
+                onClick={() => overviewRange.pickPreset(item.id)}
                 disabled={loading}
               >
-                {item.label}
+                {item.id === 'custom' && overviewRange.isCustom
+                  ? formatCustomDateRangeLabel(
+                      overviewRange.customRange.from,
+                      overviewRange.customRange.to,
+                    )
+                  : item.label}
               </button>
             ))}
           </div>
         </div>
+
+        <CustomDateRangeModal {...overviewRange.modalProps} />
 
         {loading ? (
           <OverviewSkeleton />

@@ -12,6 +12,9 @@ import {
   type VendorRedeemSettings,
 } from '../api/client'
 import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
+import { formatCustomDateRangeLabel } from '../lib/reportRange'
+import { useCustomReportRange } from '../hooks/useCustomReportRange'
+import CustomDateRangeModal from './CustomDateRangeModal'
 import './VendorAnalyticsPage.css'
 
 type AnalyticsTab = 'financial' | 'customers' | 'games'
@@ -853,7 +856,8 @@ function downloadGamesCsv(games: GamePerformanceItem[]) {
 }
 
 function GamesTab() {
-  const [range, setRange] = useState<GamesRange>('7d')
+  const rangeFilter = useCustomReportRange<GamesRange>('7d')
+  const { preset: range, apiCustom, queryKey, pickPreset, modalProps } = rangeFilter
   const [games, setGames] = useState<GamePerformanceItem[]>([])
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
@@ -871,13 +875,12 @@ function GamesTab() {
       setLoading(false)
       return
     }
-    const queryRange = range === 'custom' ? '7d' : range
     let cancelled = false
     ;(async () => {
       setLoading(true)
       setError('')
       try {
-        const res = await tapstackApi.vendorAnalytics(queryRange)
+        const res = await tapstackApi.vendorAnalytics(range, apiCustom)
         if (cancelled) return
         setGames((res.games || []) as GamePerformanceItem[])
       } catch (err) {
@@ -891,7 +894,7 @@ function GamesTab() {
     return () => {
       cancelled = true
     }
-  }, [range])
+  }, [queryKey, range, apiCustom])
 
   useEffect(() => {
     if (!selectedGame || !isApiConfigured()) {
@@ -900,14 +903,13 @@ function GamesTab() {
       setPeriodLabel('')
       return
     }
-    const queryRange = range === 'custom' ? '7d' : range
     const gameId = selectedGame.id
     let cancelled = false
     ;(async () => {
       setDetailLoading(true)
       setDetailError('')
       try {
-        const res = await tapstackApi.vendorGameAnalytics(gameId, queryRange)
+        const res = await tapstackApi.vendorGameAnalytics(gameId, range, apiCustom)
         if (cancelled) return
         if (res.game) {
           setSelectedGame((prev) =>
@@ -945,7 +947,7 @@ function GamesTab() {
     return () => {
       cancelled = true
     }
-  }, [selectedGame?.id, range])
+  }, [selectedGame?.id, queryKey, range, apiCustom])
 
   const filteredTxns = useMemo(() => {
     const needle = customerQuery.trim().toLowerCase()
@@ -994,7 +996,7 @@ function GamesTab() {
                 role="tab"
                 aria-selected={range === item.id}
                 className={`vendor-games-filter-btn ${range === item.id ? 'vendor-games-filter-btn--active' : ''}`}
-                onClick={() => setRange(item.id)}
+                onClick={() => pickPreset(item.id)}
               >
                 {item.label}
               </button>
@@ -1113,6 +1115,7 @@ function GamesTab() {
             })}
           </ul>
         ) : null}
+        <CustomDateRangeModal {...modalProps} />
       </div>
     )
   }
@@ -1148,12 +1151,14 @@ function GamesTab() {
             role="tab"
             aria-selected={range === item.id}
             className={`vendor-games-filter-btn ${range === item.id ? 'vendor-games-filter-btn--active' : ''}`}
-            onClick={() => setRange(item.id)}
+            onClick={() => pickPreset(item.id)}
           >
             {item.label}
           </button>
         ))}
       </div>
+
+      <CustomDateRangeModal {...modalProps} />
 
       {error ? <p className="otp-error">{error}</p> : null}
       {loading ? <p className="vendor-analytics-empty">Loading game performance…</p> : null}
@@ -1261,7 +1266,8 @@ const EMPTY_SUMMARY: FinancialSummary = {
 }
 
 function FinancialTab() {
-  const [range, setRange] = useState<FinancialRange>('7d')
+  const rangeFilter = useCustomReportRange<FinancialRange>('7d')
+  const { preset: range, apiCustom, queryKey, pickPreset, modalProps } = rangeFilter
   const [summary, setSummary] = useState<FinancialSummary>(EMPTY_SUMMARY)
   const [daily, setDaily] = useState<DailyBreakdown[]>([])
   const [loading, setLoading] = useState(isApiConfigured())
@@ -1279,14 +1285,13 @@ function FinancialTab() {
       setDaily([])
       return
     }
-    const queryRange = range === 'custom' ? '7d' : range
     let cancelled = false
     ;(async () => {
       setLoading(true)
       setError('')
       try {
         const [res, promos, settings] = await Promise.all([
-          tapstackApi.vendorAnalytics(queryRange),
+          tapstackApi.vendorAnalytics(range, apiCustom),
           tapstackApi.vendorPromos().catch(() => ({ promotions: [] as { entries?: number; valueGiven?: string }[] })),
           tapstackApi.vendorSettings().catch(() => ({ games: undefined })),
         ])
@@ -1333,7 +1338,7 @@ function FinancialTab() {
     return () => {
       cancelled = true
     }
-  }, [range])
+  }, [queryKey, range, apiCustom])
 
   const maxBarValue = Math.max(1, ...daily.flatMap((day) => [day.inAmount, day.outAmount]))
 
@@ -1349,13 +1354,17 @@ function FinancialTab() {
               role="tab"
               aria-selected={range === item.id}
               className={`vendor-financial-range-btn ${range === item.id ? 'vendor-financial-range-btn--active' : ''}`}
-              onClick={() => setRange(item.id)}
+              onClick={() => pickPreset(item.id)}
             >
-              {item.label}
+              {item.id === 'custom' && rangeFilter.isCustom
+                ? formatCustomDateRangeLabel(rangeFilter.customRange.from, rangeFilter.customRange.to)
+                : item.label}
             </button>
           ))}
         </div>
       </div>
+
+      <CustomDateRangeModal {...modalProps} />
 
       {error ? <p className="otp-error">{error}</p> : null}
       {loading ? <p className="vendor-analytics-empty">Loading financials…</p> : null}
