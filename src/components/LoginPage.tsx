@@ -282,11 +282,11 @@ function PlayersLogin({
   const [smsConsent, setSmsConsent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const canSubmit = phone.trim().length > 0 && smsConsent && !loading
+  const canSubmit = phone.trim().length > 0 && !loading
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!phone.trim() || !smsConsent) return
+    if (!phone.trim()) return
     setError('')
 
     if (isApiConfigured()) {

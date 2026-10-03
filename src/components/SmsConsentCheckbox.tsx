@@ -19,6 +19,7 @@ export default function SmsConsentCheckbox({
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
+        aria-required={false}
       />
       <span>
         By providing your phone number, you agree to receive automated security verification and
