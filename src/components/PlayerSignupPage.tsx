@@ -38,13 +38,12 @@ export default function PlayerSignupPage({ onBack, onOpenLegal }: PlayerSignupPa
     fullName.trim().length >= 2 &&
     email.trim().includes('@') &&
     phone.trim().length >= 7 &&
-    smsConsent &&
     !loading
   const otpReady = code.length === 5 && !loading
 
   async function handleDetailsSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!detailsReady || !smsConsent) return
+    if (!detailsReady) return
     setError('')
 
     if (isApiConfigured()) {
