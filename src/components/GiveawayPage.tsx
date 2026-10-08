@@ -7,6 +7,14 @@ import {
   type GiveawayTicket,
   type TicketTier,
 } from '../api/client'
+import {
+  NITROPAY_TICKETS_PLACEMENT,
+  createTicketsVideoAd,
+  isNitropayBlocked,
+  nitropayDemoMode,
+  nitropayFailureMessage,
+  watchTicketsAdComplete,
+} from '../lib/nitropay'
 import './GiveawayPage.css'
 
 const CHIPS_PER_TICKET = 6
@@ -15,8 +23,8 @@ const MEGA_DRAW_PRIZE = 'WIN $10,000'
 const MEGA_DRAW_TAGLINE =
   'Free chances to enter. Each ticket is an automatic entry. More Tickets, more chances.'
 const DEMO_STORAGE_KEY = 'tapstack_giveaway_demo_v1'
-/** Bundled sample ad in /public — no WordPress upload needed for demo. */
-const DEMO_AD_VIDEO_SRC = '/demo-ad.mp4'
+/** Used when NitroPay is blocked (ad blocker) or running off tapstack.io. */
+const FALLBACK_AD_VIDEO_SRC = '/demo-ad.mp4'
 
 const TIER_RATES: Record<TicketTier, { label: string; dollars: number; tickets: number }> = {
   bronze: { label: 'Bronze', dollars: 40, tickets: 1 },
@@ -238,6 +246,9 @@ export default function GiveawayPage() {
   const [completing, setCompleting] = useState(false)
   const [deadlineLabel, setDeadlineLabel] = useState('')
   const [adError, setAdError] = useState('')
+  const [adReady, setAdReady] = useState(false)
+  const [adPlayer, setAdPlayer] = useState<'nitro' | 'fallback'>('nitro')
+  const [adblockAlert, setAdblockAlert] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const tierSectionRef = useRef<HTMLElement | null>(null)
   const yourTicketsRef = useRef<HTMLElement | null>(null)
@@ -245,6 +256,7 @@ export default function GiveawayPage() {
   const maxWatchedRef = useRef(0)
   const celebrateTimer = useRef<number | null>(null)
   const finishingRef = useRef(false)
+  const completedWatchRef = useRef(false)
 
   function applyAward(next: GiveawayState, newTickets: GiveawayTicket[], chipsBefore?: number) {
     if (celebrateTimer.current) {
@@ -346,26 +358,98 @@ export default function GiveawayPage() {
 
   useEffect(() => {
     if (!watching) return
-    const video = videoRef.current
-    if (!video) return
 
+    let cancelled = false
+    let nitroReady = false
     finishingRef.current = false
+    completedWatchRef.current = false
     maxWatchedRef.current = 0
+    setAdPlayer('nitro')
+    setAdReady(false)
     setWatchProgress(0)
     setAdError('')
-    video.muted = true
-    video.currentTime = 0
+    setAdblockAlert(false)
 
-    const playPromise = video.play()
-    if (playPromise) {
-      void playPromise.catch(() => {
-        setAdError('Tap play to start the ad. Watch it all the way through to earn your chip.')
-      })
+    const showBlockedAlert = () => {
+      if (cancelled || finishingRef.current || nitroReady) return
+      setAdblockAlert(true)
+      setAdReady(false)
+      setAdError('')
+    }
+
+    const useFallback = (message: string) => {
+      if (cancelled || finishingRef.current || nitroReady) return
+      setAdPlayer('fallback')
+      setAdReady(true)
+      setAdError(nitropayDemoMode() ? '' : message)
+      setWatchProgress(0)
+    }
+
+    const markComplete = () => {
+      if (cancelled || finishingRef.current) return
+      completedWatchRef.current = true
+      setWatchProgress(100)
+      void finishWatchAd()
+    }
+
+    let stopWatchingPlayer: (() => void) | null = null
+
+    void (async () => {
+      try {
+        await createTicketsVideoAd()
+        if (cancelled) return
+        nitroReady = true
+        setAdPlayer('nitro')
+        setAdReady(true)
+        setWatchProgress(0)
+        const slot = document.getElementById(NITROPAY_TICKETS_PLACEMENT)
+        if (slot) {
+          stopWatchingPlayer = watchTicketsAdComplete(slot, markComplete, (pct) => {
+            if (!cancelled && !finishingRef.current) setWatchProgress(pct)
+          })
+          if (cancelled) {
+            stopWatchingPlayer()
+            stopWatchingPlayer = null
+          }
+        }
+      } catch (err) {
+        if (isNitropayBlocked(err)) showBlockedAlert()
+        else useFallback(nitropayFailureMessage(err))
+      }
+    })()
+
+    const timeout = window.setTimeout(() => {
+      if (!cancelled && !finishingRef.current && !nitroReady) {
+        showBlockedAlert()
+      }
+    }, 12000)
+
+    return () => {
+      cancelled = true
+      stopWatchingPlayer?.()
+      window.clearTimeout(timeout)
     }
   }, [watching])
 
+  useEffect(() => {
+    if (!watching || adPlayer !== 'fallback') return
+    const video = videoRef.current
+    if (!video) return
+    finishingRef.current = false
+    completedWatchRef.current = false
+    maxWatchedRef.current = 0
+    video.muted = true
+    video.currentTime = 0
+    const playPromise = video.play()
+    if (playPromise) {
+      void playPromise.catch(() => {
+        setAdError('Tap play to start the video. Watch it all the way through to earn your chip.')
+      })
+    }
+  }, [watching, adPlayer])
+
   async function finishWatchAd() {
-    if (finishingRef.current) return
+    if (finishingRef.current || !completedWatchRef.current) return
     finishingRef.current = true
     setWatching(false)
     setWatchProgress(0)
@@ -405,13 +489,18 @@ export default function GiveawayPage() {
     setWatching(false)
     setWatchProgress(0)
     setAdError('')
+    setAdReady(false)
+    setAdPlayer('nitro')
+    setAdblockAlert(false)
     maxWatchedRef.current = 0
+    completedWatchRef.current = false
   }
 
   function startWatchAd() {
     if (busy || watching || !state || state.adsRemainingToday <= 0) return
     setError('')
     setAdError('')
+    setAdblockAlert(false)
     setWatching(true)
     setWatchProgress(0)
   }
@@ -426,13 +515,17 @@ export default function GiveawayPage() {
   function onAdSeeking() {
     const video = videoRef.current
     if (!video) return
-    // Block skipping ahead — must watch the full ad.
     if (video.currentTime > maxWatchedRef.current + 0.35) {
       video.currentTime = maxWatchedRef.current
     }
   }
 
   function onAdEnded() {
+    const video = videoRef.current
+    if (!video || !video.duration) return
+    const watched = Math.max(maxWatchedRef.current, video.currentTime)
+    if (watched < video.duration * 0.99) return
+    completedWatchRef.current = true
     setWatchProgress(100)
     void finishWatchAd()
   }
@@ -654,7 +747,35 @@ export default function GiveawayPage() {
           </button>
         </div>
 
-        {watching ? (
+        {adblockAlert ? (
+          <div
+            className="ad-watch-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="adblock-alert-title"
+            aria-describedby="adblock-alert-copy"
+          >
+            <button
+              type="button"
+              className="ad-watch-backdrop"
+              aria-label="Dismiss ad blocker alert"
+              onClick={cancelWatchAd}
+            />
+            <div className="adblock-alert">
+              <p id="adblock-alert-title" className="adblock-alert-title">
+                Ad blocker detected
+              </p>
+              <p id="adblock-alert-copy" className="adblock-alert-copy">
+                Turn off your ad blocker for this site, then tap Watch again to earn a chip.
+              </p>
+              <button type="button" className="adblock-alert-ok" onClick={cancelWatchAd}>
+                OK
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {watching && !adblockAlert ? (
           <div className="ad-watch-modal" role="dialog" aria-modal="true" aria-label="Sponsored video">
             <button
               type="button"
@@ -670,32 +791,49 @@ export default function GiveawayPage() {
                 </button>
               </div>
               <p className="ad-watch-copy">
-                Watch the full video to earn +1 chip. Skipping ahead is disabled.
+                Watch the full video to earn +1 chip. Closing early does not count.
+                {adPlayer === 'fallback'
+                  ? ' NitroPay was blocked, so a local video is playing instead.'
+                  : nitropayDemoMode()
+                    ? ' Off tapstack.io NitroPay runs in demo mode — an ad blocker will still block it.'
+                    : ''}
               </p>
               <div className="ad-watch-player">
-                <video
-                  ref={videoRef}
-                  className="ad-watch-video"
-                  src={DEMO_AD_VIDEO_SRC}
-                  playsInline
-                  muted
-                  controls
-                  controlsList="nodownload noplaybackrate noremoteplayback"
-                  disablePictureInPicture
-                  preload="auto"
-                  onTimeUpdate={onAdTimeUpdate}
-                  onSeeking={onAdSeeking}
-                  onEnded={onAdEnded}
-                  onError={() =>
-                    setAdError('Could not load the demo ad video. Refresh and try again.')
-                  }
-                />
+                {adPlayer === 'fallback' ? (
+                  <video
+                    ref={videoRef}
+                    className="ad-watch-video"
+                    src={FALLBACK_AD_VIDEO_SRC}
+                    playsInline
+                    muted
+                    controlsList="nodownload noplaybackrate noremoteplayback"
+                    disablePictureInPicture
+                    preload="auto"
+                    onTimeUpdate={onAdTimeUpdate}
+                    onSeeking={onAdSeeking}
+                    onEnded={onAdEnded}
+                    onError={() =>
+                      setAdError('Could not load the fallback video. Refresh and try again.')
+                    }
+                  />
+                ) : (
+                  <>
+                    <div id={NITROPAY_TICKETS_PLACEMENT} className="ad-watch-nitro" />
+                    {!adReady && !adError ? (
+                      <p className="ad-watch-loading">Loading sponsored video…</p>
+                    ) : null}
+                  </>
+                )}
               </div>
               <div className="ad-watch-bar" aria-hidden="true">
                 <div className="ad-watch-fill" style={{ width: `${watchProgress}%` }} />
               </div>
               <p className="ad-watch-progress-label">
-                {watchProgress < 100 ? `${watchProgress}% watched — keep watching` : 'Complete — awarding chip…'}
+                {watchProgress >= 100
+                  ? 'Complete — awarding chip…'
+                  : adReady
+                    ? 'Keep watching to earn your chip'
+                    : 'Connecting to video…'}
               </p>
               {adError ? <p className="ad-watch-error">{adError}</p> : null}
             </div>
