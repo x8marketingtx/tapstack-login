@@ -121,6 +121,8 @@ function App() {
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(() => getSessionRole())
   const [view, setView] = useState<AppView>(() => {
     migrateLegacyHash()
+    const incoming = parseLocation()
+    if (incoming.portal === 'play') setPendingPlayVendor(incoming.code)
     return resolveView(getViewFromLocation(), getSessionRole())
   })
   const [legalSection, setLegalSection] = useState<string | undefined>(() => {
@@ -320,6 +322,7 @@ function App() {
       }
     }
 
+    syncFromLocation()
     window.addEventListener('popstate', syncFromLocation)
     return () => {
       window.removeEventListener('popstate', syncFromLocation)
@@ -346,6 +349,14 @@ function App() {
         const nextRole = applyAuthSession(token, me.user)
         setSessionRole(nextRole)
         const current = parseLocation()
+        if (current.portal === 'play') {
+          setPendingPlayVendor(current.code)
+          if (nextRole === 'player') {
+            navigate({ portal: 'customer', tab: 'games', vendorId: current.code }, 'replace')
+            setView('customer')
+            return
+          }
+        }
         const resolved = resolveView(viewFromRoute(current), nextRole)
         setView(resolved)
         if (viewFromRoute(current) !== resolved) {

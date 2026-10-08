@@ -119,7 +119,6 @@ export default function VendorOrderDetailModal({
       order?.type === 'affiliate-payout' ||
       order?.type === 'game-transfer') &&
     (status === 'pending' || status === 'failed' || needsGameLoad)
-  const noteReady = true
 
   async function copyText(label: string, value: string) {
     try {
@@ -133,7 +132,7 @@ export default function VendorOrderDetailModal({
   }
 
   async function completeOrder() {
-    if (!orderId || actionBusy || !noteReady) return
+    if (!orderId || actionBusy) return
     setActionBusy('complete')
     setActionNote('')
     try {
@@ -159,7 +158,7 @@ export default function VendorOrderDetailModal({
   }
 
   async function rejectOrder() {
-    if (!orderId || actionBusy || !noteReady) return
+    if (!orderId || actionBusy) return
     setActionBusy('reject')
     setActionNote('')
     try {
@@ -373,16 +372,15 @@ export default function VendorOrderDetailModal({
                       </p>
                     ) : null}
                     <label htmlFor="vod-staff-note">
-                      Staff note <span className="vod-required">required</span>
+                      Staff note <span className="vod-optional">optional</span>
                     </label>
                     <textarea
                       id="vod-staff-note"
                       className="vod-staff-note"
                       rows={3}
-                      placeholder="Add a note for this completion or rejection"
+                      placeholder="Optional note for this completion or rejection"
                       value={staffNote}
                       onChange={(event) => setStaffNote(event.target.value)}
-                      required
                     />
                     {order.type === 'redeem' || order.type === 'game-transfer' ? (
                       <div className="vod-payout-tags">
@@ -414,7 +412,7 @@ export default function VendorOrderDetailModal({
                     <button
                       type="button"
                       className="vod-complete-btn"
-                      disabled={Boolean(actionBusy) || !noteReady}
+                      disabled={Boolean(actionBusy)}
                       onClick={() => void completeOrder()}
                     >
                       {actionBusy === 'complete'
@@ -435,7 +433,7 @@ export default function VendorOrderDetailModal({
                     <button
                       type="button"
                       className="vod-reject-btn"
-                      disabled={Boolean(actionBusy) || !noteReady}
+                      disabled={Boolean(actionBusy)}
                       onClick={() => void rejectOrder()}
                     >
                       {actionBusy === 'reject' ? 'Rejecting…' : 'Reject & refund'}

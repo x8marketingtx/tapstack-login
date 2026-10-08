@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApiError, applyAuthSession, getToken, tapstackApi } from '../api/client'
 import { TERMS_POLICY_SECTIONS } from '../data/termsPolicy'
@@ -11,6 +11,10 @@ const VOLUME_RANGES = [
   { value: '50k-plus', label: '$50,000+ / mo' },
 ]
 
+function termsFullyRead(el: HTMLDivElement): boolean {
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - 24
+}
+
 export default function VendorOnboardingModal({
   missingFields,
   onComplete,
@@ -22,6 +26,7 @@ export default function VendorOnboardingModal({
   const [agreed, setAgreed] = useState(false)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
   const [facebookPage, setFacebookPage] = useState('')
   const [facebookGroup, setFacebookGroup] = useState('')
   const [automatedSite, setAutomatedSite] = useState('')
@@ -29,17 +34,32 @@ export default function VendorOnboardingModal({
   const [monthlyVolume, setMonthlyVolume] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const termsRef = useRef<HTMLDivElement>(null)
 
   const needs = useMemo(() => new Set(missingFields), [missingFields])
   const needsPresence = needs.has('onlinePresence')
   const hasPresence =
     facebookPage.trim() || facebookGroup.trim() || automatedSite.trim() || mainWebsite.trim()
 
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  useEffect(() => {
+    const el = termsRef.current
+    if (el && termsFullyRead(el)) setScrolled(true)
+  }, [])
+
   const canSubmit =
     agreed &&
     scrolled &&
     (!needs.has('fullName') || fullName.trim().length > 0) &&
     (!needs.has('phone') || phone.trim().length > 0) &&
+    (!needs.has('address') || address.trim().length > 0) &&
     (!needsPresence || Boolean(hasPresence)) &&
     (!needs.has('monthlyVolume') || monthlyVolume.length > 0) &&
     !busy
@@ -54,6 +74,7 @@ export default function VendorOnboardingModal({
         termsAccepted: true,
         fullName: fullName.trim(),
         phone: phone.trim(),
+        address: address.trim(),
         facebookPage: facebookPage.trim(),
         facebookGroup: facebookGroup.trim(),
         automatedSite: automatedSite.trim(),
@@ -89,10 +110,10 @@ export default function VendorOnboardingModal({
         </p>
 
         <div
+          ref={termsRef}
           className="vendor-onboard-terms"
           onScroll={(event) => {
-            const el = event.currentTarget
-            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setScrolled(true)
+            if (termsFullyRead(event.currentTarget)) setScrolled(true)
           }}
         >
           {TERMS_POLICY_SECTIONS.map((section) => (
@@ -129,6 +150,17 @@ export default function VendorOnboardingModal({
           <label className="vendor-onboard-field">
             Phone
             <input value={phone} onChange={(event) => setPhone(event.target.value)} required />
+          </label>
+        ) : null}
+        {needs.has('address') ? (
+          <label className="vendor-onboard-field">
+            Physical address
+            <input
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder="Street, city, state, ZIP"
+              required
+            />
           </label>
         ) : null}
         {needsPresence ? (

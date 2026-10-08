@@ -12,7 +12,7 @@ import type { Vendor } from '../data/vendors'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
 import ActivityPager from './ActivityPager'
 import LoadReceiptModal from './LoadReceiptModal'
-import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
+import { pageItems } from '../lib/refresh'
 import './AccountPage.css'
 
 const QUICK_POINTS = [500, 1000, 2000]
@@ -191,25 +191,6 @@ export default function AccountPage({
   useEffect(() => {
     setLedgerPage(1)
   }, [timeFilter, roomFilter])
-
-  useIntervalRefresh(() => {
-    if (!isApiConfigured()) return
-    void tapstackApi
-      .customerWallet()
-      .then((res) => {
-        if (Array.isArray(res.recentTx)) {
-          setFetchedTxns((prev) => mergeTxns(res.recentTx, prev))
-        }
-        if (onWalletUpdate && res.wallet) {
-          onWalletUpdate({
-            balance: res.wallet.balance,
-            formatted: res.wallet.formatted,
-            points: res.wallet.points,
-          })
-        }
-      })
-      .catch(() => undefined)
-  }, MONEY_REFRESH_MS, isApiConfigured())
 
   function handleQuickPoints(value: number) {
     setSelectedQuickPoints(value)

@@ -417,6 +417,45 @@
   font-size: 12px;
 }
 
+.admin-vendor-detail-affiliate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.admin-vendor-detail-affiliate-select {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.admin-vendor-detail-affiliate-select:focus {
+  border-color: #1e3a5f;
+}
+
+.admin-vendor-detail-affiliate-save {
+  height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: #1e3a5f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-vendor-detail-affiliate-save:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .admin-vendor-detail-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

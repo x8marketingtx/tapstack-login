@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -13,6 +14,7 @@ import { gameArtUrl } from '../data/gameArt'
 import { gamePlayUrl, openGamePlay } from '../data/gamePlay'
 import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
+import { MONEY_REFRESH_GAME_LIMIT, MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader from './DashboardHeader'
 import type { PlayerProfile } from './ProfilePage'
@@ -504,11 +506,14 @@ export default function VendorPage({
   async function refreshGameBalance(
     vendorId: number | string,
     gameKey: string,
+    silent = false,
   ) {
-    setGameBalances((current) => ({
-      ...current,
-      [gameKey]: { status: 'loading', formatted: current[gameKey]?.formatted || '' },
-    }))
+    if (!silent) {
+      setGameBalances((current) => ({
+        ...current,
+        [gameKey]: { status: 'loading', formatted: current[gameKey]?.formatted || '' },
+      }))
+    }
     try {
       const res = await tapstackApi.vendorGameBalance(vendorId, gameKey)
       const payableFormatted = res.payableFormatted || res.formatted || '—'
@@ -523,6 +528,7 @@ export default function VendorPage({
         },
       }))
     } catch {
+      if (silent) return
       setGameBalances((current) => ({
         ...current,
         [gameKey]: { status: 'unavailable', formatted: '—' },
@@ -530,19 +536,19 @@ export default function VendorPage({
     }
   }
 
-  async function refreshPendingOrders(vendorId: number | string) {
+  async function refreshPendingOrders(vendorId: number | string, silent = false) {
     if (!isApiConfigured() || !vendorId) {
       setPendingOrders([])
       return
     }
-    setPendingLoading(true)
+    if (!silent) setPendingLoading(true)
     try {
       const res = await tapstackApi.customerVendorOrders(vendorId)
       setPendingOrders(res.pending || [])
     } catch {
       /* keep previous */
     } finally {
-      setPendingLoading(false)
+      if (!silent) setPendingLoading(false)
     }
   }
 
@@ -550,6 +556,26 @@ export default function VendorPage({
     if (!vendor.id || !isApiConfigured()) return
     void refreshPendingOrders(vendor.id)
   }, [vendor.id])
+
+  const pollVendorMoney = useCallback(() => {
+    const vendorId = vendor.id
+    if (!vendorId || !isApiConfigured()) return
+    const tasks: Array<Promise<unknown>> = [refreshPendingOrders(vendorId, true)]
+    if (activeTab === 'games' && !gamesLoading) {
+      const keys: string[] = []
+      for (const game of vendor.games) {
+        const key = gameKeyFor(game)
+        const connected = Boolean(connectedGames[key] || connectedGames[game.name] || game.connected)
+        if (!connected || game.mode !== 'auto') continue
+        if (!keys.includes(key)) keys.push(key)
+        if (keys.length >= MONEY_REFRESH_GAME_LIMIT) break
+      }
+      for (const key of keys) tasks.push(refreshGameBalance(vendorId, key, true))
+    }
+    return Promise.all(tasks)
+  }, [activeTab, connectedGames, gamesLoading, vendor.games, vendor.id])
+
+  useIntervalRefresh(pollVendorMoney, MONEY_REFRESH_MS, isApiConfigured() && Boolean(vendor.id))
 
   useEffect(() => {
     if (!isApiConfigured() || !vendor.id) {

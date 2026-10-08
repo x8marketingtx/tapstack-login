@@ -6,6 +6,7 @@ import {
   type AdminDistributor,
   type AdminDistributorDetail,
   type AdminPeriodStats,
+  type AdminVendor,
 } from '../api/client'
 import { AdminHeader } from './AdminHeader'
 import './AdminDistributorsPage.css'
@@ -123,17 +124,35 @@ function DistributorsSkeleton() {
   )
 }
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function DistributorDetailView({
   distributorId,
   onBack,
+  onNetworkChanged,
 }: {
   distributorId: string
   onBack: () => void
+  onNetworkChanged?: () => void
 }) {
   const [range, setRange] = useState<DetailRange>('month')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [detail, setDetail] = useState<AdminDistributorDetail | null>(null)
+  const [allVendors, setAllVendors] = useState<AdminVendor[]>([])
+  const [vendorPick, setVendorPick] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
+  const [removeBusyId, setRemoveBusyId] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -161,11 +180,82 @@ function DistributorDetailView({
     return () => {
       cancelled = true
     }
-  }, [distributorId])
+  }, [distributorId, reloadKey])
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setAllVendors([])
+      return
+    }
+    let cancelled = false
+    tapstackApi
+      .adminVendors()
+      .then((res) => {
+        if (!cancelled) setAllVendors(res.vendors || [])
+      })
+      .catch(() => {
+        if (!cancelled) setAllVendors([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reloadKey])
 
   const agent = detail?.distributor
   const stats = detail?.stats?.[range] ?? EMPTY_STATS
   const status = normalizeStatus(agent?.status || 'active')
+  const linkedIds = new Set((detail?.vendors || []).map((vendor) => vendor.id))
+  const candidates = allVendors.filter((vendor) => !linkedIds.has(vendor.id))
+  const affiliateLink = agent?.affiliateLink || ''
+  const affiliateDisplay = agent?.affiliateLinkDisplay || affiliateLink
+
+  function markChanged() {
+    setReloadKey((key) => key + 1)
+    onNetworkChanged?.()
+  }
+
+  async function addVendor() {
+    if (!vendorPick || addBusy) return
+    setAddBusy(true)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await tapstackApi.adminVendorAssignDistributor(vendorPick, distributorId)
+      setVendorPick('')
+      setSuccess(`${res.distributor || agent?.name || 'Distributor'} is now this vendor's affiliate.`)
+      markChanged()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not link vendor.')
+    } finally {
+      setAddBusy(false)
+    }
+  }
+
+  async function removeVendor(vendorId: string, name: string) {
+    if (removeBusyId) return
+    setRemoveBusyId(vendorId)
+    setError('')
+    setSuccess('')
+    try {
+      await tapstackApi.adminVendorAssignDistributor(vendorId, null)
+      setSuccess(`${name} moved back under TapStack.`)
+      markChanged()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not unlink vendor.')
+    } finally {
+      setRemoveBusyId('')
+    }
+  }
+
+  async function copyAffiliate() {
+    const ok = await copyText(affiliateLink)
+    if (!ok) {
+      setError('Could not copy affiliate link.')
+      return
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1600)
+  }
 
   return (
     <div className="admin-distributor-detail">
@@ -174,6 +264,7 @@ function DistributorDetailView({
       </button>
 
       {error ? <p className="admin-api-error">{error}</p> : null}
+      {success ? <p className="admin-api-success">{success}</p> : null}
 
       {loading || !agent ? (
         <div aria-busy="true" aria-label="Loading agent details">
@@ -211,6 +302,25 @@ function DistributorDetailView({
               <p className="admin-distributor-detail-info-value">{agent.earned}</p>
             </article>
           </div>
+
+          <section className="admin-distributor-detail-affiliate" aria-label="Affiliate link">
+            <h2 className="admin-distributor-detail-vendors-title">Affiliate join link</h2>
+            <p className="admin-distributor-detail-affiliate-copy">
+              New vendors who sign up through this link join this distributor. Existing vendors can
+              only be moved here from this page or Vendor Management.
+            </p>
+            <div className="admin-distributor-detail-affiliate-row">
+              <input readOnly value={affiliateDisplay} aria-label="Affiliate join link" />
+              <button
+                type="button"
+                className="admin-distributor-detail-affiliate-copy-btn"
+                disabled={!affiliateLink}
+                onClick={() => void copyAffiliate()}
+              >
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </section>
 
           <div className="admin-distributor-detail-ranges" role="tablist" aria-label="Stats range">
             {DETAIL_RANGES.map((item) => (
@@ -252,7 +362,35 @@ function DistributorDetailView({
           </div>
 
           <section className="admin-distributor-detail-vendors">
-            <h2 className="admin-distributor-detail-vendors-title">Vendors this month</h2>
+            <h2 className="admin-distributor-detail-vendors-title">Vendors</h2>
+            <div className="admin-distributor-detail-add">
+              <select
+                value={vendorPick}
+                disabled={addBusy || candidates.length === 0}
+                onChange={(event) => setVendorPick(event.target.value)}
+                aria-label="Add vendor"
+              >
+                <option value="">
+                  {candidates.length === 0 ? 'All vendors already linked' : 'Select a vendor'}
+                </option>
+                {candidates.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.name}
+                    {vendor.distributor && vendor.distributor !== 'Direct'
+                      ? ` · currently ${vendor.distributor}`
+                      : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="admin-distributor-detail-add-btn"
+                disabled={addBusy || !vendorPick}
+                onClick={() => void addVendor()}
+              >
+                {addBusy ? 'Adding…' : 'Add'}
+              </button>
+            </div>
             {(detail.vendors || []).length === 0 ? (
               <p className="admin-empty-hint">No vendors linked to this agent.</p>
             ) : (
@@ -271,6 +409,14 @@ function DistributorDetailView({
                         Sales {vendor.sales} · Redeem {vendor.redeems} · Net {vendor.net}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      className="admin-distributor-detail-remove"
+                      disabled={removeBusyId === vendor.id}
+                      onClick={() => void removeVendor(vendor.id, vendor.name)}
+                    >
+                      {removeBusyId === vendor.id ? '…' : 'Remove'}
+                    </button>
                   </article>
                 ))}
               </div>
@@ -287,6 +433,7 @@ export default function AdminDistributorsPage() {
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -317,7 +464,7 @@ export default function AdminDistributorsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reloadKey])
 
   const activeCount = distributors.filter((distributor) => distributor.status === 'active').length
 
@@ -325,7 +472,11 @@ export default function AdminDistributorsPage() {
     return (
       <div className="admin-distributors-page">
         <AdminHeader />
-        <DistributorDetailView distributorId={selectedId} onBack={() => setSelectedId(null)} />
+        <DistributorDetailView
+          distributorId={selectedId}
+          onBack={() => setSelectedId(null)}
+          onNetworkChanged={() => setReloadKey((key) => key + 1)}
+        />
       </div>
     )
   }

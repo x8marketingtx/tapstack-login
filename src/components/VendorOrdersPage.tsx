@@ -135,6 +135,26 @@ function LoadsTab({
   onOpenOrder: (id: string) => void
   onComplete: (id: string) => void
 }) {
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [, setWaitTick] = useState(0)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setWaitTick((tick) => tick + 1), 15000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  async function copyMobileId(orderId: string, mobileId: string) {
+    try {
+      await navigator.clipboard.writeText(mobileId)
+      setCopiedId(orderId)
+      window.setTimeout(() => {
+        setCopiedId((current) => (current === orderId ? null : current))
+      }, 1600)
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
   return (
     <div className="vendor-orders-content">
       <div className="vendor-orders-notice">
@@ -164,78 +184,70 @@ function LoadsTab({
         ) : (
           <ul className="vendor-orders-list">
             {manualLoads.map((load) => (
-              <li key={load.id} className="vendor-order-card">
-                <button
-                  type="button"
-                  className={`vendor-order-check${busyId === load.id ? ' is-busy' : ''}`}
-                  aria-label={`Complete ${load.game || load.name} load`}
-                  disabled={busyId === load.id}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onComplete(load.id)
-                  }}
+              <li
+                key={load.id}
+                className="vendor-order-card vendor-order-card--manual is-openable"
+                onClick={() => onOpenOrder(load.id)}
+              >
+                <label
+                  className={`vendor-order-complete${busyId === load.id ? ' is-busy' : ''}`}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                 >
-                  {busyId === load.id ? '…' : null}
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    disabled={busyId === load.id}
+                    aria-label={`Mark ${load.game || load.name} load completed`}
+                    onChange={(event) => {
+                      event.stopPropagation()
+                      if (event.target.checked) onComplete(load.id)
+                    }}
+                  />
+                  <span>Completed</span>
+                </label>
 
-                <button
-                  type="button"
-                  className="vendor-order-open"
-                  onClick={() => onOpenOrder(load.id)}
-                >
-                  <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>
-                    {decodeIcon(load.icon || '🎮', load.game)}
-                  </div>
+                <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>
+                  {decodeIcon(load.icon || '🎮', load.game)}
+                </div>
 
-                  <div className="vendor-order-details">
-                    <p className="vendor-order-name">
-                      {[load.game || 'Game', load.mobileId].filter(Boolean).join(' · ')}
+                <div className="vendor-order-details">
+                  <p className="vendor-order-name">{load.game || 'Game'}</p>
+                  {load.mobileId ? (
+                    <p className="vendor-order-mobile">
+                      <span className="vendor-order-mobile-id">{load.mobileId}</span>
+                      <button
+                        type="button"
+                        className="vendor-order-copy"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void copyMobileId(load.id, load.mobileId || '')
+                        }}
+                      >
+                        {copiedId === load.id ? 'Copied' : 'Copy'}
+                      </button>
                     </p>
-                    <p className="vendor-order-meta">{[load.name || 'Player', load.method, load.time].filter(Boolean).join(' · ')}</p>
-                    {load.mobileId ? (
-                      <p className="vendor-order-mobile">
-                        Mobile ID {load.mobileId}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="vendor-order-copy"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            event.preventDefault()
-                            void navigator.clipboard.writeText(load.mobileId || '')
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              void navigator.clipboard.writeText(load.mobileId || '')
-                            }
-                          }}
-                        >
-                          Copy
-                        </span>
-                      </p>
-                    ) : null}
-                    {waitingLabel(load) ? <p className="vendor-order-wait">{waitingLabel(load)}</p> : null}
-                    {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
-                    <PromoNote item={load} />
-                    {(load.payoutTags || load.playerTags || []).length > 0 ? (
-                      <p className="vendor-order-tags">
-                        {(load.payoutTags || load.playerTags || []).join(' · ')}
-                      </p>
-                    ) : null}
-                  </div>
+                  ) : null}
+                  <p className="vendor-order-player">{load.name || 'Player'}</p>
+                  {waitingLabel(load) ? <p className="vendor-order-wait">{waitingLabel(load)}</p> : null}
+                  {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
+                  <PromoNote item={load} />
+                  {(load.payoutTags || load.playerTags || []).length > 0 ? (
+                    <p className="vendor-order-tags">
+                      {(load.payoutTags || load.playerTags || []).join(' · ')}
+                    </p>
+                  ) : null}
+                </div>
 
-                  <div className="vendor-order-right">
-                    <span className="vendor-order-amount">
-                      {formatSignedAmount(
-                        couponExtra(load) > 0 ? formatUsd(gameLoadTotal(load)) : load.amount,
-                        true,
-                      )}
-                    </span>
-                    <OrderStatusBadge item={load} />
-                  </div>
-                </button>
+                <div className="vendor-order-right">
+                  <span className="vendor-order-amount">
+                    {formatSignedAmount(
+                      couponExtra(load) > 0 ? formatUsd(gameLoadTotal(load)) : load.amount,
+                      true,
+                    )}
+                  </span>
+                  <OrderStatusBadge item={load} />
+                </div>
               </li>
             ))}
           </ul>

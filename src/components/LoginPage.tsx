@@ -199,7 +199,7 @@ function PortalLogin({
         </div>
         <p className="subtitle">
           {pendingAffiliate
-            ? `Sign in to become an affiliate of ${pendingAffiliate}`
+            ? `New vendors only: apply to join ${pendingAffiliate}. Existing vendors cannot become affiliates.`
             : copy.subtitle}
         </p>
       </div>

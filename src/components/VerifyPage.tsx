@@ -55,6 +55,8 @@ export default function VerifyPage({
     const mapped = emptyVerification({
       ...next,
       required: next.required !== false,
+      kycDeferred: Boolean(next.kycDeferred),
+      imported: Boolean(next.imported),
     })
     setState(mapped)
     if (mapped.defaultDocumentType) setDocumentType(mapped.defaultDocumentType)
@@ -463,11 +465,22 @@ export default function VerifyPage({
             tone="bad"
           />
           <p className="verify-card-copy">
-            After 3 failed verification attempts this account is blocked. A vendor may still
-            force-approve you for their room only.
+            This scan was not approved. You can try again, or a vendor may force-approve you for
+            their room only.
           </p>
+          <button
+            type="button"
+            className="verify-btn verify-btn--primary"
+            disabled={busy || (!state.canRetry && !state.verificationLink)}
+            onClick={() => {
+              const reuseExisting = Boolean(state.verificationLink) && !state.canRetry
+              void startIdentity(!reuseExisting && Boolean(state.verificationLink))
+            }}
+          >
+            {busy ? 'Starting…' : 'Try again'}
+          </button>
           {locked ? null : (
-            <button type="button" className="verify-btn verify-btn--primary" onClick={onBack}>
+            <button type="button" className="verify-btn verify-btn--ghost" onClick={onBack}>
               Back
             </button>
           )}
@@ -484,9 +497,7 @@ export default function VerifyPage({
           <p className="verify-card-copy">
             {state.blockedReason === 'duplicate_license'
               ? 'An account already exists with this ID. Sign in to that account, or contact support if this is a mistake.'
-              : (state.failedAttempts || 0) >= 3
-                ? 'This account is blocked after 3 failed verification attempts. A vendor can force-approve you for their room only. Contact support@tapstack.io if you believe this is an error.'
-                : 'Contact support@tapstack.io if you believe this is an error.'}
+              : 'Contact support@tapstack.io if you believe this is an error.'}
           </p>
           {onLogout ? (
             <button type="button" className="verify-btn verify-btn--ghost" onClick={onLogout}>
@@ -682,6 +693,8 @@ function syncUserVerification(next: VerificationState): TapstackUser | null {
       canSpend: next.canSpend,
       pluginReady: next.pluginReady,
       required: next.required !== false,
+      kycDeferred: Boolean(next.kycDeferred),
+      imported: Boolean(next.imported),
       blockedReason: next.blockedReason ?? null,
       geoBlocked: Boolean(next.geoBlocked),
       geoReason: next.geoReason ?? null,
