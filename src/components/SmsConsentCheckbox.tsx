@@ -24,8 +24,8 @@ export default function SmsConsentCheckbox({
       <span>
         By providing your phone number, you agree to receive automated security verification and
         one-time password (OTP) text messages from TapStack Inc to verify your identity. Message and
-        data rates may apply. Message frequency depends on user login activity. You can reply STOP at
-        any time to opt-out of these security texts. View our{' '}
+        data rates may apply. Message frequency depends on user login activity.         You can reply STOP at any time to opt-out of these security texts. Reply HELP for help.
+        View our{' '}
         <button
           type="button"
           className="sms-consent-link"
