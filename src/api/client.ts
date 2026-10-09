@@ -188,6 +188,7 @@ export type AdminVendorDetail = {
     username?: string
     tier?: string
     distributorId?: string | null
+    network?: 'tapstack' | 'distributor' | string
     createdAt?: string
   }
   wallet: { balance: string; balanceAmount: number; currency: string }
@@ -224,6 +225,9 @@ export type AdminDistributorDetail = {
   distributor: AdminDistributor & {
     email?: string
     earnedAmount?: number
+    affiliateSlug?: string
+    affiliateLink?: string
+    affiliateLinkDisplay?: string
   }
   wallet: { balance: string; balanceAmount: number; currency: string }
   stats: {
@@ -1210,12 +1214,12 @@ export const tapstackApi = {
       accounts: VendorGameAccount[]
       orders: VendorOrderItem[]
     }>(`/vendor/orders/${id}`),
-  vendorOrderApprove: (id: number | string, payload?: { staffNote: string; payoutTags?: string[] }) =>
+  vendorOrderApprove: (id: number | string, payload?: { staffNote?: string; payoutTags?: string[] }) =>
     apiRequest<{ ok: boolean; status: string }>('/vendor/orders/' + id + '/approve', {
       method: 'POST',
       body: payload ?? {},
     }),
-  vendorOrderReject: (id: number | string, payload?: { staffNote: string; payoutTags?: string[] }) =>
+  vendorOrderReject: (id: number | string, payload?: { staffNote?: string; payoutTags?: string[] }) =>
     apiRequest<{ ok: boolean; status: string }>('/vendor/orders/' + id + '/reject', {
       method: 'POST',
       body: payload ?? {},
@@ -1516,6 +1520,7 @@ export const tapstackApi = {
     termsAccepted: boolean
     fullName?: string
     phone?: string
+    address?: string
     facebookPage?: string
     facebookGroup?: string
     automatedSite?: string
@@ -1865,6 +1870,18 @@ export const tapstackApi = {
     apiRequest<{ ok: boolean; id: string; status: string }>(`/admin/vendors/${id}`, {
       method: 'PATCH',
       body: { status },
+    }),
+  adminVendorAssignDistributor: (id: string | number, distributorId: string | number | null) =>
+    apiRequest<{
+      ok: boolean
+      id: string
+      status: string
+      distributor: string
+      distributorId: string | null
+      network: string
+    }>(`/admin/vendors/${id}`, {
+      method: 'PATCH',
+      body: { distributorId },
     }),
   adminDistributors: () => apiRequest<{ distributors: AdminDistributor[] }>('/admin/distributors'),
   adminDistributorDetail: (id: string | number) =>
@@ -2452,6 +2469,8 @@ export type CustomerVerifyState = {
   canRetry: boolean
   rateLimitReason?: string
   required?: boolean
+  kycDeferred?: boolean
+  imported?: boolean
   message: string
   failedAttempts?: number
 }

@@ -13,7 +13,6 @@ import './ApplyPage.css'
 export default function JoinPage({
   slug,
   onPlayerNoop,
-  onNeedVendorLogin,
   onVendorJoined,
   onVendorApply,
   onInvalid,
@@ -21,11 +20,11 @@ export default function JoinPage({
   slug: string
   /** Logged-in player: affiliate links do nothing on the player side. */
   onPlayerNoop: () => void
-  /** Logged out: continue as vendor login / apply. */
-  onNeedVendorLogin: () => void
-  /** Logged-in vendor joined the distributor network. */
+  /** Unused: affiliate links go to the signup form, not login. */
+  onNeedVendorLogin?: () => void
+  /** Logged-in vendor cannot join; return them to the vendor portal. */
   onVendorJoined: () => void
-  /** No vendor store yet → open apply under this affiliate. */
+  /** New vendor → open apply under this affiliate. */
   onVendorApply: () => void
   onInvalid: () => void
 }) {
@@ -66,33 +65,14 @@ export default function JoinPage({
           return
         }
 
-        // Logged-in vendor with an existing store cannot become an affiliate.
+        // Existing vendors cannot become affiliates of any distributor.
         if (token && role === 'vendor') {
-          if (isApiConfigured() && !token.startsWith('demo:')) {
-            try {
-              await tapstackApi.vendorJoinDistributor(joinSlug)
-            } catch (err) {
-              if (err instanceof ApiError && err.code === 'tapstack_existing_vendor') {
-                setError(
-                  err.message ||
-                    'Existing vendors cannot join a distributor network. Affiliate links are for new vendor signups only.',
-                )
-                window.setTimeout(() => {
-                  if (!cancelled) onVendorJoined()
-                }, 2200)
-                return
-              }
-              if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
-                if (cancelled) return
-                setPendingVendorJoin(joinSlug, distributorName)
-                onVendorApply()
-                return
-              }
-              throw err
-            }
-          }
-          if (cancelled) return
-          onVendorJoined()
+          setError(
+            'Existing vendors cannot join a distributor network. Affiliate links are for new vendor signups only.',
+          )
+          window.setTimeout(() => {
+            if (!cancelled) onVendorJoined()
+          }, 2200)
           return
         }
 
@@ -109,15 +89,15 @@ export default function JoinPage({
           return
         }
 
-        // Logged out (or admin): continue as vendor signup/login under this affiliate.
+        // New vendors must complete the signup form under this affiliate.
         setPendingVendorJoin(joinSlug, distributorName)
         setMessage(
           distributorName
-            ? `Sign in or apply as a vendor to join ${distributorName}…`
-            : 'Sign in or apply as a vendor to join this network…',
+            ? `Complete the vendor signup form to join ${distributorName}…`
+            : 'Complete the vendor signup form to join this network…',
         )
         if (cancelled) return
-        onNeedVendorLogin()
+        onVendorApply()
       } catch (err) {
         if (cancelled) return
         setError(err instanceof ApiError ? err.message : 'This invite link is invalid.')
@@ -128,7 +108,7 @@ export default function JoinPage({
     return () => {
       cancelled = true
     }
-  }, [slug, onPlayerNoop, onNeedVendorLogin, onVendorJoined, onVendorApply, onInvalid])
+  }, [slug, onPlayerNoop, onVendorJoined, onVendorApply, onInvalid])
 
   return (
     <div className="apply-page">

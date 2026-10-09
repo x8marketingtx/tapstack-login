@@ -26,7 +26,8 @@ import ActivityPager from './ActivityPager'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import {
   consumeVerifyReturn,
-  needsVerification,
+  mustBlockVendorPortal,
+  needsIdentityVerification,
   rememberVerifyReturn,
   verificationFromUser,
   type VerificationState,
@@ -305,6 +306,7 @@ function VendorHome({
   onGoPro,
   onCompleteKyc,
   onInviteCodeChange,
+  onWithdraw,
 }: {
   walletBalance: string
   storeName: string
@@ -314,6 +316,7 @@ function VendorHome({
   today: VendorHomeStats
   extras?: VendorHomeExtras
   onTopUp: () => void
+  onWithdraw: () => void
   onProfileClick: () => void
   onGoPro?: () => void
   onCompleteKyc?: () => void
@@ -325,14 +328,14 @@ function VendorHome({
   const [codeDraft, setCodeDraft] = useState(inviteCode)
   const [codeBusy, setCodeBusy] = useState(false)
   const [codeError, setCodeError] = useState('')
-  const checkout = directCheckoutLink(inviteCode || codeDraft)
+  const checkout = directCheckoutLink(inviteCode)
 
   useEffect(() => {
     setCodeDraft(inviteCode)
   }, [inviteCode])
 
   async function handleCopy(kind: 'code' | 'link') {
-    const value = kind === 'link' ? checkout.url : inviteCode || codeDraft
+    const value = kind === 'link' ? checkout.url : codeDraft || inviteCode
     if (!value) return
     try {
       await navigator.clipboard.writeText(value)
@@ -346,6 +349,10 @@ function VendorHome({
   async function handleSaveCode() {
     const next = codeDraft.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
     if (!next || next === inviteCode || !onInviteCodeChange) return
+    if (next.length < 4) {
+      setCodeError('Vendor code must be 4–16 letters or numbers.')
+      return
+    }
     setCodeBusy(true)
     setCodeError('')
     try {
@@ -359,6 +366,18 @@ function VendorHome({
 
   return (
     <div className="vendor-home">
+      {extras?.kycIncomplete && onCompleteKyc ? (
+        <div className="vendor-kyc-notice">
+          <div>
+            <p className="vendor-kyc-notice-title">Please complete your KYC verification</p>
+            <p className="vendor-kyc-notice-copy">Identity verification is required before moving money in or out.</p>
+          </div>
+          <button type="button" className="vendor-kyc-notice-btn" onClick={onCompleteKyc}>
+            Complete
+          </button>
+        </div>
+      ) : null}
+
       {extras?.distributorName ? (
         <section className="vendor-affiliate-bar">
           <p className="vendor-affiliate-bar-label">Affiliate of</p>
@@ -383,18 +402,6 @@ function VendorHome({
           </div>
         </button>
       </section>
-
-      {extras?.kycIncomplete && onCompleteKyc ? (
-        <div className="vendor-kyc-notice">
-          <div>
-            <p className="vendor-kyc-notice-title">Please complete your KYC verification</p>
-            <p className="vendor-kyc-notice-copy">Identity verification is required before moving money in or out.</p>
-          </div>
-          <button type="button" className="vendor-kyc-notice-btn" onClick={onCompleteKyc}>
-            Complete
-          </button>
-        </div>
-      ) : null}
 
       {onGoPro && !extras?.proActive ? (
         <button type="button" className="vendor-go-pro-card" onClick={onGoPro}>
@@ -424,7 +431,7 @@ function VendorHome({
             <button
               type="button"
               className="vendor-invite-btn"
-              disabled={codeBusy || !codeDraft || codeDraft === inviteCode}
+              disabled={codeBusy || codeDraft.length < 4 || codeDraft === inviteCode}
               onClick={() => void handleSaveCode()}
             >
               {codeBusy ? 'Saving' : 'Save'}
@@ -434,6 +441,7 @@ function VendorHome({
             </button>
           </div>
           {codeError ? <p className="vendor-invite-error">{codeError}</p> : null}
+          <p className="vendor-invite-hint">Must be unique — another vendor cannot use the same code.</p>
           {inviteCode ? (
             <>
               <p className="vendor-invite-label vendor-invite-label--sub">DIRECT CHECKOUT LINK</p>
@@ -464,7 +472,7 @@ function VendorHome({
           <button type="button" className="vendor-wallet-btn vendor-wallet-btn--outline" onClick={onTopUp}>
             + Top Up
           </button>
-          <button type="button" className="vendor-wallet-btn vendor-wallet-btn--primary">
+          <button type="button" className="vendor-wallet-btn vendor-wallet-btn--primary" onClick={onWithdraw}>
             Withdraw
           </button>
         </div>
@@ -667,7 +675,7 @@ export default function VendorDashboard({
   }, [activeTab, showProfile, showVerify])
 
   useEffect(() => {
-    if (!needsVerification(verification)) return
+    if (!mustBlockVendorPortal(verification)) return
     setShowProfile(false)
     setTopUpOpen(false)
     if (!showVerify) setShowVerify(true)
@@ -687,7 +695,7 @@ export default function VendorDashboard({
 
   function handleTabChange(tab: VendorTab) {
     if (tab !== 'settings') setSettingsTab('profile')
-    if (needsVerification(verification)) {
+    if (mustBlockVendorPortal(verification)) {
       setActiveTab(tab)
       setShowVerify(true)
       navigate({ portal: 'vendor', tab, verify: true }, 'replace')
@@ -702,7 +710,7 @@ export default function VendorDashboard({
   }
 
   function openProfile() {
-    if (needsVerification(verification)) {
+    if (mustBlockVendorPortal(verification)) {
       setShowVerify(true)
       navigate({ portal: 'vendor', tab: activeTab, verify: true }, 'replace')
       return
@@ -730,7 +738,7 @@ export default function VendorDashboard({
   function closeVerify() {
     const current = verificationFromUser(getSessionUser())
     setVerification(current)
-    if (needsVerification(current) || needsVerification(verification)) {
+    if (mustBlockVendorPortal(current) || mustBlockVendorPortal(verification)) {
       setShowVerify(true)
       navigate({ portal: 'vendor', tab: activeTab, verify: true }, 'replace')
       return
@@ -751,7 +759,7 @@ export default function VendorDashboard({
   function requireVerified(): boolean {
     const current = verificationFromUser(getSessionUser())
     setVerification(current)
-    if (!needsVerification(current)) return true
+    if (!needsIdentityVerification(current)) return true
     openVerify()
     return false
   }
@@ -854,44 +862,40 @@ export default function VendorDashboard({
     }
   }, [shouldLoadFromApi, onRoleMismatch, expectedRole])
 
-  useEffect(() => {
+  const refreshPendingCount = useCallback(async () => {
     if (!shouldLoadFromApi) return
-
-    let cancelled = false
-    async function refreshPendingCount() {
-      try {
-        const res = await tapstackApi.vendorOrders()
-        if (cancelled) return
-        const manual = Array.isArray(res.manualLoads) ? res.manualLoads : []
-        const auto = Array.isArray(res.autoLoads)
-          ? res.autoLoads.filter((item) => {
-              const status = String(item.status || '').toLowerCase()
-              return status !== 'approved' && status !== 'rejected'
-            })
-          : []
-        const redeems = Array.isArray(res.redeems) ? res.redeems : []
-        const items: VendorNotification[] = [
-          ...manual.map((item) => ({ ...item, kind: 'load' as const })),
-          ...auto.map((item) => ({ ...item, kind: 'load' as const })),
-          ...redeems.map((item) => ({ ...item, kind: 'redeem' as const })),
-        ]
-        setPendingNotifications(items)
-        setPendingOrderCount(items.length)
-      } catch {
-        if (!cancelled) {
-          setPendingOrderCount(0)
-          setPendingNotifications([])
-        }
-      }
+    try {
+      const res = await tapstackApi.vendorOrders()
+      const manual = Array.isArray(res.manualLoads) ? res.manualLoads : []
+      const auto = Array.isArray(res.autoLoads)
+        ? res.autoLoads.filter((item) => {
+            const status = String(item.status || '').toLowerCase()
+            return status !== 'approved' && status !== 'rejected'
+          })
+        : []
+      const redeems = Array.isArray(res.redeems) ? res.redeems : []
+      const items: VendorNotification[] = [
+        ...manual.map((item) => ({ ...item, kind: 'load' as const })),
+        ...auto.map((item) => ({ ...item, kind: 'load' as const })),
+        ...redeems.map((item) => ({ ...item, kind: 'redeem' as const })),
+      ]
+      setPendingNotifications(items)
+      setPendingOrderCount(items.length)
+    } catch {
+      setPendingOrderCount(0)
+      setPendingNotifications([])
     }
+  }, [shouldLoadFromApi])
 
+  useEffect(() => {
     void refreshPendingCount()
-    const timer = window.setInterval(() => void refreshPendingCount(), MONEY_REFRESH_MS)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-    }
-  }, [shouldLoadFromApi, activeTab, notificationsOpen])
+  }, [refreshPendingCount, activeTab, notificationsOpen])
+
+  useIntervalRefresh(
+    refreshPendingCount,
+    MONEY_REFRESH_MS,
+    shouldLoadFromApi && activeTab !== 'orders' && !showVerify,
+  )
 
   const refreshVendorMoney = useCallback(() => {
     if (!shouldLoadFromApi) return
@@ -923,7 +927,7 @@ export default function VendorDashboard({
       .catch(() => undefined)
   }, [shouldLoadFromApi])
 
-  useIntervalRefresh(refreshVendorMoney, MONEY_REFRESH_MS, shouldLoadFromApi)
+  useIntervalRefresh(refreshVendorMoney, MONEY_REFRESH_MS, shouldLoadFromApi && !showVerify)
 
   async function openNotifications() {
     setNotificationsOpen(true)
@@ -959,7 +963,14 @@ export default function VendorDashboard({
 
   const initials = profile.initials || initialsFromName(profile.displayName)
 
-  const verifyLocked = needsVerification(verification)
+  const verifyLocked = mustBlockVendorPortal(verification)
+
+  const onboardingModal = onboarding?.required ? (
+    <VendorOnboardingModal
+      missingFields={onboarding.missingFields || []}
+      onComplete={() => setOnboarding({ required: false, termsAccepted: true, missingFields: [] })}
+    />
+  ) : null
 
   if (showVerify || verifyLocked) {
     return (
@@ -977,6 +988,7 @@ export default function VendorDashboard({
             }}
           />
         </main>
+        {onboardingModal}
       </div>
     )
   }
@@ -1040,15 +1052,14 @@ export default function VendorDashboard({
                 today={todayStats}
                 extras={{
                   ...homeExtras,
-                  kycIncomplete: Boolean(
-                    verification.pluginReady &&
-                      verification.required &&
-                      !verification.identityVerified,
-                  ),
+                  kycIncomplete: needsIdentityVerification(verification),
                 }}
                 onTopUp={() => {
                   if (!requireVerified()) return
                   setTopUpOpen(true)
+                }}
+                onWithdraw={() => {
+                  if (!requireVerified()) return
                 }}
                 onProfileClick={openProfile}
                 onCompleteKyc={openVerify}
@@ -1132,12 +1143,7 @@ export default function VendorDashboard({
         </div>
       ) : null}
 
-      {onboarding?.required ? (
-        <VendorOnboardingModal
-          missingFields={onboarding.missingFields || []}
-          onComplete={() => setOnboarding({ required: false, termsAccepted: true, missingFields: [] })}
-        />
-      ) : null}
+      {onboardingModal}
 
       <TopUpModal
         open={topUpOpen}

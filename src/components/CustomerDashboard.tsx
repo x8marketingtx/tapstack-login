@@ -906,6 +906,7 @@ export default function CustomerDashboard({
     verificationFromUser(cachedUser),
   )
   const [pendingVendorId, setPendingVendorId] = useState<string | null>(() => {
+    if (initialRoute.portal === 'play') return initialRoute.code
     if (initialRoute.portal === 'customer' && initialRoute.vendorId) return initialRoute.vendorId
     return peekPendingPlayVendor() || null
   })
@@ -1513,7 +1514,7 @@ export default function CustomerDashboard({
       .catch(() => undefined)
   }, [shouldLoadFromApi])
 
-  useIntervalRefresh(refreshMoney, MONEY_REFRESH_MS, shouldLoadFromApi)
+  useIntervalRefresh(refreshMoney, MONEY_REFRESH_MS, shouldLoadFromApi && !showVerify)
 
   async function handleAddVendor() {
     const code = inviteCode.trim().toUpperCase()

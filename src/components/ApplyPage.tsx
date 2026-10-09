@@ -319,7 +319,7 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
           <p className="apply-subtitle">
             {affiliateSlug
               ? `Join ${distributorName || 'this distributor'}'s vendor network — fill out the form below.`
-              : 'Fill out the form below and our team will be in touch.'}
+              : 'Fill out the form below. Vendors who sign up without a distributor invite are listed under TapStack.'}
           </p>
           {affiliateSlug && !submitted ? (
             <p className="apply-join-note">

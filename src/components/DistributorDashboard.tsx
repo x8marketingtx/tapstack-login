@@ -698,7 +698,7 @@ export default function DistributorDashboard({
     const token = getToken()
     if (!isApiConfigured() || !token || token.startsWith('demo:') || loading) return
     if (tab === 'home') void loadHome().catch(() => undefined)
-  }, MONEY_REFRESH_MS, true)
+  }, MONEY_REFRESH_MS, isApiConfigured() && !loading && tab === 'home')
 
   useEffect(() => {
     if (loading || tab !== 'home') return
@@ -1800,8 +1800,8 @@ function SettingsView({
               </p>
             ) : null}
             <p className="dist-muted">
-              Share this link in your marketing — vendors who sign up through it are automatically added to your
-              network.
+              Share this with new vendors only. They must complete the signup form. Existing vendors cannot
+              join your network. Vendors who sign up without this link are listed under TapStack.
             </p>
           </section>
 

@@ -455,6 +455,12 @@
   text-transform: lowercase;
 }
 
+.vod-optional {
+  color: #9ca3af;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
 .vod-staff-note {
   width: 100%;
   margin: 6px 0 12px;

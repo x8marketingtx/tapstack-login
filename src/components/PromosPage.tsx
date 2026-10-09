@@ -9,6 +9,7 @@ import ReportImageButton from './ReportImageButton'
 import './PromosPage.css'
 
 const CACHE_TTL_MS = 60_000
+const MAX_VENDOR_CHIPS = 4
 
 let promosCache: PlayerPromo[] | null = null
 let promosCacheAt = 0
@@ -99,6 +100,14 @@ export default function PromosPage({
     }
     return Array.from(map.values())
   }, [scopedPromos])
+
+  const useVendorSelect = vendors.length > MAX_VENDOR_CHIPS
+
+  useEffect(() => {
+    if (filter !== 'all' && !vendors.some((vendor) => vendor.id === filter)) {
+      setFilter('all')
+    }
+  }, [filter, vendors])
 
   const visible = useMemo(() => {
     const byVendor = filter === 'all' ? scopedPromos : scopedPromos.filter((p) => p.vendorId === filter)
@@ -200,16 +209,11 @@ export default function PromosPage({
         </p>
       </div>
 
-      <div className="promo-filters" role="tablist" aria-label="Vendor filters">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={filter === 'all'}
-          className={`promo-filter ${filter === 'all' ? 'promo-filter--active' : ''}`}
-          onClick={() => setFilter('all')}
-        >
-          All
-        </button>
+      <div
+        className={`promo-filters${useVendorSelect ? ' promo-filters--select' : ''}`}
+        role={useVendorSelect ? undefined : 'tablist'}
+        aria-label="Vendor filters"
+      >
         <input
           type="search"
           className="promo-filter-search"
@@ -218,10 +222,10 @@ export default function PromosPage({
           onChange={(event) => setQuery(event.target.value)}
           aria-label="Search promos"
         />
-        {vendors.length > 4 ? (
+        {useVendorSelect ? (
           <select
             className="promo-filter-select"
-            value={filter === 'all' ? 'all' : filter}
+            value={filter}
             onChange={(event) => setFilter(event.target.value)}
             aria-label="Select vendor"
           >
@@ -233,21 +237,34 @@ export default function PromosPage({
             ))}
           </select>
         ) : (
-          vendors.map((vendor) => (
-            <button
-              key={vendor.id}
-              type="button"
-              role="tab"
-              aria-selected={filter === vendor.id}
-              className={`promo-filter ${filter === vendor.id ? 'promo-filter--active' : ''}`}
-              onClick={() => setFilter(vendor.id)}
-            >
-              <span className="promo-filter-icon" style={{ background: '#14532d' }}>
-                {vendor.initials.slice(0, 1)}
-              </span>
-              {vendor.label}
-            </button>
-          ))
+          <>
+            {vendors.length > 0 ? (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filter === 'all'}
+                className={`promo-filter ${filter === 'all' ? 'promo-filter--active' : ''}`}
+                onClick={() => setFilter('all')}
+              >
+                All
+              </button>
+            ) : null}
+            {vendors.map((vendor) => (
+              <button
+                key={vendor.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === vendor.id}
+                className={`promo-filter ${filter === vendor.id ? 'promo-filter--active' : ''}`}
+                onClick={() => setFilter(vendor.id)}
+              >
+                <span className="promo-filter-icon" style={{ background: '#14532d' }}>
+                  {vendor.initials.slice(0, 1)}
+                </span>
+                {vendor.label}
+              </button>
+            ))}
+          </>
         )}
       </div>
 

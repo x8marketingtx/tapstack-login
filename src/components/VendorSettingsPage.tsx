@@ -14,6 +14,7 @@ import {
 } from '../api/client'
 import './VendorSettingsPage.css'
 import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
+import { directCheckoutLink } from '../lib/affiliate'
 
 type SettingsTab = 'profile' | 'games' | 'billing' | 'staff'
 
@@ -85,7 +86,9 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [saveError, setSaveError] = useState('')
   const [saveOk, setSaveOk] = useState(false)
   const [inviteCode, setInviteCode] = useState('')
+  const [savedInviteCode, setSavedInviteCode] = useState('')
   const [inviteCopied, setInviteCopied] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const [distributorName, setDistributorName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [email, setEmail] = useState('')
@@ -150,7 +153,9 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         const p = settingsRes?.profile || {}
         const fromSettings = pickInvite(p.inviteCode || p.code)
         const fromDash = pickInvite(dashRes?.store?.inviteCode || dashRes?.store?.code)
-        setInviteCode(fromSettings || fromDash)
+        const loadedCode = fromSettings || fromDash
+        setInviteCode(loadedCode)
+        setSavedInviteCode(loadedCode)
         setDistributorName(String(p.distributorName || '').trim())
 
         setBusinessName(p.businessName || '')
@@ -195,6 +200,18 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
     }
   }
 
+  async function handleCopyCheckout() {
+    const url = directCheckoutLink(savedInviteCode).url
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      window.setTimeout(() => setLinkCopied(false), 1600)
+    } catch {
+      // ignore
+    }
+  }
+
   async function handleSave() {
     if (!isApiConfigured()) {
       setSaveError('WordPress API is not configured.')
@@ -233,7 +250,10 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
           .replace(/^@/, '')
           .toUpperCase()
           .replace(/[^A-Z0-9]/g, '')
-        if (next) setInviteCode(next)
+        if (next) {
+          setInviteCode(next)
+          setSavedInviteCode(next)
+        }
       }
       if (typeof p.initials === 'string') setInitials(p.initials.slice(0, 2).toUpperCase())
       if (typeof p.accentColor === 'string') setAccentColor(p.accentColor)
@@ -464,8 +484,23 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
             </button>
           </div>
           <p className="vendor-settings-info-help">
-            Unique 4–16 character code. Players enter it under Add Vendor, or use your Direct Checkout Link.
+            Unique 4–16 character code. Another vendor cannot use the same code. Players enter it under Add Vendor, or use your Direct Checkout Link.
           </p>
+          {savedInviteCode ? (
+            <div className="vendor-settings-checkout">
+              <p className="vendor-settings-info-label">DIRECT CHECKOUT LINK</p>
+              <div className="vendor-settings-link-field">
+                <p className="vendor-settings-link-value">{directCheckoutLink(savedInviteCode).display}</p>
+                <button
+                  type="button"
+                  className="vendor-settings-copy-btn"
+                  onClick={() => void handleCopyCheckout()}
+                >
+                  {linkCopied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 

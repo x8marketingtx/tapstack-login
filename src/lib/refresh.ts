@@ -2,15 +2,35 @@ import { useEffect, useRef } from 'react'
 
 export const MONEY_REFRESH_MS = 5000
 export const ACTIVITY_PAGE_SIZE = 25
+/** Cap per-tick game-balance fetches so a long catalog cannot stampede the API. */
+export const MONEY_REFRESH_GAME_LIMIT = 6
 
-export function useIntervalRefresh(callback: () => void, ms = MONEY_REFRESH_MS, enabled = true) {
+export function useIntervalRefresh(callback: () => unknown, ms = MONEY_REFRESH_MS, enabled = true) {
   const saved = useRef(callback)
   saved.current = callback
+  const inFlight = useRef(false)
 
   useEffect(() => {
     if (!enabled) return
-    const id = window.setInterval(() => saved.current(), ms)
-    return () => window.clearInterval(id)
+
+    const run = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      if (inFlight.current) return
+      inFlight.current = true
+      Promise.resolve(saved.current()).finally(() => {
+        inFlight.current = false
+      })
+    }
+
+    const id = window.setInterval(run, ms)
+    const onVisibility = () => {
+      if (!document.hidden) run()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [enabled, ms])
 }
 

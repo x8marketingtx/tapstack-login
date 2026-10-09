@@ -169,6 +169,23 @@ export function needsVerification(state: VerificationState): boolean {
   return state.pluginReady && !state.canSpend
 }
 
+/** Identity KYC is still outstanding. Imported vendors can browse but must verify to move money. */
+export function needsIdentityVerification(state: VerificationState): boolean {
+  if (!verificationApplies(state)) return false
+  return !state.identityVerified && state.status !== 'verified'
+}
+
+/**
+ * Full-screen lock before using the vendor portal.
+ * New (non-imported) vendors complete KYC at registration/first login.
+ * Imported vendors are deferred to top-up / withdraw, unless geo is blocked.
+ */
+export function mustBlockVendorPortal(state: VerificationState): boolean {
+  if (state.geoBlocked) return needsVerification(state)
+  if (state.kycDeferred) return false
+  return needsVerification(state)
+}
+
 export function isHardGeoBlock(state: VerificationState): boolean {
   if (!state.geoBlocked) return false
   return (

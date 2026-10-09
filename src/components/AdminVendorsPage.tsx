@@ -408,7 +408,7 @@ function CreateVendorModal({
                 value={form.distributorId}
                 onChange={(event) => update('distributorId', event.target.value)}
               >
-                <option value="">Direct</option>
+                <option value="">TapStack (direct)</option>
                 {distributors.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
@@ -454,6 +454,7 @@ const IMPORT_HEADERS = [
   'fullName',
   'gameroomName',
   'phone',
+  'address',
   'email',
   'facebookPage',
   'facebookGroup',
@@ -462,12 +463,39 @@ const IMPORT_HEADERS = [
   'monthlyVolume',
 ]
 
+function parseCsvLine(line: string): string[] {
+  const out: string[] = []
+  let current = ''
+  let quoted = false
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"'
+        i += 1
+      } else {
+        quoted = !quoted
+      }
+      continue
+    }
+    if (ch === ',' && !quoted) {
+      out.push(current.trim())
+      current = ''
+      continue
+    }
+    current += ch
+  }
+  out.push(current.trim())
+  return out
+}
+
 function parseCsv(text: string): Array<Record<string, string>> {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim())
+  const source = text.replace(/^\uFEFF/, '')
+  const lines = source.split(/\r?\n/).filter((line) => line.trim())
   if (lines.length < 2) return []
-  const headers = lines[0].split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''))
+  const headers = parseCsvLine(lines[0])
   return lines.slice(1).map((line) => {
-    const cells = line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''))
+    const cells = parseCsvLine(line)
     const row: Record<string, string> = {}
     headers.forEach((header, index) => {
       if (header) row[header] = cells[index] || ''
@@ -608,8 +636,11 @@ export function VendorDetailView({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [statusBusy, setStatusBusy] = useState(false)
+  const [affiliateBusy, setAffiliateBusy] = useState(false)
   const [detail, setDetail] = useState<AdminVendorDetail | null>(null)
+  const [distributors, setDistributors] = useState<AdminDistributor[]>([])
   const [activityPage, setActivityPage] = useState(1)
+  const [distributorPick, setDistributorPick] = useState('')
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -623,7 +654,9 @@ export function VendorDetailView({
     tapstackApi
       .adminVendorDetail(vendorId)
       .then((res) => {
-        if (!cancelled) setDetail(res)
+        if (cancelled) return
+        setDetail(res)
+        setDistributorPick(res.vendor.distributorId || '')
       })
       .catch((err) => {
         if (!cancelled) {
@@ -638,6 +671,25 @@ export function VendorDetailView({
       cancelled = true
     }
   }, [vendorId])
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setDistributors([])
+      return
+    }
+    let cancelled = false
+    tapstackApi
+      .adminDistributors()
+      .then((res) => {
+        if (!cancelled) setDistributors(res.distributors || [])
+      })
+      .catch(() => {
+        if (!cancelled) setDistributors([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const vendor = detail?.vendor
   const stats = detail?.stats?.[range] ?? EMPTY_STATS
@@ -665,6 +717,45 @@ export function VendorDetailView({
       setError(err instanceof ApiError ? err.message : 'Could not update account status.')
     } finally {
       setStatusBusy(false)
+    }
+  }
+
+  const currentDistributorId = vendor?.distributorId || ''
+  const affiliateDirty = distributorPick !== currentDistributorId
+
+  async function saveAffiliate() {
+    if (affiliateBusy || !affiliateDirty) return
+    setAffiliateBusy(true)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await tapstackApi.adminVendorAssignDistributor(vendorId, distributorPick || null)
+      const nextId = res.distributorId || ''
+      const nextName = res.distributor || (nextId ? 'Distributor' : 'Direct')
+      setDistributorPick(nextId)
+      setDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              vendor: {
+                ...prev.vendor,
+                distributor: nextName,
+                distributorId: nextId || null,
+                network: res.network || (nextId ? 'distributor' : 'tapstack'),
+              },
+            }
+          : prev,
+      )
+      onStatusChanged?.(normalizeVendorStatus(res.status || vendor?.status || 'active'))
+      setSuccess(
+        nextId
+          ? `Affiliate linked to ${nextName}. Movement fees apply on loads and redeems.`
+          : 'Vendor moved under TapStack. Affiliate movement fees no longer apply.',
+      )
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update affiliate link.')
+    } finally {
+      setAffiliateBusy(false)
     }
   }
 
@@ -700,8 +791,10 @@ export function VendorDetailView({
                 </span>
               </div>
               <p className="admin-vendor-detail-meta">
-                Agent: {vendor.distributor || 'Direct'} · {vendor.players}{' '}
-                {vendor.players === 1 ? 'player' : 'players'}
+                {vendor.distributorId
+                  ? `Affiliate of ${vendor.distributor}`
+                  : 'TapStack (direct)'}{' '}
+                · {vendor.players} {vendor.players === 1 ? 'player' : 'players'}
               </p>
             </div>
           </section>
@@ -733,6 +826,41 @@ export function VendorDetailView({
               })}
             </div>
             {statusBusy ? <p className="admin-vendor-detail-status-busy">Updating…</p> : null}
+          </section>
+
+          <section className="admin-vendor-detail-status-card" aria-label="Affiliate distributor">
+            <div className="admin-vendor-detail-status-head">
+              <h2 className="admin-vendor-detail-status-title">Affiliate / distributor</h2>
+              <p className="admin-vendor-detail-status-desc">
+                Move this vendor under a distributor. Affiliate movement fees ($0.25 + 0.5% TapStack)
+                apply on loads and redeems while they are in a distributor network. TapStack vendors
+                are not charged.
+              </p>
+            </div>
+            <div className="admin-vendor-detail-affiliate-row">
+              <select
+                className="admin-vendor-detail-affiliate-select"
+                value={distributorPick}
+                disabled={affiliateBusy}
+                onChange={(event) => setDistributorPick(event.target.value)}
+                aria-label="Distributor"
+              >
+                <option value="">TapStack (direct)</option>
+                {distributors.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="admin-vendor-detail-affiliate-save"
+                disabled={affiliateBusy || !affiliateDirty}
+                onClick={() => void saveAffiliate()}
+              >
+                {affiliateBusy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </section>
 
           <div className="admin-vendor-detail-info-grid">

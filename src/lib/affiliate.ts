@@ -1,5 +1,5 @@
 /** Public app origin for share/join links (no trailing slash). Falls back to window.location.origin. */
-import { getSessionUser, getToken, isApiConfigured, tapstackApi } from '../api/client'
+import { getSessionUser } from '../api/client'
 
 export function appOrigin(): string {
   const fromEnv = (import.meta.env.VITE_APP_URL as string | undefined)?.trim().replace(/\/$/, '')
@@ -391,28 +391,10 @@ export function clearPendingVendorJoin(): void {
 export async function consumePendingVendorJoin(): Promise<boolean> {
   const slug = getPendingVendorJoin()
   if (!slug) return false
-  const fallbackName = getPendingVendorJoinName()
-  try {
-    if (!isApiConfigured()) return false
-    const token = getToken()
-    if (!token || token.startsWith('demo:')) {
-      clearPendingVendorJoin()
-      return false
-    }
-    const res = await tapstackApi.vendorJoinDistributor(slug)
-    clearPendingVendorJoin()
-    const name = (res.distributorName || fallbackName).trim()
-    if (name) {
-      setVendorAffiliateWelcome({
-        distributorName: name,
-        distributorId: res.distributorId,
-        alreadyJoined: Boolean(res.alreadyJoined),
-      })
-    }
-    return true
-  } catch {
-    return false
-  }
+  // Affiliate links never attach an existing vendor. The signup form is the
+  // only path onto a distributor network; leftover slugs are discarded.
+  clearPendingVendorJoin()
+  return false
 }
 
 /** @deprecated Player join links are a no-op; kept so old imports compile during transition. */
