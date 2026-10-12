@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ApiError,
   isApiConfigured,
   tapstackApi,
   type AdminImageReport,
+  type AdminPlatformPromo,
   type AdminSettings,
 } from '../api/client'
 import { AdminHeader } from './AdminHeader'
@@ -670,37 +672,406 @@ function AdminSettingsCommsEmailTab() {
   )
 }
 
-function AdminSettingsCommsPromosTab() {
-  const [promoCode, setPromoCode] = useState('')
-  const [bonusType, setBonusType] = useState('percent-bonus')
-  const [bonusValue, setBonusValue] = useState('')
+type SitewidePromoItem = {
+  id: string
+  title: string
+  code: string
+  bonusType: string
+  bonusValue: string
+  endDate: string
+  typeLabel: string
+  endsLabel: string
+  audience: string
+  status: 'active' | 'expired'
+}
 
-  const promotions = [
-    {
-      id: 'new-year-platform-bonus',
-      title: 'New Year Platform Bonus',
-      typeLabel: 'Bonus Credit',
-      endsLabel: 'Ends Jan 2',
-      audience: 'All customers',
-      status: 'active' as const,
-    },
-    {
-      id: 'refer-a-friend',
-      title: 'Refer-a-Friend $10 Credit',
-      typeLabel: 'Referral',
-      endsLabel: 'Ends Feb 1',
-      audience: 'All customers',
-      status: 'active' as const,
-    },
-    {
-      id: 'black-friday-freeplay',
-      title: 'Black Friday Freeplay',
-      typeLabel: 'Freeplay',
-      endsLabel: 'Ends Nov 30',
-      audience: 'All customers',
-      status: 'expired' as const,
-    },
-  ]
+type SitewidePromoForm = {
+  title: string
+  code: string
+  bonusType: string
+  bonusValue: string
+  endDate: string
+  audience: string
+  status: 'active' | 'expired'
+}
+
+const EMPTY_PROMO_FORM: SitewidePromoForm = {
+  title: '',
+  code: '',
+  bonusType: 'percent-bonus',
+  bonusValue: '',
+  endDate: '',
+  audience: 'All customers',
+  status: 'active',
+}
+
+const SEED_SITEWIDE_PROMOS: SitewidePromoItem[] = [
+  {
+    id: 'new-year-platform-bonus',
+    title: 'New Year Platform Bonus',
+    code: 'PLATFORMNY',
+    bonusType: 'percent-bonus',
+    bonusValue: '20',
+    endDate: '',
+    typeLabel: 'Bonus Credit',
+    endsLabel: 'Ends Jan 2',
+    audience: 'All customers',
+    status: 'active',
+  },
+  {
+    id: 'refer-a-friend',
+    title: 'Refer-a-Friend $10 Credit',
+    code: 'REFER10',
+    bonusType: 'dollar-credit',
+    bonusValue: '10',
+    endDate: '',
+    typeLabel: 'Referral',
+    endsLabel: 'Ends Feb 1',
+    audience: 'All customers',
+    status: 'active',
+  },
+  {
+    id: 'black-friday-freeplay',
+    title: 'Black Friday Freeplay',
+    code: 'BFPLAY',
+    bonusType: 'freeplay',
+    bonusValue: '5',
+    endDate: '',
+    typeLabel: 'Freeplay',
+    endsLabel: 'Ends Nov 30',
+    audience: 'All customers',
+    status: 'expired',
+  },
+]
+
+function bonusTypeLabel(type: string): string {
+  if (type === 'percent-bonus') return '% Bonus Credits'
+  if (type === 'dollar-credit') return '$ Credit'
+  if (type === 'freeplay') return 'Freeplay'
+  return 'Promotion'
+}
+
+function mapPlatformPromo(item: AdminPlatformPromo): SitewidePromoItem {
+  const bonusType = item.bonusType || 'percent-bonus'
+  return {
+    id: item.id,
+    title: item.title,
+    code: item.code || '',
+    bonusType,
+    bonusValue: item.bonusValue || '',
+    endDate: '',
+    typeLabel: item.typeLabel || bonusTypeLabel(bonusType),
+    endsLabel: item.endsLabel || 'No end date',
+    audience: item.audience || 'All customers',
+    status: item.status === 'expired' ? 'expired' : 'active',
+  }
+}
+
+function promoToForm(promo: SitewidePromoItem): SitewidePromoForm {
+  return {
+    title: promo.title,
+    code: promo.code,
+    bonusType: promo.bonusType,
+    bonusValue: promo.bonusValue,
+    endDate: promo.endDate,
+    audience: promo.audience,
+    status: promo.status,
+  }
+}
+
+function buildPromoFromForm(id: string, form: SitewidePromoForm): SitewidePromoItem {
+  const audience = form.audience.trim() || 'All customers'
+  return {
+    id,
+    title: form.title.trim(),
+    code: form.code.trim(),
+    bonusType: form.bonusType,
+    bonusValue: form.bonusValue.trim(),
+    endDate: form.endDate,
+    typeLabel: bonusTypeLabel(form.bonusType),
+    endsLabel: formatPromoEndLabel(form.endDate),
+    audience,
+    status: form.status,
+  }
+}
+
+function validatePromoForm(form: SitewidePromoForm): string {
+  if (!form.title.trim()) return 'Promotion title is required.'
+  if (!form.code.trim()) return 'Promo code is required.'
+  if (!form.bonusValue.trim()) return 'Promo value is required.'
+  return ''
+}
+
+function SitewidePromoFormFields({
+  form,
+  onChange,
+  showStatus,
+}: {
+  form: SitewidePromoForm
+  onChange: (next: SitewidePromoForm) => void
+  showStatus?: boolean
+}) {
+  return (
+    <>
+      <label className="admin-settings-comms-promo-create-field">
+        <span className="admin-settings-comms-label">Title</span>
+        <input
+          type="text"
+          className="admin-settings-comms-promo-create-input"
+          placeholder="e.g. New Year Platform Bonus"
+          value={form.title}
+          onChange={(event) => onChange({ ...form, title: event.target.value })}
+        />
+      </label>
+
+      <label className="admin-settings-comms-promo-create-field">
+        <span className="admin-settings-comms-label">Code</span>
+        <input
+          type="text"
+          className="admin-settings-comms-promo-create-input"
+          placeholder="Code (e.g. PLATFORM20)"
+          value={form.code}
+          onChange={(event) =>
+            onChange({
+              ...form,
+              code: event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''),
+            })
+          }
+        />
+      </label>
+
+      <div className="admin-settings-comms-promo-create-row">
+        <div className="admin-settings-comms-promo-create-select-wrap">
+          <select
+            className="admin-settings-comms-promo-create-select"
+            value={form.bonusType}
+            onChange={(event) => onChange({ ...form, bonusType: event.target.value })}
+            aria-label="Bonus type"
+          >
+            <option value="percent-bonus">% Bonus Credits</option>
+            <option value="dollar-credit">$ Credit</option>
+            <option value="freeplay">Freeplay</option>
+          </select>
+          <svg
+            className="admin-settings-comms-promo-create-select-icon"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 10l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        <input
+          type="text"
+          className="admin-settings-comms-promo-create-input"
+          placeholder="Value"
+          value={form.bonusValue}
+          onChange={(event) => onChange({ ...form, bonusValue: event.target.value })}
+          aria-label="Promo value"
+        />
+      </div>
+
+      <label className="admin-settings-comms-promo-create-field">
+        <span className="admin-settings-comms-label">End date (optional)</span>
+        <input
+          type="date"
+          className="admin-settings-comms-promo-create-input"
+          value={form.endDate}
+          onChange={(event) => onChange({ ...form, endDate: event.target.value })}
+        />
+      </label>
+
+      {showStatus ? (
+        <label className="admin-settings-comms-promo-create-field">
+          <span className="admin-settings-comms-label">Status</span>
+          <select
+            className="admin-settings-comms-promo-create-select"
+            value={form.status}
+            onChange={(event) =>
+              onChange({ ...form, status: event.target.value as SitewidePromoForm['status'] })
+            }
+          >
+            <option value="active">Active</option>
+            <option value="expired">Expired</option>
+          </select>
+        </label>
+      ) : null}
+    </>
+  )
+}
+
+function formatPromoEndLabel(endDate: string): string {
+  if (!endDate.trim()) return 'No end date'
+  const date = new Date(`${endDate}T12:00:00`)
+  if (Number.isNaN(date.getTime())) return endDate
+  return `Ends ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+}
+
+function AdminSettingsCommsPromosTab() {
+  const createRef = useRef<HTMLElement>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [promotions, setPromotions] = useState<SitewidePromoItem[]>(SEED_SITEWIDE_PROMOS)
+  const [loading, setLoading] = useState(isApiConfigured())
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [createForm, setCreateForm] = useState<SitewidePromoForm>(EMPTY_PROMO_FORM)
+  const [editForm, setEditForm] = useState<SitewidePromoForm>(EMPTY_PROMO_FORM)
+
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    tapstackApi
+      .adminPlatformPromos()
+      .then((res) => {
+        if (cancelled) return
+        const listed = (res.promotions || []).map(mapPlatformPromo)
+        if (listed.length) setPromotions(listed)
+      })
+      .catch(() => {
+        /* keep seed list for demo / until API is live */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!createOpen) return
+    createRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [createOpen])
+
+  function resetCreateForm() {
+    setCreateForm(EMPTY_PROMO_FORM)
+    setError('')
+  }
+
+  function openCreate() {
+    setEditingId(null)
+    resetCreateForm()
+    setCreateOpen(true)
+  }
+
+  function openEdit(promo: SitewidePromoItem) {
+    setCreateOpen(false)
+    setError('')
+    setEditForm(promoToForm(promo))
+    setEditingId(promo.id)
+  }
+
+  function closeEdit() {
+    setEditingId(null)
+    setEditForm(EMPTY_PROMO_FORM)
+    setError('')
+  }
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault()
+    if (busy) return
+    const validation = validatePromoForm(createForm)
+    if (validation) {
+      setError(validation)
+      return
+    }
+
+    setBusy(true)
+    setError('')
+
+    try {
+      if (!isApiConfigured()) {
+        const created = buildPromoFromForm(String(Date.now()), { ...createForm, status: 'active' })
+        setPromotions((list) => [created, ...list])
+        setCreateOpen(false)
+        resetCreateForm()
+        return
+      }
+
+      const res = await tapstackApi.adminCreatePlatformPromo({
+        title: createForm.title.trim(),
+        code: createForm.code.trim(),
+        bonusType: createForm.bonusType,
+        bonusValue: createForm.bonusValue.trim(),
+        endDate: createForm.endDate || undefined,
+        audience: createForm.audience,
+      })
+      setPromotions((list) => [mapPlatformPromo(res.promotion), ...list])
+      setCreateOpen(false)
+      resetCreateForm()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create sitewide promotion.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleEditSave(event: React.FormEvent) {
+    event.preventDefault()
+    if (!editingId || busy) return
+    const validation = validatePromoForm(editForm)
+    if (validation) {
+      setError(validation)
+      return
+    }
+
+    setBusy(true)
+    setError('')
+
+    try {
+      if (!isApiConfigured()) {
+        const updated = buildPromoFromForm(editingId, editForm)
+        setPromotions((list) => list.map((item) => (item.id === editingId ? updated : item)))
+        closeEdit()
+        return
+      }
+
+      const res = await tapstackApi.adminUpdatePlatformPromo(editingId, {
+        title: editForm.title.trim(),
+        code: editForm.code.trim(),
+        bonusType: editForm.bonusType,
+        bonusValue: editForm.bonusValue.trim(),
+        endDate: editForm.endDate || undefined,
+        audience: editForm.audience,
+        status: editForm.status,
+      })
+      const updated = mapPlatformPromo(res.promotion)
+      setPromotions((list) => list.map((item) => (item.id === editingId ? updated : item)))
+      closeEdit()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update sitewide promotion.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const editingPromo = editingId ? promotions.find((item) => item.id === editingId) : null
+  const modalHost =
+    typeof document !== 'undefined'
+      ? document.querySelector('.admin-dashboard') ??
+        document.querySelector('.screen--admin') ??
+        document.querySelector('.screen') ??
+        document.body
+      : null
 
   return (
     <div className="admin-settings-comms-promos">
@@ -709,10 +1080,12 @@ function AdminSettingsCommsPromosTab() {
           <h1 className="admin-settings-comms-promos-title">Sitewide Promotions</h1>
           <p className="admin-settings-comms-promos-subtitle">Applied across all vendors</p>
         </div>
-        <button type="button" className="admin-settings-comms-promos-new-btn">
+        <button type="button" className="admin-settings-comms-promos-new-btn" onClick={openCreate}>
           + New
         </button>
       </div>
+
+      {loading ? <p className="admin-empty-hint">Loading promotions…</p> : null}
 
       <div className="admin-settings-comms-promos-list">
         {promotions.map((promo) => (
@@ -730,7 +1103,11 @@ function AdminSettingsCommsPromosTab() {
             </p>
             <div className="admin-settings-comms-promo-footer">
               <span className="admin-settings-comms-promo-audience">{promo.audience}</span>
-              <button type="button" className="admin-settings-comms-promo-edit-btn">
+              <button
+                type="button"
+                className="admin-settings-comms-promo-edit-btn"
+                onClick={() => openEdit(promo)}
+              >
                 Edit
               </button>
             </div>
@@ -738,85 +1115,92 @@ function AdminSettingsCommsPromosTab() {
         ))}
       </div>
 
-      <section className="admin-settings-comms-promo-create">
-        <h2 className="admin-settings-comms-promo-create-title">Create Platform-Wide Promo Code</h2>
-
-        <label className="admin-settings-comms-promo-create-field">
-          <input
-            type="text"
-            className="admin-settings-comms-promo-create-input"
-            placeholder="Code (e.g. PLATFORM20)"
-            value={promoCode}
-            onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
-          />
-        </label>
-
-        <div className="admin-settings-comms-promo-create-row">
-          <div className="admin-settings-comms-promo-create-select-wrap">
-            <select
-              className="admin-settings-comms-promo-create-select"
-              value={bonusType}
-              onChange={(event) => setBonusType(event.target.value)}
-              aria-label="Bonus type"
+      {createOpen ? (
+        <section
+          ref={createRef}
+          className="admin-settings-comms-promo-create admin-settings-comms-promo-create--open"
+        >
+          <div className="admin-settings-comms-promo-create-head">
+            <h2 className="admin-settings-comms-promo-create-title">New sitewide promotion</h2>
+            <button
+              type="button"
+              className="admin-settings-comms-promo-create-cancel"
+              onClick={() => {
+                setCreateOpen(false)
+                resetCreateForm()
+              }}
             >
-              <option value="percent-bonus">% Bonus Credits</option>
-              <option value="dollar-credit">$ Credit</option>
-              <option value="freeplay">Freeplay</option>
-            </select>
-            <svg
-              className="admin-settings-comms-promo-create-select-icon"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M4 6l4 4 4-4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M4 10l4 4 4-4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+              Cancel
+            </button>
           </div>
-          <input
-            type="text"
-            className="admin-settings-comms-promo-create-input"
-            placeholder="Value"
-            value={bonusValue}
-            onChange={(event) => setBonusValue(event.target.value)}
-            aria-label="Promo value"
-          />
-        </div>
 
-        <div className="admin-settings-comms-promo-create-attachments">
-          <span className="admin-settings-comms-label">Attachments</span>
-          <button type="button" className="admin-settings-comms-upload-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M8 12l8-8a3 3 0 0 1 4.2 4.2l-9 9a4 4 0 0 1-5.7-5.7l9.5-9.5"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Add Photo or Video
-          </button>
-        </div>
+          <form className="admin-settings-comms-promo-create-form" onSubmit={(event) => void handleCreate(event)}>
+            <p className="admin-settings-comms-promo-create-help">
+              Creates a platform-wide promo code applied across all vendors.
+            </p>
+            {error && !editingId ? <p className="admin-api-error">{error}</p> : null}
 
-        <button type="button" className="admin-settings-comms-promo-create-btn">
-          Create Code
-        </button>
-      </section>
+            <SitewidePromoFormFields form={createForm} onChange={setCreateForm} />
+
+            <div className="admin-settings-comms-promo-create-attachments">
+              <span className="admin-settings-comms-label">Attachments</span>
+              <button type="button" className="admin-settings-comms-upload-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M8 12l8-8a3 3 0 0 1 4.2 4.2l-9 9a4 4 0 0 1-5.7-5.7l9.5-9.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Add Photo or Video
+              </button>
+            </div>
+
+            <button type="submit" className="admin-settings-comms-promo-create-btn" disabled={busy}>
+              {busy ? 'Creating…' : 'Create promotion'}
+            </button>
+          </form>
+        </section>
+      ) : null}
+
+      {editingId && editingPromo && modalHost
+        ? createPortal(
+            <div className="admin-promo-modal-overlay" role="presentation" onClick={closeEdit}>
+              <div
+                className="admin-promo-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-edit-promo-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="admin-promo-modal-header">
+                  <h2 id="admin-edit-promo-title">Edit sitewide promotion</h2>
+                  <button
+                    type="button"
+                    className="admin-promo-modal-close"
+                    onClick={closeEdit}
+                    aria-label="Close"
+                  >
+                    ×
+                  </button>
+                </div>
+                <form className="admin-settings-comms-promo-create-form" onSubmit={(event) => void handleEditSave(event)}>
+                  <p className="admin-settings-comms-promo-create-help">
+                    Updates this promotion for all vendors on TapStack.
+                  </p>
+                  {error ? <p className="admin-api-error">{error}</p> : null}
+                  <SitewidePromoFormFields form={editForm} onChange={setEditForm} showStatus />
+                  <button type="submit" className="admin-settings-comms-promo-create-btn" disabled={busy}>
+                    {busy ? 'Saving…' : 'Save changes'}
+                  </button>
+                </form>
+              </div>
+            </div>,
+            modalHost,
+          )
+        : null}
     </div>
   )
 }

@@ -451,10 +451,10 @@ export default function ApplyPage({ onBack }: ApplyPageProps) {
             </section>
 
             <section className="apply-section">
-              <div className="apply-section-head">
-                <p className="apply-section-label">Online Presence</p>
-                <span className="apply-section-note">at least one required</span>
-              </div>
+              <p className="apply-section-label">
+                Online Presence
+                <span className="apply-section-note"> — at least one required</span>
+              </p>
 
               <ApplyField
                 id="apply-facebook-page"

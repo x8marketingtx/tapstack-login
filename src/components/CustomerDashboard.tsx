@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createVendorFromInviteCode,
   decodeIcon,
@@ -24,7 +24,7 @@ import {
   type WalletTxn,
 } from '../api/client'
 import BottomNav, { type DashboardTab } from './BottomNav'
-import DashboardHeader from './DashboardHeader'
+import DashboardHeader, { type DashboardHeaderNotifications } from './DashboardHeader'
 import AccountPage from './AccountPage'
 import EarnPage from './EarnPage'
 import GiveawayPage from './GiveawayPage'
@@ -62,6 +62,7 @@ import {
   parseTapstackCash,
 } from '../lib/pointsRedeem'
 import { MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
+import { usePlayerNotifications } from '../lib/playerNotifications'
 import './CustomerDashboard.css'
 
 function vendorStorageKey(vendor: Pick<Vendor, 'id' | 'code' | 'name'>): string {
@@ -925,6 +926,25 @@ export default function CustomerDashboard({
   const [cashBalance, setCashBalance] = useState(shouldLoadFromApi ? '' : '$125.00')
   const [pointsBalance, setPointsBalance] = useState(shouldLoadFromApi ? 0 : 3400)
   const [walletTxns, setWalletTxns] = useState<WalletTxn[]>([])
+  const playerNotifications = usePlayerNotifications({
+    useApi: shouldLoadFromApi,
+    userId: cachedUser?.id,
+    walletTxns,
+  })
+  const headerNotifications: DashboardHeaderNotifications = useMemo(
+    () => ({
+      items: playerNotifications.items,
+      unreadCount: playerNotifications.unreadCount,
+      onMarkRead: playerNotifications.markRead,
+      onMarkAllRead: playerNotifications.markAllRead,
+    }),
+    [
+      playerNotifications.items,
+      playerNotifications.unreadCount,
+      playerNotifications.markRead,
+      playerNotifications.markAllRead,
+    ],
+  )
   const [profile, setProfile] = useState<PlayerProfile | null>(() => {
     if (cachedUser) return profileFromUser(cachedUser)
     return shouldLoadFromApi ? null : DEMO_PLAYER_PROFILE
@@ -1559,6 +1579,11 @@ export default function CustomerDashboard({
         return updated
       })
       setInviteCode('')
+      playerNotifications.push({
+        kind: 'vendor',
+        title: 'Vendor added',
+        body: `${next.name} is now on your home screen.`,
+      })
     } catch (err) {
       setAddError(err instanceof ApiError ? err.message : 'Could not add vendor.')
     } finally {
@@ -1668,6 +1693,7 @@ export default function CustomerDashboard({
           onTabChange={handleTabChange}
           onRemoveVendor={() => requestRemoveVendor(selectedVendor)}
           onProfileClick={openProfile}
+          onLogout={onLogout}
           onLogoClick={goHome}
           onTopUp={() => {
             if (!requireVerified()) return
@@ -1692,6 +1718,20 @@ export default function CustomerDashboard({
           onGameTransferSuccess={() => {
             setVendorBalanceEpoch((value) => value + 1)
           }}
+          headerNotifications={headerNotifications}
+          onGameActivity={({ vendorName, gameName, intent }) => {
+            if (shouldLoadFromApi) return
+            playerNotifications.push({
+              kind: intent === 'redeem' ? 'wallet' : 'game_load',
+              title:
+                intent === 'load'
+                  ? 'Game loaded'
+                  : intent === 'redeem'
+                    ? 'Credits redeemed'
+                    : 'Credits transferred',
+              body: `${gameName} · ${vendorName}`,
+            })
+          }}
         />
         <TopUpModal
           open={topUpOpen}
@@ -1703,6 +1743,15 @@ export default function CustomerDashboard({
             if (wallet) {
               setCashBalance(`$${wallet.balance.toFixed(2)}`)
               setPointsBalance(wallet.points)
+            }
+            if (!shouldLoadFromApi) {
+              playerNotifications.push({
+                kind: 'wallet',
+                title: 'Balance topped up',
+                body: wallet
+                  ? `New balance $${wallet.balance.toFixed(2)}`
+                  : 'Your TapStack balance was updated.',
+              })
             }
             if (shouldLoadFromApi) {
               void tapstackApi
@@ -1754,7 +1803,9 @@ export default function CustomerDashboard({
               avatarUrl={headerProfile?.avatarUrl}
               avatarBg={headerProfile?.avatarBg}
               avatarText={headerProfile?.avatarText}
+              notifications={headerNotifications}
               onProfileClick={openProfile}
+              onLogout={onLogout}
               onLogoClick={goHome}
             />
 
@@ -1804,7 +1855,20 @@ export default function CustomerDashboard({
               />
             )}
 
-            {activeTab === 'giveaway' && <GiveawayPage />}
+            {activeTab === 'giveaway' && (
+              <GiveawayPage
+                onTicketAwarded={(tickets) => {
+                  for (const ticket of tickets) {
+                    playerNotifications.push({
+                      id: `ticket-${ticket.id}`,
+                      kind: 'ticket',
+                      title: 'New Tapstack Ticket',
+                      body: `Entry #${ticket.number.toLocaleString()} added to your stack.`,
+                    })
+                  }
+                }}
+              />
+            )}
 
             <div hidden={activeTab !== 'promos'} aria-hidden={activeTab !== 'promos'}>
               <PromosPage
@@ -1877,6 +1941,15 @@ export default function CustomerDashboard({
             setCashBalance(`$${wallet.balance.toFixed(2)}`)
             setPointsBalance(wallet.points)
           }
+          if (!shouldLoadFromApi) {
+            playerNotifications.push({
+              kind: 'wallet',
+              title: 'Balance topped up',
+              body: wallet
+                ? `New balance $${wallet.balance.toFixed(2)}`
+                : 'Your TapStack balance was updated.',
+            })
+          }
           if (shouldLoadFromApi) {
             void tapstackApi
               .customerWallet()
@@ -1920,6 +1993,20 @@ export default function CustomerDashboard({
           onSuccess={({ cashBalance: nextCash }) => {
             setCashBalance(nextCash)
             setVendorBalanceEpoch((value) => value + 1)
+            const transfer = homeTransfer
+            if (transfer && !shouldLoadFromApi) {
+              const intent = transfer.intent
+              playerNotifications.push({
+                kind: intent === 'redeem' ? 'wallet' : 'game_load',
+                title:
+                  intent === 'load'
+                    ? 'Game loaded'
+                    : intent === 'redeem'
+                      ? 'Credits redeemed'
+                      : 'Credits transferred',
+                body: `${transfer.game.name} · ${transfer.vendor.name}`,
+              })
+            }
             if (shouldLoadFromApi) {
               void tapstackApi
                 .customerWallet()

@@ -12,6 +12,9 @@ import type { Vendor } from '../data/vendors'
 import PlayerAffiliateSection from './PlayerAffiliateSection'
 import ActivityPager from './ActivityPager'
 import LoadReceiptModal from './LoadReceiptModal'
+import CustomDateRangeModal from './CustomDateRangeModal'
+import { useCustomReportRange } from '../hooks/useCustomReportRange'
+import { formatCustomDateRangeLabel, timestampInCustomRange } from '../lib/reportRange'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
 import {
   formatPointsToCash,
@@ -27,7 +30,7 @@ import {
 } from '../lib/pointsRedeem'
 import './AccountPage.css'
 
-type TimeFilter = '7d' | '30d' | '6m'
+type TimeFilter = '7d' | '30d' | 'custom'
 
 type TxAmount = {
   text: string
@@ -124,7 +127,8 @@ export default function AccountPage({
   scrollToSectionId?: string | null
   onScrollToSectionDone?: () => void
 }) {
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('7d')
+  const timeRange = useCustomReportRange<TimeFilter>('7d')
+  const timeFilter = timeRange.preset
   const [roomFilter, setRoomFilter] = useState('all')
   const [fetchedTxns, setFetchedTxns] = useState<WalletTxn[]>(() => transactions ?? [])
   const [ledgerLoading, setLedgerLoading] = useState(false)
@@ -154,14 +158,18 @@ export default function AccountPage({
           ? now - 30 * 24 * 60 * 60 * 1000
           : 0
     return rawTxns.filter((txn) => {
-      if (cutoff > 0) {
-        const ts = txnTime(txn)
+      const ts = txnTime(txn)
+      if (timeFilter === 'custom') {
+        if (timeRange.isCustom && ts > 0 && !timestampInCustomRange(ts, timeRange.customRange)) {
+          return false
+        }
+      } else if (cutoff > 0) {
         if (ts > 0 && ts < cutoff) return false
       }
       if (roomFilter !== 'all' && txnVendorId(txn) !== roomFilter) return false
       return true
     })
-  }, [rawTxns, timeFilter, roomFilter])
+  }, [rawTxns, timeFilter, timeRange.isCustom, timeRange.customRange, roomFilter])
 
   const ledgerRows = useMemo(
     () => mapLedgerToRows(pageItems(filteredTxns, ledgerPage), linkedVendors),
@@ -204,7 +212,7 @@ export default function AccountPage({
 
   useEffect(() => {
     setLedgerPage(1)
-  }, [timeFilter, roomFilter])
+  }, [timeFilter, timeRange.queryKey, roomFilter])
 
   useEffect(() => {
     if (!scrollToSectionId || loading) return
@@ -421,19 +429,27 @@ export default function AccountPage({
         </div>
 
         <div className="tx-filters" role="tablist" aria-label="Time range">
-          {(['7d', '30d', '6m'] as TimeFilter[]).map((filter) => (
+          {(['7d', '30d', 'custom'] as TimeFilter[]).map((filter) => (
             <button
               key={filter}
               type="button"
               role="tab"
               aria-selected={timeFilter === filter}
               className={`tx-filter-btn ${timeFilter === filter ? 'active' : ''}`}
-              onClick={() => setTimeFilter(filter)}
+              onClick={() => timeRange.pickPreset(filter)}
             >
-              {filter === '7d' ? '7D' : filter === '30d' ? '30D' : '6M'}
+              {filter === '7d'
+                ? '7D'
+                : filter === '30d'
+                  ? '30D'
+                  : timeRange.isCustom
+                    ? formatCustomDateRangeLabel(timeRange.customRange.from, timeRange.customRange.to)
+                    : 'Custom'}
             </button>
           ))}
         </div>
+
+        <CustomDateRangeModal {...timeRange.modalProps} />
 
         <div className="tx-room-select-wrap">
           <select

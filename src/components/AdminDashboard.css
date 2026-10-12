@@ -56,6 +56,12 @@
   cursor: pointer;
 }
 
+.admin-x8-support-button {
+  padding: 0 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .admin-help-badge {
   position: absolute;
   top: -6px;
@@ -482,7 +488,7 @@
 
 .admin-bottom-nav-items {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0;
 }
 

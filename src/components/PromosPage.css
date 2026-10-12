@@ -182,11 +182,14 @@
   top: auto;
   bottom: 8px;
   right: 8px;
+  /* Stay in the hero layer so scrolled promos pass under the bottom nav (z-index: 5). */
+  z-index: 3;
 }
 
 .promo-card-hero .report-image-confirm {
   top: auto;
   bottom: 44px;
+  z-index: 4;
 }
 
 .promo-card-hero-img {

@@ -1,4 +1,11 @@
-export type AdminTab = 'overview' | 'vendors' | 'distributors' | 'signups' | 'finance' | 'settings'
+export type AdminTab =
+  | 'overview'
+  | 'vendors'
+  | 'distributors'
+  | 'signups'
+  | 'finance'
+  | 'support'
+  | 'settings'
 
 const TABS: { id: AdminTab; icon: string; label: string; badge?: string }[] = [
   { id: 'overview', icon: '🏠', label: 'Overview' },
@@ -6,6 +13,7 @@ const TABS: { id: AdminTab; icon: string; label: string; badge?: string }[] = [
   { id: 'distributors', icon: '🏢', label: 'Distributors' },
   { id: 'signups', icon: '📋', label: 'Signups' },
   { id: 'finance', icon: '💰', label: 'Finance' },
+  { id: 'support', icon: '💬', label: 'Support' },
   { id: 'settings', icon: '⚙️', label: 'Settings' },
 ]
 

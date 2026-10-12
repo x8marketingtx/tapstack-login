@@ -97,13 +97,6 @@
   background: #fff;
 }
 
-.apply-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .apply-section-label {
   margin: 0;
   color: #64748b;
@@ -117,7 +110,8 @@
   color: #9ca3af;
   font-size: 10px;
   font-weight: 500;
-  white-space: nowrap;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .apply-field {

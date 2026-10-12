@@ -14,6 +14,7 @@ import {
 } from '../api/client'
 import './VendorSettingsPage.css'
 import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
+import TapStackProBenefits from './TapStackProBenefits'
 import { directCheckoutLink } from '../lib/affiliate'
 
 type SettingsTab = 'profile' | 'games' | 'billing' | 'staff'
@@ -329,13 +330,16 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
       </div>
 
       {onGoBilling ? (
-        <button type="button" className="vendor-settings-go-pro-banner" onClick={onGoBilling}>
-          <span>
-            <strong>TapStack Pro</strong>
-            <span> Monthly membership for your store</span>
-          </span>
-          <span className="vendor-settings-go-pro-banner-btn">Go Pro</span>
-        </button>
+        <section className="vendor-settings-go-pro-block" aria-label="TapStack Pro">
+          <button type="button" className="vendor-settings-go-pro-banner" onClick={onGoBilling}>
+            <span>
+              <strong>TapStack Pro</strong>
+              <span> Monthly membership for your store</span>
+            </span>
+            <span className="vendor-settings-go-pro-banner-btn">Go Pro</span>
+          </button>
+          <TapStackProBenefits />
+        </section>
       ) : null}
 
       {distributorName ? (
@@ -1373,6 +1377,7 @@ function GamesTab({ onGoBilling }: { onGoBilling?: () => void }) {
                           : membership?.name || 'TapStack Pro'}
                         .
                       </p>
+                      <TapStackProBenefits />
                       <button type="button" className="vendor-settings-modal-upgrade-btn" onClick={goUpgrade}>
                         Upgrade to Pro
                       </button>
@@ -1761,6 +1766,8 @@ function BillingTab() {
               {membership.active ? <span className="vendor-settings-plan-current">Current plan</span> : null}
             </div>
           </article>
+
+          {!membership.active ? <TapStackProBenefits /> : null}
 
           {subscribeError ? <p className="vendor-settings-modal-error">{subscribeError}</p> : null}
 

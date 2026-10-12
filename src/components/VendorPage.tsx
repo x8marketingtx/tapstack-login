@@ -16,7 +16,7 @@ import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem 
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
 import { MONEY_REFRESH_GAME_LIMIT, MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
 import BottomNav, { type DashboardTab } from './BottomNav'
-import DashboardHeader from './DashboardHeader'
+import DashboardHeader, { type DashboardHeaderNotifications } from './DashboardHeader'
 import type { PlayerProfile } from './ProfilePage'
 import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './GameLoadModal'
 import { VerifyBanner } from './VerifyPage'
@@ -315,10 +315,17 @@ type VendorPageProps = {
   onTabChange: (tab: DashboardTab) => void
   onRemoveVendor?: () => void
   onProfileClick?: () => void
+  onLogout?: () => void
   onLogoClick?: () => void
   onTopUp?: () => void
   onCashBalanceChange?: (balance: string) => void
   onGameTransferSuccess?: () => void
+  onGameActivity?: (detail: {
+    vendorName: string
+    gameName: string
+    intent: GameTransferIntent
+  }) => void
+  headerNotifications?: DashboardHeaderNotifications
   onRequireVerified?: () => boolean
   verification?: VerificationState
   onOpenVerify?: () => void
@@ -333,10 +340,13 @@ export default function VendorPage({
   onTabChange,
   onRemoveVendor,
   onProfileClick,
+  onLogout,
   onLogoClick,
   onTopUp,
   onCashBalanceChange,
   onGameTransferSuccess,
+  onGameActivity,
+  headerNotifications,
   onRequireVerified,
   verification,
   onOpenVerify,
@@ -1014,7 +1024,9 @@ export default function VendorPage({
           avatarUrl={profile?.avatarUrl}
           avatarBg={profile?.avatarBg}
           avatarText={profile?.avatarText}
+          notifications={headerNotifications}
           onProfileClick={onProfileClick}
+          onLogout={onLogout}
           onLogoClick={onLogoClick}
         />
 
@@ -1962,6 +1974,13 @@ export default function VendorPage({
           setWalletBalance(nextCash)
           onCashBalanceChange?.(nextCash)
           onGameTransferSuccess?.()
+          if (loadGame) {
+            onGameActivity?.({
+              vendorName: vendor.name,
+              gameName: loadGame.name,
+              intent: transferIntent,
+            })
+          }
           if (loadGame?.gameKey && vendor.id) {
             void refreshGameBalance(vendor.id, loadGame.gameKey)
           } else if (loadGame?.gameKey && gameBalance) {

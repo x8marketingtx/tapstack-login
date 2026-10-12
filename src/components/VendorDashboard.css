@@ -366,13 +366,20 @@
   color: #6b7280;
 }
 
+.vendor-go-pro-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
 .vendor-go-pro-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  margin: 0 0 14px;
+  margin: 0;
   padding: 14px 16px;
   border: 1px solid #ddd6fe;
   border-radius: 16px;

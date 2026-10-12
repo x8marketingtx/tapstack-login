@@ -19,6 +19,7 @@ import VendorPromosPage from './VendorPromosPage'
 import VendorSettingsPage, { prefetchVendorGames } from './VendorSettingsPage'
 import TopUpModal from './TopUpModal'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
+import TapStackProBenefits from './TapStackProBenefits'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
 import HelpCenter from './HelpCenter'
 import VendorOnboardingModal from './VendorOnboardingModal'
@@ -404,16 +405,19 @@ function VendorHome({
       </section>
 
       {onGoPro && !extras?.proActive ? (
-        <button type="button" className="vendor-go-pro-card" onClick={onGoPro}>
-          <div className="vendor-go-pro-copy">
-            <p className="vendor-go-pro-kicker">TapStack Pro</p>
-            <p className="vendor-go-pro-title">Upgrade to Pro</p>
-            <p className="vendor-go-pro-meta">
-              Monthly membership{extras?.proPrice ? ` · ${extras.proPrice}/mo` : ' · $999.99/mo'}
-            </p>
-          </div>
-          <span className="vendor-go-pro-btn">Go Pro</span>
-        </button>
+        <section className="vendor-go-pro-block" aria-label="TapStack Pro">
+          <button type="button" className="vendor-go-pro-card" onClick={onGoPro}>
+            <div className="vendor-go-pro-copy">
+              <p className="vendor-go-pro-kicker">TapStack Pro</p>
+              <p className="vendor-go-pro-title">Upgrade to Pro</p>
+              <p className="vendor-go-pro-meta">
+                Monthly membership{extras?.proPrice ? ` · ${extras.proPrice}/mo` : ' · $999.99/mo'}
+              </p>
+            </div>
+            <span className="vendor-go-pro-btn">Go Pro</span>
+          </button>
+          <TapStackProBenefits />
+        </section>
       ) : null}
 
       <section className="vendor-invite-card vendor-invite-card--editable">

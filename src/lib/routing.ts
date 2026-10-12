@@ -5,7 +5,14 @@ export type DashboardPortal = 'customer' | 'vendor' | 'admin' | 'distributor'
 
 export type CustomerTab = 'games' | 'earn' | 'giveaway' | 'promos' | 'account'
 export type VendorTab = 'home' | 'orders' | 'analytics' | 'promos' | 'settings'
-export type AdminTab = 'overview' | 'vendors' | 'distributors' | 'signups' | 'finance' | 'settings'
+export type AdminTab =
+  | 'overview'
+  | 'vendors'
+  | 'distributors'
+  | 'signups'
+  | 'finance'
+  | 'support'
+  | 'settings'
 export type DistributorTab = 'home' | 'vendors' | 'analytics' | 'invoices' | 'settings'
 
 export type RouteState =
@@ -32,7 +39,15 @@ export type RouteState =
 
 const CUSTOMER_TABS = new Set<CustomerTab>(['games', 'earn', 'giveaway', 'promos', 'account'])
 const VENDOR_TABS = new Set<VendorTab>(['home', 'orders', 'analytics', 'promos', 'settings'])
-const ADMIN_TABS = new Set<AdminTab>(['overview', 'vendors', 'distributors', 'signups', 'finance', 'settings'])
+const ADMIN_TABS = new Set<AdminTab>([
+  'overview',
+  'vendors',
+  'distributors',
+  'signups',
+  'finance',
+  'support',
+  'settings',
+])
 const DISTRIBUTOR_TABS = new Set<DistributorTab>(['home', 'vendors', 'analytics', 'invoices', 'settings'])
 
 function cleanPath(pathname: string): string {
@@ -305,6 +320,8 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
           return `Signups · Admin · ${TITLE_BRAND}`
         case 'finance':
           return `Finance · Admin · ${TITLE_BRAND}`
+        case 'support':
+          return `Support · Admin · ${TITLE_BRAND}`
         case 'settings':
           return `Settings · Admin · ${TITLE_BRAND}`
         default:

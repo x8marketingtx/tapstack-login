@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ApiError,
   applyAuthSession,
@@ -11,7 +11,157 @@ import {
   type SupportTicket,
   type SupportTicketStatus,
 } from '../api/client'
+import { ImageAgreementCheckbox } from './ImageUploadAgreement'
 import './HelpCenter.css'
+
+const CHAT_IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif'
+
+type ChatAttachment = {
+  file: File
+  previewUrl: string
+  imageId?: number
+  imageUrl?: string
+}
+
+function PaperclipIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.2-9.2a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function HelpChatComposer({
+  value,
+  onChange,
+  busy,
+  disabled,
+  placeholder,
+  rows,
+  submitLabel,
+  minTextLength = 0,
+  attachment,
+  onAttachmentChange,
+  attachAgreed,
+  onAttachAgreedChange,
+  attachError,
+  extraActions,
+}: {
+  value: string
+  onChange: (next: string) => void
+  busy: boolean
+  disabled?: boolean
+  placeholder: string
+  rows: number
+  submitLabel: string
+  minTextLength?: number
+  attachment: ChatAttachment | null
+  onAttachmentChange: (next: ChatAttachment | null) => void
+  attachAgreed: boolean
+  onAttachAgreedChange: (agreed: boolean) => void
+  attachError?: string
+  extraActions?: ReactNode
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const hasText = value.trim().length >= minTextLength
+  const hasContent = hasText || Boolean(attachment)
+  const canSend = !busy && !disabled && hasContent && (!attachment || attachAgreed)
+
+  function pickFile(file: File | null) {
+    if (!file) return
+    onAttachmentChange({
+      file,
+      previewUrl: URL.createObjectURL(file),
+    })
+  }
+
+  function clearAttachment() {
+    if (attachment?.previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(attachment.previewUrl)
+    }
+    onAttachmentChange(null)
+  }
+
+  return (
+    <>
+      {attachment ? (
+        <div className="help-attach-preview">
+          <img src={attachment.previewUrl} alt="" />
+          <button
+            type="button"
+            className="help-attach-preview-remove"
+            aria-label="Remove image"
+            disabled={busy}
+            onClick={clearAttachment}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+      {attachError ? <p className="help-attach-error">{attachError}</p> : null}
+      <div className="help-reply-row">
+        <button
+          type="button"
+          className="help-attach-btn"
+          aria-label="Attach image"
+          disabled={busy || disabled}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <PaperclipIcon />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={CHAT_IMAGE_ACCEPT}
+          className="help-attach-input"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            pickFile(event.target.files?.[0] || null)
+            event.target.value = ''
+          }}
+        />
+        <textarea
+          className="help-input help-textarea help-textarea--inline"
+          rows={rows}
+          value={value}
+          placeholder={placeholder}
+          disabled={busy || disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
+      {extraActions}
+      {attachment ? (
+        <div className="help-attach-agreement">
+          <ImageAgreementCheckbox checked={attachAgreed} onChange={onAttachAgreedChange} />
+        </div>
+      ) : null}
+      <button type="submit" className="help-primary" disabled={!canSend}>
+        {busy ? 'Sending…' : submitLabel}
+      </button>
+    </>
+  )
+}
+
+function renderBubbleContent(body: string, imageUrl?: string) {
+  return (
+    <>
+      {imageUrl ? (
+        <a className="help-bubble-image-link" href={imageUrl} target="_blank" rel="noopener noreferrer">
+          <img src={imageUrl} alt="Attached image" className="help-bubble-image" />
+        </a>
+      ) : null}
+      {body ? <p>{body}</p> : null}
+    </>
+  )
+}
 
 type HelpView = 'list' | 'compose' | 'detail' | 'chat-start'
 
@@ -80,11 +230,44 @@ function seedInbox(): SupportTicket[] {
       status: 'open',
       statusLabel: 'Open',
       role: 'vendor',
+      channel: 'platform',
       authorName: 'Lucky Strike Arcade',
       authorEmail: 'vendor@tapstack.demo',
       message: 'Our weekly payout has not arrived. Can you check the transfer?',
       createdAt: new Date(Date.now() - 3600_000 * 6).toISOString(),
       updatedAt: new Date(Date.now() - 3600_000 * 6).toISOString(),
+      replies: [],
+    },
+    {
+      id: 1043,
+      subject: 'New vendor onboarding',
+      category: 'account',
+      categoryLabel: 'Account',
+      status: 'pending',
+      statusLabel: 'Pending',
+      role: 'distributor',
+      channel: 'platform',
+      authorName: 'Pacific Gaming Partners',
+      authorEmail: 'ops@pacificgaming.demo',
+      message: 'We added two vendors this week — can you confirm their reserve wallets are linked?',
+      createdAt: new Date(Date.now() - 3600_000 * 20).toISOString(),
+      updatedAt: new Date(Date.now() - 3600_000 * 2).toISOString(),
+      replies: [],
+    },
+    {
+      id: 1044,
+      subject: 'Cannot link vendor code',
+      category: 'technical',
+      categoryLabel: 'Technical',
+      status: 'open',
+      statusLabel: 'Open',
+      role: 'player',
+      channel: 'platform',
+      authorName: 'Alex Rivera',
+      authorEmail: 'alex@tapstack.demo',
+      message: 'The Add Vendor code from my friend says invalid on the Games tab.',
+      createdAt: new Date(Date.now() - 3600_000 * 4).toISOString(),
+      updatedAt: new Date(Date.now() - 3600_000 * 4).toISOString(),
       replies: [],
     },
   ]
@@ -120,6 +303,16 @@ function formatWhen(iso?: string) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+function formatRole(role: string) {
+  if (role === 'player') return 'Player'
+  if (role === 'vendor') return 'Vendor'
+  if (role === 'distributor') return 'Distributor'
+  if (role === 'admin') return 'TapStack'
+  return role
+}
+
+export type SupportSubmitterFilter = 'all' | 'player' | 'vendor' | 'distributor'
+
 export default function HelpCenter({
   mode,
   onBack,
@@ -127,6 +320,9 @@ export default function HelpCenter({
   vendorName,
   embedded = false,
   directChat = false,
+  hideListBack = false,
+  platformOnly = false,
+  roleFilter = 'all',
   onOpenCount,
 }: {
   mode: HelpMode
@@ -136,6 +332,11 @@ export default function HelpCenter({
   embedded?: boolean
   /** Player ↔ store: open a single messenger thread (no ticket list / compose form). */
   directChat?: boolean
+  /** Hide back control on the ticket list (embedded admin Support tab). */
+  hideListBack?: boolean
+  /** Admin inbox: hide store-direct tickets. */
+  platformOnly?: boolean
+  roleFilter?: SupportSubmitterFilter
   onOpenCount?: (count: number) => void
 }) {
   const demo = useDemoMode()
@@ -161,10 +362,68 @@ export default function HelpCenter({
   const [gptBusy, setGptBusy] = useState(false)
   const [gptPrompt, setGptPrompt] = useState('')
   const [gptReply, setGptReply] = useState('')
+  const [chatAttachment, setChatAttachmentState] = useState<ChatAttachment | null>(null)
+  const [attachAgreed, setAttachAgreed] = useState(false)
+  const [attachError, setAttachError] = useState('')
+
+  function clearChatAttachment() {
+    setChatAttachmentState((current) => {
+      if (current?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(current.previewUrl)
+      return null
+    })
+    setAttachAgreed(false)
+    setAttachError('')
+  }
+
+  function updateChatAttachment(next: ChatAttachment | null) {
+    setChatAttachmentState((current) => {
+      if (next?.file !== current?.file) setAttachAgreed(false)
+      return next
+    })
+    setAttachError('')
+  }
+
+  function requireAttachAgreement(): boolean {
+    if (!chatAttachment || attachAgreed) return true
+    setAttachError(
+      'Confirm that this image is not offensive and that you have the rights to upload it.',
+    )
+    return false
+  }
+
+  async function resolveChatAttachment(): Promise<{ imageId?: number; imageUrl?: string }> {
+    if (!chatAttachment) return {}
+    if (chatAttachment.imageId) {
+      return { imageId: chatAttachment.imageId, imageUrl: chatAttachment.imageUrl }
+    }
+    if (demo) {
+      return {
+        imageId: Date.now(),
+        imageUrl: chatAttachment.previewUrl,
+      }
+    }
+    const uploaded =
+      mode === 'store' && vendorId
+        ? await tapstackApi.uploadCustomerVendorSupportImage(vendorId, chatAttachment.file)
+        : await tapstackApi.uploadSupportImage(chatAttachment.file)
+    return { imageId: uploaded.imageId, imageUrl: uploaded.imageUrl }
+  }
+
+  const visibleTickets = useMemo(() => {
+    let list = tickets
+    if (platformOnly) {
+      list = list.filter((ticket) => ticket.channel !== 'store')
+    }
+    if (roleFilter !== 'all') {
+      list = list.filter((ticket) => ticket.role === roleFilter)
+    }
+    return list
+  }, [tickets, platformOnly, roleFilter])
 
   const openCount = useMemo(
-    () => tickets.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
-    [tickets],
+    () =>
+      visibleTickets.filter((ticket) => ticket.status === 'open' || ticket.status === 'pending').length,
+    [visibleTickets],
   )
 
   async function loadList() {
@@ -207,6 +466,10 @@ export default function HelpCenter({
   }, [mode, demo, inbox, vendorId])
 
   useEffect(() => {
+    onOpenCount?.(openCount)
+  }, [openCount, onOpenCount])
+
+  useEffect(() => {
     directChatBooted.current = false
   }, [mode, vendorId, directChat])
 
@@ -233,6 +496,7 @@ export default function HelpCenter({
   async function openTicket(ticket: SupportTicket) {
     setError('')
     setReply('')
+    clearChatAttachment()
     if (demo) {
       const full = readDemo(mode, vendorId).find((item) => item.id === ticket.id) || ticket
       setSelected({ ...full, replies: full.replies || [] })
@@ -261,13 +525,22 @@ export default function HelpCenter({
     const ticketSubject = storeDirectChat ? DIRECT_CHAT_SUBJECT : subject.trim()
     const ticketCategory = storeDirectChat ? 'other' : category
     if (storeDirectChat) {
-      if (body.length < 1) return
+      if (body.length < 1 && !chatAttachment) return
     } else if (ticketSubject.length < 3 || body.length < 10) {
       return
     }
+    if (!requireAttachAgreement()) return
     setBusy(true)
     setError('')
+    setAttachError('')
     try {
+      let imageId: number | undefined
+      let imageUrl: string | undefined
+      if (chatAttachment) {
+        const resolved = await resolveChatAttachment()
+        imageId = resolved.imageId
+        imageUrl = resolved.imageUrl
+      }
       if (demo) {
         const user = getSessionUser()
         const created: SupportTicket = {
@@ -283,7 +556,9 @@ export default function HelpCenter({
           role: store ? 'player' : user?.role || 'vendor',
           authorName: user?.displayName || 'You',
           authorEmail: user?.email || '',
-          message: body,
+          message: body || (imageUrl ? 'Photo' : ''),
+          imageId,
+          imageUrl,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           replies: [],
@@ -293,6 +568,7 @@ export default function HelpCenter({
         setTickets(next)
         setSubject('')
         setMessage('')
+        clearChatAttachment()
         setSelected(created)
         setView('detail')
         onOpenCount?.(
@@ -304,37 +580,55 @@ export default function HelpCenter({
         mode === 'store' && vendorId
           ? await tapstackApi.customerVendorCreateSupport(vendorId, {
               subject: ticketSubject,
-              message: body,
+              message: body || 'Photo',
               category: ticketCategory,
+              ...(imageId ? { imageId } : {}),
             })
           : await tapstackApi.supportCreateTicket({
               subject: ticketSubject,
-              message: body,
+              message: body || 'Photo',
               category: ticketCategory,
+              ...(imageId ? { imageId } : {}),
             })
       setSubject('')
       setMessage('')
+      clearChatAttachment()
       setSelected(next.ticket)
       setView('detail')
       await loadList()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not send ticket.')
+      const message = err instanceof ApiError ? err.message : 'Could not send ticket.'
+      if (chatAttachment && storeDirectChat) setAttachError(message)
+      else setError(message)
     } finally {
       setBusy(false)
     }
   }
 
   async function sendReply() {
-    if (!selected || busy || !reply.trim()) return
+    if (!selected || busy) return
+    const text = reply.trim()
+    if (!text && !chatAttachment) return
+    if (!requireAttachAgreement()) return
     setBusy(true)
     setError('')
+    setAttachError('')
     try {
+      let imageId: number | undefined
+      let imageUrl: string | undefined
+      if (chatAttachment) {
+        const resolved = await resolveChatAttachment()
+        imageId = resolved.imageId
+        imageUrl = resolved.imageUrl
+      }
       if (demo) {
         const nextReply = {
           id: Date.now(),
           ticketId: selected.id,
           authorRole: storeInbox ? 'vendor' : inbox ? 'admin' : store ? 'player' : selected.role,
-          body: reply.trim(),
+          body: text || (imageUrl ? 'Photo' : ''),
+          imageId,
+          imageUrl,
           createdAt: new Date().toISOString(),
         }
         const status: SupportTicketStatus = inbox ? 'pending' : 'open'
@@ -350,21 +644,26 @@ export default function HelpCenter({
         setTickets(next)
         setSelected(updated)
         setReply('')
+        clearChatAttachment()
         return
       }
+      const outgoing = text || 'Photo'
       const next =
         mode === 'store' && vendorId
-          ? await tapstackApi.customerVendorSupportReply(vendorId, selected.id, reply.trim())
+          ? await tapstackApi.customerVendorSupportReply(vendorId, selected.id, outgoing, imageId)
           : mode === 'store-inbox'
-            ? await tapstackApi.vendorStoreSupportReply(selected.id, reply.trim())
+            ? await tapstackApi.vendorStoreSupportReply(selected.id, outgoing)
             : inbox
-              ? await tapstackApi.adminSupportReply(selected.id, reply.trim())
-              : await tapstackApi.supportReplyTicket(selected.id, reply.trim())
+              ? await tapstackApi.adminSupportReply(selected.id, outgoing)
+              : await tapstackApi.supportReplyTicket(selected.id, outgoing, imageId)
       setSelected(next.ticket)
       setReply('')
+      clearChatAttachment()
       await loadList()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not send reply.')
+      const message = err instanceof ApiError ? err.message : 'Could not send reply.'
+      if (chatAttachment && storeDirectChat) setAttachError(message)
+      else setError(message)
     } finally {
       setBusy(false)
     }
@@ -401,7 +700,9 @@ export default function HelpCenter({
   }
 
   const canSubmit = storeDirectChat
-    ? message.trim().length >= 1 && !busy
+    ? (message.trim().length >= 1 || Boolean(chatAttachment)) &&
+      (!chatAttachment || attachAgreed) &&
+      !busy
     : subject.trim().length >= 3 && message.trim().length >= 10 && !busy
   const title =
     view === 'compose'
@@ -462,43 +763,49 @@ export default function HelpCenter({
     return authorRole !== 'admin'
   }
 
+  const showListBack = !(hideListBack && view === 'list')
+
   return (
     <div
       className={`help-center${embedded ? ' help-center--embedded' : ''}${storeDirectChat ? ' help-center--direct-chat' : ''}`}
     >
       {!(embedded && storeDirectChat) ? (
       <header className="help-head">
-        <button
-          type="button"
-          className="help-back"
-          onClick={() => {
-            if (view === 'list' || (storeDirectChat && view === 'chat-start')) onBack()
-            else if (storeDirectChat) {
-              setView('chat-start')
-              setSelected(null)
-              setError('')
-            } else {
-              setView('list')
-              setSelected(null)
-              setError('')
+        {showListBack ? (
+          <button
+            type="button"
+            className="help-back"
+            onClick={() => {
+              if (view === 'list' || (storeDirectChat && view === 'chat-start')) onBack()
+              else if (storeDirectChat) {
+                setView('chat-start')
+                setSelected(null)
+                setError('')
+              } else {
+                setView('list')
+                setSelected(null)
+                setError('')
+              }
+            }}
+            aria-label={
+              view === 'list' || (storeDirectChat && !selected)
+                ? 'Close help'
+                : 'Back to tickets'
             }
-          }}
-          aria-label={
-            view === 'list' || (storeDirectChat && !selected)
-              ? 'Close help'
-              : 'Back to tickets'
-          }
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-            <path
-              d="M11.25 3.75 L6 9 L11.25 14.25"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path
+                d="M11.25 3.75 L6 9 L11.25 14.25"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        ) : (
+          <span className="help-head-spacer help-back-spacer" aria-hidden="true" />
+        )}
         <div className="help-head-copy">
           <h1 className="help-title">{title}</h1>
           {view === 'list' ? (
@@ -508,7 +815,9 @@ export default function HelpCenter({
                 : store
                   ? `Message ${partnerName} about loads, redeems, or your account.`
                   : inbox
-                    ? `${openCount} open ticket${openCount === 1 ? '' : 's'}`
+                    ? platformOnly
+                      ? `${openCount} open TapStack ticket${openCount === 1 ? '' : 's'} from players, vendors, and distributors`
+                      : `${openCount} open ticket${openCount === 1 ? '' : 's'}`
                     : 'Message TapStack about your account, payouts, or the portal.'}
             </p>
           ) : null}
@@ -554,16 +863,22 @@ export default function HelpCenter({
       {view === 'list' && !storeDirectChat && (!storeInbox || gptConnected || demo) ? (
         <div className="help-body">
           {loading ? <p className="help-empty">Loading tickets…</p> : null}
-          {!loading && tickets.length === 0 ? (
+          {!loading && visibleTickets.length === 0 ? (
             <div className="help-empty-card">
-              <p className="help-empty-title">{inbox ? 'No tickets yet' : 'Need a hand?'}</p>
+              <p className="help-empty-title">
+                {inbox && tickets.length > 0 ? 'No tickets in this filter' : inbox ? 'No tickets yet' : 'Need a hand?'}
+              </p>
               <p className="help-empty-copy">
                 {storeInbox
                   ? 'Players who message this store will show up here.'
                   : store
                     ? `Send ${partnerName} a ticket and they will reply in this thread.`
                     : inbox
-                      ? 'Vendor and distributor tickets will show up here.'
+                      ? tickets.length > 0
+                        ? 'Try another submitter filter to see more TapStack tickets.'
+                        : platformOnly
+                          ? 'Tickets from players, vendors, and distributors appear here when they contact TapStack.'
+                          : 'Vendor and distributor tickets will show up here.'
                       : 'Send TapStack a ticket and we will follow up in this thread.'}
               </p>
               {!inbox ? (
@@ -573,9 +888,9 @@ export default function HelpCenter({
               ) : null}
             </div>
           ) : null}
-          {!loading && tickets.length > 0 ? (
+          {!loading && visibleTickets.length > 0 ? (
             <ul className="help-list">
-              {tickets.map((ticket) => (
+              {visibleTickets.map((ticket) => (
                 <li key={ticket.id}>
                   <button type="button" className="help-row" onClick={() => void openTicket(ticket)}>
                     <span className={`help-status help-status--${ticket.status}`}>
@@ -584,7 +899,7 @@ export default function HelpCenter({
                     <span className="help-row-copy">
                       <strong>{ticket.subject}</strong>
                       <span>
-                        {inbox ? `${ticket.authorName} · ` : ''}
+                        {inbox ? `${ticket.authorName} · ${formatRole(ticket.role)} · ` : ''}
                         {ticket.categoryLabel} · {formatWhen(ticket.updatedAt)}
                       </span>
                     </span>
@@ -615,11 +930,6 @@ export default function HelpCenter({
               {gptReply ? <p className="help-chatgpt-reply">{gptReply}</p> : null}
             </form>
           ) : null}
-          {!store ? (
-            <a className="help-mail" href="mailto:support@tapstack.io">
-              Or email support@tapstack.io
-            </a>
-          ) : null}
         </div>
       ) : null}
 
@@ -640,16 +950,23 @@ export default function HelpCenter({
                   void submitTicket()
                 }}
               >
-                <textarea
-                  className="help-input help-textarea"
-                  rows={4}
+                <HelpChatComposer
                   value={message}
+                  onChange={setMessage}
+                  busy={busy}
                   placeholder={`Say hi to ${partnerName}…`}
-                  onChange={(event) => setMessage(event.target.value)}
+                  rows={4}
+                  submitLabel="Send message"
+                  minTextLength={1}
+                  attachment={chatAttachment}
+                  onAttachmentChange={updateChatAttachment}
+                  attachAgreed={attachAgreed}
+                  onAttachAgreedChange={(agreed) => {
+                    setAttachAgreed(agreed)
+                    if (agreed) setAttachError('')
+                  }}
+                  attachError={attachError}
                 />
-                <button type="submit" className="help-primary" disabled={!canSubmit}>
-                  {busy ? 'Sending…' : 'Send message'}
-                </button>
               </form>
             </>
           )}
@@ -723,7 +1040,7 @@ export default function HelpCenter({
 
           <div className="help-thread">
             <article className={`help-bubble ${inbox ? 'help-bubble--them' : 'help-bubble--mine'}`}>
-              <p>{selected.message}</p>
+              {renderBubbleContent(selected.message, selected.imageUrl)}
               <time>{formatWhen(selected.createdAt)}</time>
             </article>
             {(selected.replies || []).map((item) => (
@@ -731,7 +1048,7 @@ export default function HelpCenter({
                 key={item.id}
                 className={`help-bubble ${isMine(item.authorRole) ? 'help-bubble--mine' : 'help-bubble--them'}`}
               >
-                <p>{item.body}</p>
+                {renderBubbleContent(item.body, item.imageUrl)}
                 <time>
                   {isMine(item.authorRole)
                     ? 'You'
@@ -773,21 +1090,54 @@ export default function HelpCenter({
               onSubmit={(event) => {
                 event.preventDefault()
                 const text = reply.trim()
-                if (!text) return
+                if (!text && !chatAttachment) return
                 setReply('')
                 void submitTicket(text)
               }}
             >
-              <textarea
-                className="help-input help-textarea"
-                rows={2}
+              <HelpChatComposer
                 value={reply}
+                onChange={setReply}
+                busy={busy}
                 placeholder={`Message ${partnerName}…`}
-                onChange={(event) => setReply(event.target.value)}
+                rows={2}
+                submitLabel="Send"
+                minTextLength={1}
+                attachment={chatAttachment}
+                onAttachmentChange={updateChatAttachment}
+                attachAgreed={attachAgreed}
+                onAttachAgreedChange={(agreed) => {
+                  setAttachAgreed(agreed)
+                  if (agreed) setAttachError('')
+                }}
+                attachError={attachError}
               />
-              <button type="submit" className="help-primary" disabled={busy || reply.trim().length < 1}>
-                {busy ? 'Sending…' : 'Send'}
-              </button>
+            </form>
+          ) : storeDirectChat ? (
+            <form
+              className="help-reply"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void sendReply()
+              }}
+            >
+              <HelpChatComposer
+                value={reply}
+                onChange={setReply}
+                busy={busy}
+                placeholder={`Message ${partnerName}…`}
+                rows={2}
+                submitLabel="Send"
+                minTextLength={1}
+                attachment={chatAttachment}
+                onAttachmentChange={updateChatAttachment}
+                attachAgreed={attachAgreed}
+                onAttachAgreedChange={(agreed) => {
+                  setAttachAgreed(agreed)
+                  if (agreed) setAttachError('')
+                }}
+                attachError={attachError}
+              />
             </form>
           ) : (
             <form
@@ -799,16 +1149,14 @@ export default function HelpCenter({
             >
               <textarea
                 className="help-input help-textarea"
-                rows={storeDirectChat ? 2 : 3}
+                rows={3}
                 value={reply}
                 placeholder={
-                  storeDirectChat
-                    ? `Message ${partnerName}…`
-                    : storeInbox
-                      ? 'Reply to this player…'
-                      : inbox
-                        ? 'Reply to this partner…'
-                        : 'Add more detail…'
+                  storeInbox
+                    ? 'Reply to this player…'
+                    : inbox
+                      ? 'Reply to this partner…'
+                      : 'Add more detail…'
                 }
                 onChange={(event) => setReply(event.target.value)}
               />
@@ -827,12 +1175,8 @@ export default function HelpCenter({
                   {gptBusy ? 'Drafting…' : 'Draft with ChatGPT'}
                 </button>
               ) : null}
-              <button
-                type="submit"
-                className="help-primary"
-                disabled={busy || reply.trim().length < (storeDirectChat ? 1 : 2)}
-              >
-                {busy ? 'Sending…' : storeDirectChat ? 'Send' : 'Send reply'}
+              <button type="submit" className="help-primary" disabled={busy || reply.trim().length < 2}>
+                {busy ? 'Sending…' : 'Send reply'}
               </button>
             </form>
           )}

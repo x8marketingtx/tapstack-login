@@ -10,16 +10,25 @@ import {
   type AdminFinanceCustomer,
   type AdminFinanceVendor,
   type AdminPeriodStats,
+  type AdminPlatformGiveaway,
 } from '../api/client'
 import { useCustomReportRange } from '../hooks/useCustomReportRange'
 import { formatCustomDateRangeLabel } from '../lib/reportRange'
 import CustomDateRangeModal from './CustomDateRangeModal'
 import { AdminHeader } from './AdminHeader'
+import AdminMegaDrawTab from './AdminMegaDrawTab'
 import { VendorDetailView } from './AdminVendorsPage'
 import './AdminFinancePage.css'
 import './AdminVendorsPage.css'
 
-type FinanceSubTab = 'analytics' | 'customers' | 'vendors' | 'fees' | 'transfer' | 'giveaway'
+type FinanceSubTab =
+  | 'analytics'
+  | 'customers'
+  | 'vendors'
+  | 'fees'
+  | 'transfer'
+  | 'giveaway'
+  | 'megadraw'
 type FinanceRange = 'today' | '7d' | '30d' | 'custom'
 
 const FINANCE_SUB_TABS: { id: FinanceSubTab; label: string; icon: string }[] = [
@@ -29,7 +38,10 @@ const FINANCE_SUB_TABS: { id: FinanceSubTab; label: string; icon: string }[] = [
   { id: 'fees', label: 'Fees', icon: '⚙️' },
   { id: 'transfer', label: 'Transfer', icon: '↔' },
   { id: 'giveaway', label: 'Giveaway', icon: '🎉' },
+  { id: 'megadraw', label: 'Mega Draw', icon: '🎰' },
 ]
+
+const FINANCE_SUB_TAB_ROWS = [FINANCE_SUB_TABS.slice(0, 4), FINANCE_SUB_TABS.slice(4)] as const
 
 const FINANCE_RANGES: { id: FinanceRange; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -127,10 +139,35 @@ const METRIC_CARDS = [
       </svg>
     ),
   },
+  {
+    id: 'chargebacks',
+    label: 'Chargebacks',
+    value: '0',
+    tone: 'amber',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M6 8h11M15 5l3 3-3 3"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M18 16H7M9 19l-3-3 3-3"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+  },
 ]
 
 type CustomerStatus = 'active' | 'suspended' | 'banned'
-type CustomerFilter = 'all' | CustomerStatus
+type CustomerQuickFilter = 'all' | CustomerStatus | 'winners' | 'payouts' | 'deposits'
+type CustomerQuickFilterDir = 'asc' | 'desc'
 
 type CustomerItem = {
   id: string
@@ -143,6 +180,9 @@ type CustomerItem = {
   status: CustomerStatus
   vip: boolean
   operatorVip: boolean
+  winners: number
+  payouts: number
+  deposits: number
 }
 
 const DEMO_ADMIN_CUSTOMERS: CustomerItem[] = [
@@ -157,6 +197,54 @@ const DEMO_ADMIN_CUSTOMERS: CustomerItem[] = [
     status: 'active',
     vip: true,
     operatorVip: false,
+    winners: 2,
+    payouts: 420,
+    deposits: 1850,
+  },
+  {
+    id: 'demo-2',
+    username: 'player_jace',
+    initial: 'J',
+    avatarBg: '#dcfce7',
+    contact: 'jm••••@gmail.com',
+    balance: '$120.50',
+    points: '4,200 pts',
+    status: 'active',
+    vip: false,
+    operatorVip: false,
+    winners: 0,
+    payouts: 890,
+    deposits: 3200,
+  },
+  {
+    id: 'demo-3',
+    username: 'lucky_quinn',
+    initial: 'L',
+    avatarBg: '#ffedd5',
+    contact: 'lq••••@yahoo.com',
+    balance: '$12.00',
+    points: '800 pts',
+    status: 'suspended',
+    vip: false,
+    operatorVip: false,
+    winners: 1,
+    payouts: 120,
+    deposits: 540,
+  },
+  {
+    id: 'demo-4',
+    username: 'banned_user',
+    initial: 'B',
+    avatarBg: '#fee2e2',
+    contact: 'bu••••@mail.com',
+    balance: '$0.00',
+    points: '0 pts',
+    status: 'banned',
+    vip: false,
+    operatorVip: false,
+    winners: 0,
+    payouts: 0,
+    deposits: 75,
   },
 ]
 
@@ -164,15 +252,43 @@ function isDemoSession() {
   return !isApiConfigured() || Boolean(getToken()?.startsWith('demo:'))
 }
 
-const CUSTOMER_FILTERS: { id: CustomerFilter; label: string }[] = [
+const CUSTOMER_QUICK_FILTERS: { id: CustomerQuickFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'suspended', label: 'Suspended' },
   { id: 'banned', label: 'Banned' },
+  { id: 'winners', label: 'Winners' },
+  { id: 'payouts', label: 'Payouts' },
+  { id: 'deposits', label: 'Deposits' },
 ]
 
+function customerQuickSortValue(customer: CustomerItem, key: CustomerQuickFilter): number {
+  switch (key) {
+    case 'winners':
+      return customer.winners
+    case 'payouts':
+      return customer.payouts
+    case 'deposits':
+    case 'all':
+    case 'active':
+    case 'suspended':
+    case 'banned':
+      return customer.deposits
+    default:
+      return customer.deposits
+  }
+}
+
 type VendorFinancePeriod = 'daily' | 'weekly' | 'monthly' | 'custom'
-type VendorFinanceSort = 'deposits' | 'redeems'
+type VendorFinanceSort = 'deposits' | 'redeems' | 'balance' | 'promotionSpend'
+type VendorFinanceSortDir = 'asc' | 'desc'
+
+const VENDOR_FINANCE_SORTS: { id: VendorFinanceSort; label: string }[] = [
+  { id: 'deposits', label: 'Deposits' },
+  { id: 'redeems', label: 'Redeems' },
+  { id: 'balance', label: 'Balance' },
+  { id: 'promotionSpend', label: 'Promotion Spend' },
+]
 
 type VendorFinanceItem = {
   id: string
@@ -182,6 +298,8 @@ type VendorFinanceItem = {
   txns: number
   deposits: number
   redeems: number
+  balance: number
+  promotionSpend: number
   status: 'active' | 'suspended'
 }
 
@@ -239,6 +357,9 @@ function mapApiCustomer(customer: AdminFinanceCustomer): CustomerItem {
     status: normalizeCustomerStatus(customer.status),
     vip: Boolean(customer.vip),
     operatorVip: Boolean(customer.operatorVip),
+    winners: customer.winnersCount ?? 0,
+    payouts: customer.payoutsAmount ?? 0,
+    deposits: customer.depositsAmount ?? 0,
   }
 }
 
@@ -260,7 +381,24 @@ function mapApiVendor(vendor: AdminFinanceVendor): VendorFinanceItem {
     txns: vendor.volume ?? 0,
     deposits: vendor.depositsAmount ?? 0,
     redeems: vendor.redeemsAmount ?? 0,
+    balance: vendor.balanceAmount ?? parseMoney(vendor.balance ?? '0'),
+    promotionSpend: vendor.promotionSpendAmount ?? parseMoney(vendor.promotionSpend ?? '0'),
     status: vendor.status === 'suspended' ? 'suspended' : 'active',
+  }
+}
+
+function vendorSortValue(vendor: VendorFinanceItem, sortBy: VendorFinanceSort): number {
+  switch (sortBy) {
+    case 'deposits':
+      return vendor.deposits
+    case 'redeems':
+      return vendor.redeems
+    case 'balance':
+      return vendor.balance
+    case 'promotionSpend':
+      return vendor.promotionSpend
+    default:
+      return 0
   }
 }
 
@@ -342,8 +480,12 @@ function FinanceAnalyticsTab({
       subscriptions: analytics.subscriptions,
       'google-ads': analytics.googleAds,
       'loyalty-retention': analytics.loyaltyRetentionFees,
+      chargebacks:
+        analytics.chargebacksFormatted ??
+        (analytics.chargebacks != null ? analytics.chargebacks.toLocaleString() : '0'),
     }
-    return { ...metric, value: valueById[metric.id] ?? '$0' }
+    const fallback = metric.id === 'chargebacks' ? '0' : '$0'
+    return { ...metric, value: valueById[metric.id] ?? fallback }
   })
 
   const platformRevenue = analytics?.platformRevenue ?? '$0'
@@ -762,8 +904,22 @@ function FinanceCustomersTab({
   loading: boolean
 }) {
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<CustomerFilter>('all')
+  const [quickFilter, setQuickFilter] = useState<CustomerQuickFilter>('all')
+  const [quickFilterDir, setQuickFilterDir] = useState<CustomerQuickFilterDir>('desc')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  function toggleCustomerQuickFilter(key: CustomerQuickFilter) {
+    if (key === 'all') {
+      setQuickFilter('all')
+      return
+    }
+    if (quickFilter === key) {
+      setQuickFilterDir((dir) => (dir === 'desc' ? 'asc' : 'desc'))
+      return
+    }
+    setQuickFilter(key)
+    setQuickFilterDir('desc')
+  }
 
   const customers =
     isDemoSession() ? DEMO_ADMIN_CUSTOMERS : useApi && finance ? finance.customers.map(mapApiCustomer) : []
@@ -783,15 +939,30 @@ function FinanceCustomersTab({
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return customers.filter((customer) => {
-      const matchesFilter = filter === 'all' || customer.status === filter
+    const statusFilter: CustomerStatus | null =
+      quickFilter === 'active' || quickFilter === 'suspended' || quickFilter === 'banned'
+        ? quickFilter
+        : null
+
+    const rows = customers.filter((customer) => {
+      const matchesFilter = !statusFilter || customer.status === statusFilter
       const matchesSearch =
         !query ||
         customer.username.toLowerCase().includes(query) ||
         customer.contact.toLowerCase().includes(query)
       return matchesFilter && matchesSearch
     })
-  }, [customers, search, filter])
+
+    if (quickFilter !== 'all') {
+      rows.sort((a, b) => {
+        const diff = customerQuickSortValue(b, quickFilter) - customerQuickSortValue(a, quickFilter)
+        if (diff !== 0) return quickFilterDir === 'desc' ? diff : -diff
+        return a.username.localeCompare(b.username)
+      })
+    }
+
+    return rows
+  }, [customers, search, quickFilter, quickFilterDir])
 
   if (selectedId) {
     return <CustomerDetailView customerId={selectedId} onBack={() => setSelectedId(null)} />
@@ -851,19 +1022,33 @@ function FinanceCustomersTab({
         />
       </label>
 
-      <div className="admin-finance-customer-filters" role="tablist" aria-label="Customer filters">
-        {CUSTOMER_FILTERS.map((item) => {
-          const active = filter === item.id
+      <div className="admin-finance-customer-filters" role="toolbar" aria-label="Customer filters and sort">
+        {CUSTOMER_QUICK_FILTERS.map((item) => {
+          const active = quickFilter === item.id
+          const sortable = item.id !== 'all'
           return (
             <button
               key={item.id}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-pressed={active}
               className={`admin-finance-customer-filter ${active ? 'admin-finance-customer-filter--active' : ''}`}
-              onClick={() => setFilter(item.id)}
+              aria-label={
+                active
+                  ? item.id === 'all'
+                    ? 'All players'
+                    : `${item.label}, sorted ${quickFilterDir === 'desc' ? 'high to low' : 'low to high'}`
+                  : item.id === 'all'
+                    ? 'Show all players'
+                    : `Filter or sort by ${item.label}`
+              }
+              onClick={() => toggleCustomerQuickFilter(item.id)}
             >
               {item.label}
+              {active && sortable ? (
+                <span className="admin-finance-customer-filter-arrow" aria-hidden="true">
+                  {quickFilterDir === 'desc' ? ' ↓' : ' ↑'}
+                </span>
+              ) : null}
             </button>
           )
         })}
@@ -943,7 +1128,17 @@ function FinanceVendorsTab({
 }) {
   const period = RANGE_TO_VENDOR_PERIOD[range]
   const [sortBy, setSortBy] = useState<VendorFinanceSort>('deposits')
+  const [sortDir, setSortDir] = useState<VendorFinanceSortDir>('desc')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  function toggleSort(field: VendorFinanceSort) {
+    if (sortBy === field) {
+      setSortDir((dir) => (dir === 'desc' ? 'asc' : 'desc'))
+      return
+    }
+    setSortBy(field)
+    setSortDir('desc')
+  }
 
   const vendorList = useMemo(() => {
     if (!useApi || !finance) return []
@@ -961,9 +1156,12 @@ function FinanceVendorsTab({
 
   const sortedVendors = useMemo(() => {
     const vendors = [...vendorList]
-    vendors.sort((a, b) => (sortBy === 'deposits' ? b.deposits - a.deposits : b.redeems - a.redeems))
+    vendors.sort((a, b) => {
+      const diff = vendorSortValue(b, sortBy) - vendorSortValue(a, sortBy)
+      return sortDir === 'desc' ? diff : -diff
+    })
     return vendors.map((vendor, index) => ({ ...vendor, rank: index + 1 }))
-  }, [sortBy, vendorList])
+  }, [sortBy, sortDir, vendorList])
 
   if (selectedId) {
     return <VendorDetailView vendorId={selectedId} onBack={() => setSelectedId(null)} />
@@ -1044,20 +1242,30 @@ function FinanceVendorsTab({
           Sort by
         </span>
         <div className="admin-finance-vendors-sort-options">
-          <button
-            type="button"
-            className={`admin-finance-vendors-sort-btn ${sortBy === 'deposits' ? 'admin-finance-vendors-sort-btn--active' : ''}`}
-            onClick={() => setSortBy('deposits')}
-          >
-            Highest Deposits
-          </button>
-          <button
-            type="button"
-            className={`admin-finance-vendors-sort-btn ${sortBy === 'redeems' ? 'admin-finance-vendors-sort-btn--active' : ''}`}
-            onClick={() => setSortBy('redeems')}
-          >
-            Highest Redeems
-          </button>
+          {VENDOR_FINANCE_SORTS.map((option) => {
+            const active = sortBy === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                className={`admin-finance-vendors-sort-btn${active ? ' admin-finance-vendors-sort-btn--active' : ''}`}
+                aria-pressed={active}
+                aria-label={
+                  active
+                    ? `${option.label}, sorted ${sortDir === 'desc' ? 'high to low' : 'low to high'}`
+                    : `Sort by ${option.label}`
+                }
+                onClick={() => toggleSort(option.id)}
+              >
+                {option.label}
+                {active ? (
+                  <span className="admin-finance-vendors-sort-arrow" aria-hidden="true">
+                    {sortDir === 'desc' ? ' ↓' : ' ↑'}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -1962,6 +2170,60 @@ function yesterdayIso() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+const DEMO_PLATFORM_GIVEAWAYS: AdminPlatformGiveaway[] = [
+  {
+    id: 'demo-g1',
+    vendorId: 'lucky-strike',
+    vendorName: 'Lucky Strike Arcade',
+    vendorInitials: 'LS',
+    title: 'Friday Night Cash Pool',
+    poolAmount: 2500,
+    poolLabel: '$2,500',
+    winnerCount: 5,
+    entryAmount: 25,
+    entryLabel: '$25 min load',
+    entries: 84,
+    endsLabel: 'Fri, Oct 17 · 11:59 PM',
+    status: 'active',
+  },
+  {
+    id: 'demo-g2',
+    vendorId: 'nova-game',
+    vendorName: 'Nova Game Zone',
+    vendorInitials: 'NG',
+    title: 'Halloween Mega Giveaway',
+    poolAmount: 5000,
+    poolLabel: '$5,000',
+    winnerCount: 10,
+    entryAmount: 50,
+    entryLabel: '$50 min load',
+    entries: 132,
+    endsLabel: 'Oct 31 · 11:59 PM',
+    status: 'active',
+  },
+  {
+    id: 'demo-g3',
+    vendorId: 'pixel-palace',
+    vendorName: 'Pixel Palace Arcade',
+    vendorInitials: 'PP',
+    title: 'Pro Member Bonus Draw',
+    poolAmount: 1200,
+    poolLabel: '$1,200',
+    winnerCount: 3,
+    entryAmount: 20,
+    entryLabel: '$20 min load',
+    entries: 41,
+    endsLabel: 'Wed, Oct 15 · 8:00 PM',
+    status: 'active',
+  },
+]
+
+function formatGiveawayPool(item: AdminPlatformGiveaway): string {
+  if (item.poolLabel) return item.poolLabel
+  if (item.poolAmount != null) return formatUsd(item.poolAmount)
+  return '—'
+}
+
 function FinanceGiveawayTab({ useApi }: { useApi: boolean }) {
   const [date, setDate] = useState(yesterdayIso)
   const [winnerCount, setWinnerCount] = useState('1')
@@ -1985,6 +2247,27 @@ function FinanceGiveawayTab({ useApi }: { useApi: boolean }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
+  const [platformGiveaways, setPlatformGiveaways] = useState<AdminPlatformGiveaway[]>(() =>
+    useApi ? [] : DEMO_PLATFORM_GIVEAWAYS,
+  )
+  const [platformGiveawaysLoading, setPlatformGiveawaysLoading] = useState(useApi)
+
+  const loadPlatformGiveaways = useCallback(async () => {
+    if (!useApi) {
+      setPlatformGiveaways(DEMO_PLATFORM_GIVEAWAYS)
+      setPlatformGiveawaysLoading(false)
+      return
+    }
+    setPlatformGiveawaysLoading(true)
+    try {
+      const res = await tapstackApi.adminPlatformGiveaways()
+      setPlatformGiveaways(res.giveaways || [])
+    } catch {
+      setPlatformGiveaways([])
+    } finally {
+      setPlatformGiveawaysLoading(false)
+    }
+  }, [useApi])
 
   const load = useCallback(async (nextDate = date) => {
     if (!useApi) {
@@ -2008,6 +2291,10 @@ function FinanceGiveawayTab({ useApi }: { useApi: boolean }) {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadPlatformGiveaways()
+  }, [loadPlatformGiveaways])
 
   function toggle(id: string) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]))
@@ -2124,6 +2411,67 @@ function FinanceGiveawayTab({ useApi }: { useApi: boolean }) {
         </button>
       </section>
 
+      <section className="admin-giveaway-list-card admin-giveaway-platform" aria-label="Platform Giveaways">
+        <div className="admin-giveaway-list-head">
+          <h3>Platform Giveaways</h3>
+          <p>Active vendor giveaways running across TapStack right now.</p>
+        </div>
+        {platformGiveawaysLoading ? (
+          <p className="admin-empty-hint">Loading active giveaways…</p>
+        ) : platformGiveaways.length === 0 ? (
+          <p className="admin-empty-hint">No active platform giveaways.</p>
+        ) : (
+          <ul className="admin-giveaway-platform-list">
+            {platformGiveaways.map((item) => {
+              const initials =
+                item.vendorInitials ||
+                item.vendorName
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((part) => part.charAt(0).toUpperCase())
+                  .join('') ||
+                'V'
+              const prizeEach =
+                item.poolAmount != null && item.winnerCount
+                  ? item.poolAmount / Math.max(1, item.winnerCount)
+                  : null
+              return (
+                <li key={item.id} className="admin-giveaway-platform-row">
+                  <span className="admin-giveaway-platform-avatar" aria-hidden="true">
+                    {initials}
+                  </span>
+                  <div className="admin-giveaway-platform-main">
+                    <div className="admin-giveaway-platform-title-row">
+                      <strong className="admin-giveaway-platform-title">{item.title}</strong>
+                      <span className="admin-giveaway-platform-badge">Active</span>
+                    </div>
+                    <p className="admin-giveaway-platform-vendor">{item.vendorName}</p>
+                    <p className="admin-giveaway-platform-meta">
+                      {formatGiveawayPool(item)} pool
+                      {item.winnerCount
+                        ? ` · ${item.winnerCount} winner${item.winnerCount === 1 ? '' : 's'}`
+                        : ''}
+                      {prizeEach != null ? ` · $${prizeEach.toFixed(0)} each` : ''}
+                      {item.entryLabel ? ` · ${item.entryLabel}` : ''}
+                    </p>
+                  </div>
+                  <div className="admin-giveaway-platform-side">
+                    <span className="admin-giveaway-platform-entries">
+                      {item.entriesLabel ??
+                        (item.entries != null ? `${item.entries.toLocaleString()} entries` : '—')}
+                    </span>
+                    {item.endsLabel ? (
+                      <span className="admin-giveaway-platform-ends">Ends {item.endsLabel}</span>
+                    ) : null}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
       {history.length > 0 ? (
         <section className="admin-giveaway-list-card">
           <h3>Recent sends</h3>
@@ -2204,22 +2552,32 @@ export default function AdminFinancePage() {
       <CustomDateRangeModal {...financeRange.modalProps} />
 
       <nav className="admin-finance-subtabs" aria-label="Finance sections">
-        {FINANCE_SUB_TABS.map((tab) => {
-          const active = subTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              className={`admin-finance-subtab ${active ? 'admin-finance-subtab--active' : ''}`}
-              onClick={() => setSubTab(tab.id)}
-            >
-              <span className="admin-finance-subtab-icon" aria-hidden="true">
-                {tab.icon}
-              </span>
-              <span className="admin-finance-subtab-label">{tab.label}</span>
-            </button>
-          )
-        })}
+        {FINANCE_SUB_TAB_ROWS.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            className={`admin-finance-subtabs-row${rowIndex === 1 ? ' admin-finance-subtabs-row--second' : ''}`}
+            role="presentation"
+          >
+            {row.map((tab) => {
+              const active = subTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`admin-finance-subtab ${active ? 'admin-finance-subtab--active' : ''}`}
+                  aria-label={tab.label}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => setSubTab(tab.id)}
+                >
+                  <span className="admin-finance-subtab-icon" aria-hidden="true">
+                    {tab.icon}
+                  </span>
+                  <span className="admin-finance-subtab-label">{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        ))}
       </nav>
 
       {error ? <p className="admin-api-error">{error}</p> : null}
@@ -2278,6 +2636,8 @@ export default function AdminFinancePage() {
         )
       ) : subTab === 'giveaway' ? (
         <FinanceGiveawayTab useApi={useApi} />
+      ) : subTab === 'megadraw' ? (
+        <AdminMegaDrawTab useApi={useApi} />
       ) : (
         <div className="admin-finance-placeholder">
           <p>{FINANCE_SUB_TABS.find((tab) => tab.id === subTab)?.label} coming soon.</p>

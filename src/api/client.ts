@@ -32,6 +32,23 @@ export type WalletTxn = {
   createdAt: string
 }
 
+export type PlayerNotificationKind =
+  | 'platform'
+  | 'game_load'
+  | 'wallet'
+  | 'vendor'
+  | 'ticket'
+  | 'promo'
+
+export type PlayerNotification = {
+  id: string
+  kind: PlayerNotificationKind
+  title: string
+  body?: string
+  createdAt: string
+  read: boolean
+}
+
 export type EarnDailyMission = {
   id: string
   title: string
@@ -221,6 +238,20 @@ export type AdminDistributor = {
   status: 'active' | 'suspended' | string
 }
 
+export type AdminDistributorTransaction = {
+  id: string
+  vendorName?: string
+  vendorId?: string
+  name?: string
+  game?: string
+  type: string
+  status: string
+  amount: string
+  time: string
+  date: string
+  positive?: boolean
+}
+
 export type AdminDistributorDetail = {
   distributor: AdminDistributor & {
     email?: string
@@ -251,6 +282,7 @@ export type AdminDistributorDetail = {
     netAmount: number
     txCount: number
   }>
+  transactions?: AdminDistributorTransaction[]
 }
 
 export type AdminSignup = {
@@ -313,6 +345,9 @@ export type AdminFinanceCustomer = {
   vip?: boolean
   operatorVip?: boolean
   tags?: string[]
+  depositsAmount?: number
+  payoutsAmount?: number
+  winnersCount?: number
 }
 
 export type AdminCustomerDetail = {
@@ -364,6 +399,10 @@ export type AdminFinanceVendor = {
   redeemsAmount: number
   net: string
   netAmount: number
+  balance?: string
+  balanceAmount?: number
+  promotionSpend?: string
+  promotionSpendAmount?: number
   volume?: number
   customers?: number
   status?: string
@@ -384,6 +423,8 @@ export type AdminFinance = {
     subscriptions: string
     googleAds: string
     loyaltyRetentionFees: string
+    chargebacks?: number
+    chargebacksFormatted?: string
     platformRevenue: string
     txCount?: number
   }
@@ -420,6 +461,53 @@ export type AdminSettings = {
     role: string
     lastActive: string
   }>
+}
+
+export type AdminPlatformPromo = {
+  id: string
+  title: string
+  code?: string
+  bonusType?: string
+  bonusValue?: string
+  typeLabel?: string
+  endsLabel?: string
+  audience?: string
+  status: 'active' | 'expired' | string
+}
+
+export type AdminMegaDraw = {
+  id: string
+  title: string
+  prize: string
+  drawAt: string
+  drawDateLabel?: string
+  deadlineDays?: number
+  status: 'scheduled' | 'live' | 'completed' | string
+  participants?: number
+  ticketCount?: number
+  adsWatched?: number
+  purchaseTickets?: number
+  winnerUsername?: string
+  winnerTicketNumber?: number
+  winnerUserId?: string
+}
+
+export type AdminPlatformGiveaway = {
+  id: string
+  vendorId: string
+  vendorName: string
+  vendorInitials?: string
+  title: string
+  poolAmount?: number
+  poolLabel?: string
+  winnerCount?: number
+  entryAmount?: number
+  entryLabel?: string
+  entries?: number
+  entriesLabel?: string
+  endsLabel?: string
+  endsAt?: string
+  status?: 'active' | 'expired' | string
 }
 
 export type AdminImageReport = {
@@ -1055,6 +1143,8 @@ export const tapstackApi = {
   customerVendor: (vendorId: number | string) =>
     apiRequest<{ vendor: ApiVendor }>(`/customer/vendors/${vendorId}`),
   customerActivity: () => apiRequest<{ activity: unknown[] }>('/customer/activity'),
+  customerNotifications: () =>
+    apiRequest<{ notifications: PlayerNotification[] }>('/customer/notifications'),
   customerWallet: () =>
     apiRequest<{
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
@@ -1884,8 +1974,28 @@ export const tapstackApi = {
       body: { distributorId },
     }),
   adminDistributors: () => apiRequest<{ distributors: AdminDistributor[] }>('/admin/distributors'),
+  adminCreateDistributor: (payload: {
+    name: string
+    email: string
+    phone?: string
+    contactName?: string
+    status?: 'active' | 'suspended'
+    password?: string
+  }) =>
+    apiRequest<{
+      ok: boolean
+      distributor: AdminDistributor & { email?: string }
+      login: { email: string; temporaryPassword: string }
+    }>('/admin/distributors', { method: 'POST', body: payload }),
   adminDistributorDetail: (id: string | number) =>
     apiRequest<AdminDistributorDetail>(`/admin/distributors/${id}`),
+  adminDistributorTransactions: (
+    id: string | number,
+    range: 'today' | '7d' | '30d' | 'month' | 'all' = 'month',
+  ) =>
+    apiRequest<{ transactions: AdminDistributorTransaction[] }>(
+      `/admin/distributors/${id}/transactions?range=${encodeURIComponent(range)}`,
+    ),
   adminCustomerDetail: (id: string | number) =>
     apiRequest<AdminCustomerDetail>(`/admin/customers/${id}`),
   adminCustomerVip: (id: string | number, operatorVip: boolean) =>
@@ -1941,6 +2051,17 @@ export const tapstackApi = {
       winners: Array<{ id: string; name: string; amount: number; amountLabel: string }>
       reserveWallet?: string
     }>('/admin/giveaway/send', { method: 'POST', body: payload }),
+  adminPlatformGiveaways: () =>
+    apiRequest<{ ok?: boolean; giveaways: AdminPlatformGiveaway[] }>('/admin/giveaways/active'),
+  adminMegaDraws: () =>
+    apiRequest<{ ok?: boolean; current?: AdminMegaDraw | null; history: AdminMegaDraw[] }>(
+      '/admin/mega-draw',
+    ),
+  adminScheduleMegaDraw: (payload: { title: string; prize: string; drawAt: string; deadlineDays?: number }) =>
+    apiRequest<{ ok: boolean; draw: AdminMegaDraw }>('/admin/mega-draw', {
+      method: 'POST',
+      body: payload,
+    }),
   adminFinanceUpdateFees: (fees: Partial<AdminFees>) =>
     apiRequest<{ ok: boolean; fees: AdminFees }>('/admin/finance/fees', {
       method: 'PUT',
@@ -1976,6 +2097,36 @@ export const tapstackApi = {
       `/admin/image-reports/${imageId}/dismiss`,
       { method: 'POST' },
     ),
+  adminPlatformPromos: () =>
+    apiRequest<{ promotions: AdminPlatformPromo[] }>('/admin/comms/promos'),
+  adminCreatePlatformPromo: (payload: {
+    title: string
+    code: string
+    bonusType: string
+    bonusValue: string
+    endDate?: string
+    audience?: string
+  }) =>
+    apiRequest<{ ok: boolean; promotion: AdminPlatformPromo }>('/admin/comms/promos', {
+      method: 'POST',
+      body: payload,
+    }),
+  adminUpdatePlatformPromo: (
+    id: string | number,
+    payload: {
+      title: string
+      code: string
+      bonusType: string
+      bonusValue: string
+      endDate?: string
+      audience?: string
+      status?: 'active' | 'expired'
+    },
+  ) =>
+    apiRequest<{ ok: boolean; promotion: AdminPlatformPromo }>(`/admin/comms/promos/${id}`, {
+      method: 'PATCH',
+      body: payload,
+    }),
 
   supportTickets: () =>
     apiRequest<{
@@ -1986,15 +2137,21 @@ export const tapstackApi = {
     }>('/support/tickets'),
   supportTicket: (id: number | string) =>
     apiRequest<{ ticket: SupportTicket }>(`/support/tickets/${id}`),
-  supportCreateTicket: (payload: { subject: string; message: string; category: string }) =>
+  supportCreateTicket: (payload: {
+    subject: string
+    message: string
+    category: string
+    imageId?: number
+  }) =>
     apiRequest<{ ok: boolean; ticket: SupportTicket }>('/support/tickets', {
       method: 'POST',
       body: payload,
     }),
-  supportReplyTicket: (id: number | string, message: string) =>
+  uploadSupportImage: (file: File) => uploadTapstackImage('/support/image', file),
+  supportReplyTicket: (id: number | string, message: string, imageId?: number) =>
     apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/support/tickets/${id}/replies`, {
       method: 'POST',
-      body: { message },
+      body: supportMessageBody(message, imageId),
     }),
   customerVendorSupport: (vendorId: string | number) =>
     apiRequest<{ tickets: SupportTicket[]; openCount: number; categories: SupportCategory[] }>(
@@ -2004,16 +2161,23 @@ export const tapstackApi = {
     apiRequest<{ ticket: SupportTicket }>(`/customer/vendors/${vendorId}/support/${id}`),
   customerVendorCreateSupport: (
     vendorId: string | number,
-    payload: { subject: string; message: string; category: string },
+    payload: { subject: string; message: string; category: string; imageId?: number },
   ) =>
     apiRequest<{ ok: boolean; ticket: SupportTicket }>(`/customer/vendors/${vendorId}/support`, {
       method: 'POST',
       body: payload,
     }),
-  customerVendorSupportReply: (vendorId: string | number, id: number | string, message: string) =>
+  uploadCustomerVendorSupportImage: (vendorId: string | number, file: File) =>
+    uploadTapstackImage(`/customer/vendors/${vendorId}/support/image`, file),
+  customerVendorSupportReply: (
+    vendorId: string | number,
+    id: number | string,
+    message: string,
+    imageId?: number,
+  ) =>
     apiRequest<{ ok: boolean; ticket: SupportTicket }>(
       `/customer/vendors/${vendorId}/support/${id}/replies`,
-      { method: 'POST', body: { message } },
+      { method: 'POST', body: supportMessageBody(message, imageId) },
     ),
   vendorStoreSupport: () =>
     apiRequest<{ tickets: SupportTicket[]; openCount: number; categories: SupportCategory[] }>(
@@ -2496,6 +2660,8 @@ export type SupportReply = {
   authorRole: 'vendor' | 'distributor' | 'admin' | 'player' | string
   body: string
   createdAt: string
+  imageId?: number
+  imageUrl?: string
 }
 
 export type SupportTicket = {
@@ -2513,9 +2679,47 @@ export type SupportTicket = {
   authorName: string
   authorEmail: string
   message: string
+  imageId?: number
+  imageUrl?: string
   createdAt: string
   updatedAt: string
   replies?: SupportReply[]
+}
+
+function supportMessageBody(message: string, imageId?: number) {
+  return imageId ? { message, imageId } : { message }
+}
+
+async function uploadTapstackImage(path: string, file: File) {
+  const base = getApiBase()
+  const token = getToken()
+  const body = new FormData()
+  body.append('file', file)
+  body.append('agreed', '1')
+  const qs =
+    token && !token.startsWith('demo:')
+      ? `?access_token=${encodeURIComponent(token)}`
+      : ''
+  const res = await fetch(`${base}${path}${qs}`, {
+    method: 'POST',
+    headers: token
+      ? {
+          Authorization: `Bearer ${token}`,
+          'X-TapStack-Token': token,
+          Accept: 'application/json',
+        }
+      : { Accept: 'application/json' },
+    body,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new ApiError(
+      (data as { message?: string }).message || `Upload failed (${res.status})`,
+      res.status,
+      (data as { code?: string }).code,
+    )
+  }
+  return absolutizeMediaTree(data) as { ok: boolean; imageId: number; imageUrl: string }
 }
 
 export function isApiConfigured(): boolean {

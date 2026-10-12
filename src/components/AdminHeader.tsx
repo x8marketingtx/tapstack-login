@@ -38,17 +38,15 @@ export function useAdminShell() {
 }
 
 export function AdminHeader() {
-  const { initials, onProfileClick, onLogoClick, onHelpClick, openTicketCount } = useAdminShell()
-  const badge = openTicketCount > 99 ? '99+' : String(openTicketCount)
+  const { initials, onProfileClick, onLogoClick, onHelpClick } = useAdminShell()
 
   return (
     <header className="admin-dash-header">
       <div className="admin-dash-header-row">
         <TapStackLogo height={40} onClick={onLogoClick} />
         <div className="admin-dash-header-actions">
-          <button type="button" className="admin-help-button" onClick={onHelpClick}>
-            Help
-            {openTicketCount > 0 ? <span className="admin-help-badge">{badge}</span> : null}
+          <button type="button" className="admin-help-button admin-x8-support-button" onClick={onHelpClick}>
+            X8 Support
           </button>
           <button
             type="button"

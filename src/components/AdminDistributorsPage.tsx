@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ApiError,
   isApiConfigured,
   tapstackApi,
   type AdminDistributor,
   type AdminDistributorDetail,
+  type AdminDistributorTransaction,
   type AdminPeriodStats,
   type AdminVendor,
 } from '../api/client'
 import { AdminHeader } from './AdminHeader'
+import ActivityPager from './ActivityPager'
+import { pageItems } from '../lib/refresh'
 import './AdminDistributorsPage.css'
 
 type DistributorStatus = 'active' | 'suspended'
@@ -63,6 +67,227 @@ function mapApiDistributor(item: AdminDistributor): DistributorItem {
     earned: item.earned,
     status: normalizeStatus(item.status),
   }
+}
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'D'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+}
+
+type CreateDistributorForm = {
+  name: string
+  email: string
+  contactName: string
+  phone: string
+  password: string
+  status: DistributorStatus
+}
+
+const EMPTY_CREATE_DISTRIBUTOR: CreateDistributorForm = {
+  name: '',
+  email: '',
+  contactName: '',
+  phone: '',
+  password: '',
+  status: 'active',
+}
+
+function CreateDistributorModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean
+  onClose: () => void
+  onCreated: (item: DistributorItem, login?: { email: string; password: string }) => void
+}) {
+  const [form, setForm] = useState<CreateDistributorForm>(EMPTY_CREATE_DISTRIBUTOR)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [createdLogin, setCreatedLogin] = useState<{ email: string; password: string } | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setForm(EMPTY_CREATE_DISTRIBUTOR)
+    setError('')
+    setBusy(false)
+    setCreatedLogin(null)
+  }, [open])
+
+  if (!open) return null
+
+  function update<K extends keyof CreateDistributorForm>(key: K, value: CreateDistributorForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (busy) return
+    if (!form.name.trim()) {
+      setError('Distributor name is required.')
+      return
+    }
+    if (!form.email.trim()) {
+      setError('Email is required.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    try {
+      if (!isApiConfigured()) {
+        const login = {
+          email: form.email.trim(),
+          password: form.password.trim() || 'TapstackDemo1!',
+        }
+        const item: DistributorItem = {
+          id: String(Date.now()),
+          initials: initialsFromName(form.name),
+          name: form.name.trim(),
+          vendors: 0,
+          earned: '$0.00',
+          status: form.status,
+        }
+        setCreatedLogin(login)
+        onCreated(item, login)
+        return
+      }
+
+      const res = await tapstackApi.adminCreateDistributor({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || undefined,
+        contactName: form.contactName.trim() || undefined,
+        status: form.status,
+        password: form.password.trim() || undefined,
+      })
+      const item = mapApiDistributor(res.distributor)
+      setCreatedLogin({
+        email: res.login.email,
+        password: res.login.temporaryPassword,
+      })
+      onCreated(item)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not create distributor.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const host =
+    typeof document !== 'undefined'
+      ? document.querySelector('.admin-dashboard') ??
+        document.querySelector('.screen--admin') ??
+        document.querySelector('.screen') ??
+        document.body
+      : null
+
+  if (!host) return null
+
+  return createPortal(
+    <div className="admin-vendor-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="admin-vendor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-create-distributor-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="admin-vendor-modal-header">
+          <h2 id="admin-create-distributor-title">Create distributor</h2>
+          <button type="button" className="admin-vendor-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        {createdLogin ? (
+          <div className="admin-vendor-modal-success">
+            <p className="admin-vendor-modal-success-title">Distributor created</p>
+            <p className="admin-vendor-modal-success-copy">
+              Save these login details — the password is only shown once.
+            </p>
+            <div className="admin-vendor-modal-success-box">
+              <p>
+                <span>Email</span> {createdLogin.email}
+              </p>
+              <p>
+                <span>Password</span> {createdLogin.password}
+              </p>
+            </div>
+            <button type="button" className="admin-vendor-modal-submit" onClick={onClose}>
+              Done
+            </button>
+          </div>
+        ) : (
+          <form className="admin-vendor-modal-form" onSubmit={(event) => void handleSubmit(event)}>
+            <p className="admin-vendor-modal-copy">
+              Creates a distributor account with portal login and an affiliate join link.
+            </p>
+            {error ? <p className="admin-api-error">{error}</p> : null}
+            <label className="admin-vendor-modal-field">
+              <span>Distributor name</span>
+              <input
+                value={form.name}
+                required
+                autoComplete="organization"
+                onChange={(event) => update('name', event.target.value)}
+              />
+            </label>
+            <label className="admin-vendor-modal-field">
+              <span>Email</span>
+              <input
+                type="email"
+                value={form.email}
+                required
+                autoComplete="email"
+                onChange={(event) => update('email', event.target.value)}
+              />
+            </label>
+            <label className="admin-vendor-modal-field">
+              <span>Contact name (optional)</span>
+              <input
+                value={form.contactName}
+                autoComplete="name"
+                onChange={(event) => update('contactName', event.target.value)}
+              />
+            </label>
+            <label className="admin-vendor-modal-field">
+              <span>Phone (optional)</span>
+              <input
+                type="tel"
+                value={form.phone}
+                autoComplete="tel"
+                onChange={(event) => update('phone', event.target.value)}
+              />
+            </label>
+            <label className="admin-vendor-modal-field">
+              <span>Initial password (optional)</span>
+              <input
+                type="password"
+                value={form.password}
+                autoComplete="new-password"
+                placeholder="Leave blank to auto-generate"
+                onChange={(event) => update('password', event.target.value)}
+              />
+            </label>
+            <label className="admin-vendor-modal-field">
+              <span>Status</span>
+              <select value={form.status} onChange={(event) => update('status', event.target.value as DistributorStatus)}>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+            <button type="submit" className="admin-vendor-modal-submit" disabled={busy}>
+              {busy ? 'Creating…' : 'Create distributor'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>,
+    host,
+  )
 }
 
 function DistributorCard({
@@ -124,6 +349,13 @@ function DistributorsSkeleton() {
   )
 }
 
+function orderTypeLabel(type: string): string {
+  if (type === 'auto-load') return 'Auto load'
+  if (type === 'manual-load' || type === 'load') return 'Load / sale'
+  if (type === 'redeem') return 'Redeem'
+  return type || 'Order'
+}
+
 async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text)
@@ -153,6 +385,9 @@ function DistributorDetailView({
   const [removeBusyId, setRemoveBusyId] = useState('')
   const [copied, setCopied] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [transactions, setTransactions] = useState<AdminDistributorTransaction[]>([])
+  const [txLoading, setTxLoading] = useState(false)
+  const [txPage, setTxPage] = useState(1)
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -166,7 +401,10 @@ function DistributorDetailView({
     tapstackApi
       .adminDistributorDetail(distributorId)
       .then((res) => {
-        if (!cancelled) setDetail(res)
+        if (!cancelled) {
+          setDetail(res)
+          if (res.transactions?.length) setTransactions(res.transactions)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -200,6 +438,35 @@ function DistributorDetailView({
       cancelled = true
     }
   }, [reloadKey])
+
+  useEffect(() => {
+    setTxPage(1)
+  }, [range, distributorId])
+
+  useEffect(() => {
+    if (!isApiConfigured() || !distributorId) {
+      setTransactions([])
+      return
+    }
+    let cancelled = false
+    setTxLoading(true)
+    tapstackApi
+      .adminDistributorTransactions(distributorId, range)
+      .then((res) => {
+        if (!cancelled) setTransactions(res.transactions || [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTransactions((current) => (current.length ? current : []))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTxLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [distributorId, range, reloadKey])
 
   const agent = detail?.distributor
   const stats = detail?.stats?.[range] ?? EMPTY_STATS
@@ -422,6 +689,45 @@ function DistributorDetailView({
               </div>
             )}
           </section>
+
+          <section className="admin-distributor-detail-transactions">
+            <h2 className="admin-distributor-detail-vendors-title">Transactions</h2>
+            <p className="admin-distributor-detail-transactions-meta">
+              Loads and redeems across this distributor&apos;s vendor network ·{' '}
+              {DETAIL_RANGES.find((item) => item.id === range)?.label ?? range}
+            </p>
+            {txLoading ? (
+              <p className="admin-empty-hint">Loading transactions…</p>
+            ) : transactions.length === 0 ? (
+              <p className="admin-empty-hint">No transactions in this period.</p>
+            ) : (
+              <>
+                <div className="admin-distributor-detail-transactions-list">
+                  {pageItems(transactions, txPage).map((tx) => (
+                    <article key={tx.id} className="admin-distributor-detail-transaction">
+                      <div>
+                        <p className="admin-distributor-detail-transaction-title">
+                          {orderTypeLabel(tx.type)} · {tx.game || 'Game'}
+                        </p>
+                        <p className="admin-distributor-detail-transaction-meta">
+                          {tx.vendorName ? `${tx.vendorName} · ` : ''}
+                          {tx.name || 'Player'} · {tx.date} · {tx.time} · {tx.status}
+                        </p>
+                      </div>
+                      <p
+                        className={`admin-distributor-detail-transaction-amount${
+                          tx.type === 'redeem' ? ' admin-distributor-detail-transaction-amount--out' : ''
+                        }`}
+                      >
+                        {tx.amount}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+                <ActivityPager page={txPage} total={transactions.length} onPage={setTxPage} />
+              </>
+            )}
+          </section>
         </>
       )}
     </div>
@@ -434,6 +740,7 @@ export default function AdminDistributorsPage() {
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
 
   useEffect(() => {
     if (!isApiConfigured()) {
@@ -498,10 +805,22 @@ export default function AdminDistributorsPage() {
             )}
           </p>
         </div>
-        <button type="button" className="admin-distributors-create-btn">
+        <button type="button" className="admin-distributors-create-btn" onClick={() => setCreateOpen(true)}>
           + Create
         </button>
       </div>
+
+      <CreateDistributorModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(item) => {
+          setDistributors((list) => {
+            if (list.some((entry) => entry.id === item.id)) return list
+            return [item, ...list]
+          })
+          if (isApiConfigured()) setReloadKey((key) => key + 1)
+        }}
+      />
 
       {error ? <p className="admin-api-error">{error}</p> : null}
 

@@ -15,6 +15,7 @@ import {
   nitropayFailureMessage,
   watchTicketsAdComplete,
 } from '../lib/nitropay'
+import { TapstackTicketIcon } from './TapstackTicketIcon'
 import './GiveawayPage.css'
 
 const CHIPS_PER_TICKET = 6
@@ -232,7 +233,11 @@ function sourceLabel(source: string) {
   return 'Bonus'
 }
 
-export default function GiveawayPage() {
+type GiveawayPageProps = {
+  onTicketAwarded?: (tickets: GiveawayTicket[]) => void
+}
+
+export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
   const useApi = isApiConfigured()
   const [state, setState] = useState<GiveawayState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -265,6 +270,7 @@ export default function GiveawayPage() {
     }
 
     if (newTickets.length > 0) {
+      onTicketAwarded?.(newTickets)
       // Fill all 6 chips, sparkle gold, then explode into ticket(s).
       setFlashChips(CHIPS_PER_TICKET)
       setCompleting(true)
@@ -587,19 +593,7 @@ export default function GiveawayPage() {
         <div className="giveaway-hero-text">
           <h1 className="giveaway-title">
             <span className="giveaway-title-icon" aria-hidden="true">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M3.5 9.5A2.5 2.5 0 0 0 6 7h12a2.5 2.5 0 0 0 2.5 2.5V11a1.5 1.5 0 1 1 0 3v1.5A2.5 2.5 0 0 0 18 18H6a2.5 2.5 0 0 0-2.5-2.5V14a1.5 1.5 0 1 1 0-3V9.5Z"
-                  fill="#d4af37"
-                />
-                <path
-                  d="M9 8v8M15 8v8"
-                  stroke="#fff7cc"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeDasharray="1.8 2.2"
-                />
-              </svg>
+              <TapstackTicketIcon size={26} className="giveaway-title-ticket-icon" />
             </span>
             Tapstack Entry Ticket
           </h1>
@@ -847,7 +841,7 @@ export default function GiveawayPage() {
         ref={tierSectionRef}
       >
         <div className="tier-card-main">
-          <p className="tier-card-label">Your earn rate</p>
+          <p className="tier-card-label">Your Earn Rate</p>
           <p className="tier-card-value">
             {state.tierLabel} · {state.tierRate.summary}
           </p>
@@ -906,19 +900,7 @@ export default function GiveawayPage() {
 
       <div className="giveaway-info-box">
         <span className="giveaway-info-icon" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M3.5 9.5A2.5 2.5 0 0 0 6 7h12a2.5 2.5 0 0 0 2.5 2.5V11a1.5 1.5 0 1 1 0 3v1.5A2.5 2.5 0 0 0 18 18H6a2.5 2.5 0 0 0-2.5-2.5V14a1.5 1.5 0 1 1 0-3V9.5Z"
-              fill="#d4af37"
-            />
-            <path
-              d="M9 8v8M15 8v8"
-              stroke="#fff7cc"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeDasharray="1.8 2.2"
-            />
-          </svg>
+          <TapstackTicketIcon size={22} className="giveaway-info-ticket-icon" />
         </span>
         <ul className="giveaway-info-list">
           {state.howItWorks.map((line) => (
@@ -931,8 +913,11 @@ export default function GiveawayPage() {
 
       <section ref={yourTicketsRef} className="your-tickets-section" id="your-tickets">
         <div className="your-numbers-header">
-          <div>
+          <div className="your-numbers-title-row">
             <h2 className="your-numbers-title">Your tickets</h2>
+            <span className="your-numbers-count" aria-label={`${state.ticketCount} ticket${state.ticketCount === 1 ? '' : 's'} available`}>
+              {state.ticketCount}
+            </span>
           </div>
         </div>
 

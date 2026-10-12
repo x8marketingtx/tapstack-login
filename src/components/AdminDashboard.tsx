@@ -16,12 +16,13 @@ import AdminDistributorsPage from './AdminDistributorsPage'
 import AdminSignupsPage from './AdminSignupsPage'
 import AdminFinancePage from './AdminFinancePage'
 import AdminSettingsPage from './AdminSettingsPage'
+import AdminSupportPage from './AdminSupportPage'
 import ProfilePage, {
   initialsFromName,
   profileFromUser,
   type PlayerProfile,
 } from './ProfilePage'
-import HelpCenter from './HelpCenter'
+import X8SupportPage from './X8SupportPage'
 import { useCustomReportRange } from '../hooks/useCustomReportRange'
 import { formatCustomDateRangeLabel } from '../lib/reportRange'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
@@ -547,9 +548,20 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
 
   const handleOverviewStats = useCallback((stats: AdminOverview['platformStats']) => {
     const pending = stats?.pendingApplications
-    setNavBadges({
+    setNavBadges((prev) => ({
+      ...prev,
       vendors: String(stats?.activeVendors ?? ''),
       ...(pending != null && pending > 0 ? { signups: String(pending) } : {}),
+    }))
+  }, [])
+
+  const handleSupportOpenCount = useCallback((count: number) => {
+    setOpenTicketCount(count)
+    setNavBadges((prev) => {
+      const next = { ...prev }
+      if (count > 0) next.support = count > 99 ? '99+' : String(count)
+      else delete next.support
+      return next
     })
   }, [])
 
@@ -568,20 +580,18 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
     }
   }, [handleOverviewStats])
 
-  useEffect(() => {
+  const refreshOpenTicketCount = useCallback(() => {
     const token = getToken()
     if (!isApiConfigured() || token?.startsWith('demo:')) return
-    let cancelled = false
-    tapstackApi
+    void tapstackApi
       .adminSupportTickets()
-      .then((res) => {
-        if (!cancelled) setOpenTicketCount(res.openCount || 0)
-      })
+      .then((res) => setOpenTicketCount(res.openCount || 0))
       .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [showHelp])
+  }, [])
+
+  useEffect(() => {
+    refreshOpenTicketCount()
+  }, [refreshOpenTicketCount, showHelp, activeTab])
 
   function goHome() {
     setShowProfile(false)
@@ -627,18 +637,7 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
           </div>
         ) : showHelp ? (
           <div className="admin-dashboard-scroll admin-dashboard-scroll--profile">
-            <HelpCenter
-              mode="inbox"
-              onBack={() => {
-                setShowHelp(false)
-                const token = getToken()
-                if (!isApiConfigured() || token?.startsWith('demo:')) return
-                void tapstackApi
-                  .adminSupportTickets()
-                  .then((res) => setOpenTicketCount(res.openCount || 0))
-                  .catch(() => {})
-              }}
-            />
+            <X8SupportPage onBack={() => setShowHelp(false)} />
           </div>
         ) : (
           <>
@@ -648,6 +647,9 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
               {activeTab === 'distributors' && <AdminDistributorsPage />}
               {activeTab === 'signups' && <AdminSignupsPage />}
               {activeTab === 'finance' && <AdminFinancePage />}
+              {activeTab === 'support' && (
+                <AdminSupportPage onOpenCount={handleSupportOpenCount} />
+              )}
               {activeTab === 'settings' && <AdminSettingsPage />}
             </div>
             <AdminBottomNav activeTab={activeTab} onTabChange={handleTabChange} badges={navBadges} />

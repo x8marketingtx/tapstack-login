@@ -709,6 +709,13 @@
   grid-template-columns: 1fr;
 }
 
+.vendor-settings-go-pro-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 .vendor-settings-go-pro-banner {
   display: flex;
   align-items: center;
