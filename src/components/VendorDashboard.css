@@ -172,6 +172,14 @@
   background: #f5f3ff;
 }
 
+.vendor-avatar-dropdown-logout {
+  color: #b91c1c;
+}
+
+.vendor-avatar-dropdown-logout:hover {
+  background: #fef2f2;
+}
+
 .vendor-menu-count {
   margin-left: 8px;
   min-width: 18px;

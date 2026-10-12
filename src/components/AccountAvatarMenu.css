@@ -1,0 +1,45 @@
+.account-avatar-menu {
+  position: relative;
+}
+
+.account-avatar-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 148px;
+  padding: 6px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.16);
+}
+
+.account-avatar-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-avatar-dropdown button:hover,
+.account-avatar-dropdown button:focus-visible {
+  background: #f5f3ff;
+}
+
+.account-avatar-dropdown-logout {
+  color: #b91c1c;
+}
+
+.account-avatar-dropdown-logout:hover,
+.account-avatar-dropdown-logout:focus-visible {
+  background: #fef2f2;
+}

@@ -616,6 +616,7 @@ export default function AdminDashboard({ onLogout }: { onLogout?: () => void }) 
         setShowHelp(false)
         setShowProfile(true)
       }}
+      onLogout={() => onLogout?.()}
       onHelpClick={() => {
         setShowProfile(false)
         setShowHelp(true)

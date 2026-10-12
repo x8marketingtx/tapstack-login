@@ -1641,7 +1641,17 @@ export const tapstackApi = {
         distributorId?: number | null
         distributorName?: string | null
         emailAlerts?: boolean
+        emailAlertRecipients?: string[]
+        /** Legacy / WP snake_case */
+        email_alert_recipients?: string[]
+        alertEmails?: string[]
+        notificationEmails?: string[]
         smsAlerts?: boolean
+        smsAlertRecipients?: string[]
+        /** Legacy / WP snake_case */
+        sms_alert_recipients?: string[]
+        smsAlertPhones?: string[]
+        notificationPhones?: string[]
         withdrawalAlerts?: boolean
         accentColor?: string
         venueTagline?: string

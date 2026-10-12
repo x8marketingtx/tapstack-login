@@ -26,6 +26,211 @@ const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'staff', label: 'Staff' },
 ]
 
+function normalizeAlertEmails(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(/[,;]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+function nationalUsPhoneDigits(value: string): string {
+  let digits = value.replace(/\D/g, '')
+  if (digits.length >= 11 && digits.startsWith('1')) {
+    digits = digits.slice(1)
+  }
+  return digits.slice(0, 10)
+}
+
+function formatUsPhoneDisplay(value: string): string {
+  const digits = nationalUsPhoneDigits(value)
+  if (digits.length === 0) return ''
+  if (digits.length <= 3) return `(${digits}`
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function isValidUsPhone(value: string): boolean {
+  return nationalUsPhoneDigits(value).length === 10
+}
+
+function normalizeAlertPhones(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        const digits = nationalUsPhoneDigits(String(entry))
+        return digits.length === 10 ? `+1${digits}` : String(entry).trim()
+      })
+      .filter(Boolean)
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(/[,;]+/)
+      .map((entry) => {
+        const digits = nationalUsPhoneDigits(entry)
+        return digits.length === 10 ? `+1${digits}` : entry.trim()
+      })
+      .filter(Boolean)
+  }
+  return []
+}
+
+function alertPhoneToDisplay(value: string): string {
+  const digits = nationalUsPhoneDigits(value)
+  return digits.length === 10 ? formatUsPhoneDisplay(digits) : value
+}
+
+function alertPhoneToApi(value: string): string {
+  const digits = nationalUsPhoneDigits(value)
+  return digits.length === 10 ? `+1${digits}` : ''
+}
+
+function SmsAlertRecipientsEditor({
+  phones,
+  onChange,
+  disabled = false,
+}: {
+  phones: string[]
+  onChange: (next: string[]) => void
+  disabled?: boolean
+}) {
+  const rows = phones.length > 0 ? phones : ['']
+
+  function updateRow(index: number, value: string) {
+    const next = [...rows]
+    next[index] = formatUsPhoneDisplay(value)
+    onChange(next)
+  }
+
+  function removeRow(index: number) {
+    if (rows.length <= 1) {
+      onChange([''])
+      return
+    }
+    onChange(rows.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="vendor-settings-alert-emails">
+      <span className="vendor-settings-field-label">Alert phone numbers</span>
+      <p className="vendor-settings-alert-emails-hint">
+        US numbers only. Add one or more mobiles to text for critical events such as withdrawals and
+        player load orders.
+      </p>
+      <ul className="vendor-settings-alert-emails-list">
+        {rows.map((value, index) => (
+          <li key={`alert-phone-${index}`} className="vendor-settings-alert-email-row">
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel-national"
+              className="vendor-settings-input"
+              placeholder="(555) 555-5555"
+              value={value}
+              disabled={disabled}
+              onChange={(event) => updateRow(index, event.target.value)}
+            />
+            <button
+              type="button"
+              className="vendor-settings-alert-email-remove"
+              disabled={disabled || (rows.length <= 1 && !value.trim())}
+              aria-label={`Remove phone number ${index + 1}`}
+              onClick={() => removeRow(index)}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className="vendor-settings-alert-email-add"
+        disabled={disabled}
+        onClick={() => onChange([...rows, ''])}
+      >
+        Add another number
+      </button>
+    </div>
+  )
+}
+
+function EmailAlertRecipientsEditor({
+  emails,
+  onChange,
+  disabled = false,
+}: {
+  emails: string[]
+  onChange: (next: string[]) => void
+  disabled?: boolean
+}) {
+  const rows = emails.length > 0 ? emails : ['']
+
+  function updateRow(index: number, value: string) {
+    const next = [...rows]
+    next[index] = value
+    onChange(next)
+  }
+
+  function removeRow(index: number) {
+    if (rows.length <= 1) {
+      onChange([''])
+      return
+    }
+    onChange(rows.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="vendor-settings-alert-emails">
+      <span className="vendor-settings-field-label">Alert email addresses</span>
+      <p className="vendor-settings-alert-emails-hint">
+        Add one or more addresses to notify when withdrawals, player load orders, or other alert
+        triggers occur.
+      </p>
+      <ul className="vendor-settings-alert-emails-list">
+        {rows.map((value, index) => (
+          <li key={`alert-email-${index}`} className="vendor-settings-alert-email-row">
+            <input
+              type="email"
+              className="vendor-settings-input"
+              placeholder="name@example.com"
+              value={value}
+              disabled={disabled}
+              autoComplete="email"
+              onChange={(event) => updateRow(index, event.target.value)}
+            />
+            <button
+              type="button"
+              className="vendor-settings-alert-email-remove"
+              disabled={disabled || (rows.length <= 1 && !value.trim())}
+              aria-label={`Remove email ${index + 1}`}
+              onClick={() => removeRow(index)}
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className="vendor-settings-alert-email-add"
+        disabled={disabled}
+        onClick={() => onChange([...rows, ''])}
+      >
+        Add another email
+      </button>
+    </div>
+  )
+}
+
 function SettingsToggle({
   checked,
   onChange,
@@ -97,7 +302,9 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [address, setAddress] = useState('')
   const [initials, setInitials] = useState('V')
   const [emailAlerts, setEmailAlerts] = useState(true)
+  const [emailAlertRecipients, setEmailAlertRecipients] = useState<string[]>([''])
   const [smsAlerts, setSmsAlerts] = useState(false)
+  const [smsAlertRecipients, setSmsAlertRecipients] = useState<string[]>([''])
   const [withdrawalAlerts, setWithdrawalAlerts] = useState(true)
   const [accentColor, setAccentColor] = useState('purple')
   const [venueTagline, setVenueTagline] = useState('')
@@ -165,7 +372,31 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         setAddress(p.address || '')
         setInitials((p.initials || 'V').slice(0, 2).toUpperCase())
         setEmailAlerts(p.emailAlerts !== false)
+        const loadedAlertEmails = normalizeAlertEmails(
+          p.emailAlertRecipients ??
+            p.email_alert_recipients ??
+            p.alertEmails ??
+            p.notificationEmails,
+        )
+        if (loadedAlertEmails.length > 0) {
+          setEmailAlertRecipients(loadedAlertEmails)
+        } else if (typeof p.email === 'string' && p.email.trim()) {
+          setEmailAlertRecipients([p.email.trim()])
+        } else {
+          setEmailAlertRecipients([''])
+        }
         setSmsAlerts(Boolean(p.smsAlerts))
+        const loadedSmsPhones = normalizeAlertPhones(
+          p.smsAlertRecipients ?? p.sms_alert_recipients ?? p.smsAlertPhones ?? p.notificationPhones,
+        )
+        if (loadedSmsPhones.length > 0) {
+          setSmsAlertRecipients(loadedSmsPhones.map(alertPhoneToDisplay))
+        } else {
+          const profileDigits = nationalUsPhoneDigits(String(p.phone || ''))
+          setSmsAlertRecipients(
+            profileDigits.length === 10 ? [formatUsPhoneDisplay(profileDigits)] : [''],
+          )
+        }
         setWithdrawalAlerts(p.withdrawalAlerts !== false)
         setAccentColor(p.accentColor || 'purple')
         setVenueTagline(p.venueTagline || '')
@@ -221,6 +452,44 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
     setSaving(true)
     setSaveError('')
     setSaveOk(false)
+    const cleanedAlertEmails = emailAlertRecipients.map((entry) => entry.trim()).filter(Boolean)
+    if (emailAlerts) {
+      if (cleanedAlertEmails.length === 0) {
+        setSaveError('Add at least one email address to receive alerts.')
+        setSaving(false)
+        return
+      }
+      const invalid = cleanedAlertEmails.find((entry) => !isValidEmail(entry))
+      if (invalid) {
+        setSaveError(`Enter a valid email address (${invalid}).`)
+        setSaving(false)
+        return
+      }
+    } else if (cleanedAlertEmails.some((entry) => entry && !isValidEmail(entry))) {
+      setSaveError('Fix invalid alert email addresses before saving.')
+      setSaving(false)
+      return
+    }
+    const cleanedSmsPhones = smsAlertRecipients
+      .map((entry) => alertPhoneToApi(entry))
+      .filter(Boolean)
+    if (smsAlerts) {
+      if (cleanedSmsPhones.length === 0) {
+        setSaveError('Add at least one US phone number for SMS alerts.')
+        setSaving(false)
+        return
+      }
+      const invalidSms = smsAlertRecipients.find((entry) => entry.trim() && !isValidUsPhone(entry))
+      if (invalidSms) {
+        setSaveError(`Enter a valid 10-digit US number (${invalidSms}).`)
+        setSaving(false)
+        return
+      }
+    } else if (smsAlertRecipients.some((entry) => entry.trim() && !isValidUsPhone(entry))) {
+      setSaveError('Fix invalid SMS numbers before saving.')
+      setSaving(false)
+      return
+    }
     try {
       if (bannerUploadRef.current?.hasPendingFile()) {
         await bannerUploadRef.current.flush()
@@ -234,7 +503,9 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
           address: address.trim(),
           inviteCode: inviteCode.trim(),
           emailAlerts,
+          emailAlertRecipients: cleanedAlertEmails,
           smsAlerts,
+          smsAlertRecipients: cleanedSmsPhones,
           withdrawalAlerts,
           accentColor,
           venueTagline: venueTagline.trim(),
@@ -257,6 +528,25 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         }
       }
       if (typeof p.initials === 'string') setInitials(p.initials.slice(0, 2).toUpperCase())
+      const savedAlertEmails = normalizeAlertEmails(
+        p.emailAlertRecipients ??
+          p.email_alert_recipients ??
+          p.alertEmails ??
+          p.notificationEmails,
+      )
+      if (savedAlertEmails.length > 0) {
+        setEmailAlertRecipients(savedAlertEmails)
+      } else if (cleanedAlertEmails.length > 0) {
+        setEmailAlertRecipients(cleanedAlertEmails)
+      }
+      const savedSmsPhones = normalizeAlertPhones(
+        p.smsAlertRecipients ?? p.sms_alert_recipients ?? p.smsAlertPhones ?? p.notificationPhones,
+      )
+      if (savedSmsPhones.length > 0) {
+        setSmsAlertRecipients(savedSmsPhones.map(alertPhoneToDisplay))
+      } else if (cleanedSmsPhones.length > 0) {
+        setSmsAlertRecipients(cleanedSmsPhones.map(alertPhoneToDisplay))
+      }
       if (typeof p.accentColor === 'string') setAccentColor(p.accentColor)
       if (typeof p.venueTagline === 'string') setVenueTagline(p.venueTagline)
       const savedBannerUrl = typeof p.bannerUrl === 'string' ? absoluteMediaUrl(p.bannerUrl) : ''
@@ -598,16 +888,43 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         <h3 className="vendor-settings-panel-title">NOTIFICATIONS</h3>
         <SettingsToggle
           label="Email alerts"
-          description="Withdrawal confirmations, reports"
+          description="Withdrawals, orders, player loads, and reports"
           checked={emailAlerts}
-          onChange={setEmailAlerts}
+          onChange={(next) => {
+            setEmailAlerts(next)
+            if (next && emailAlertRecipients.every((entry) => !entry.trim())) {
+              setEmailAlertRecipients(email.trim() ? [email.trim()] : [''])
+            }
+          }}
         />
+        {emailAlerts ? (
+          <EmailAlertRecipientsEditor
+            emails={emailAlertRecipients}
+            onChange={setEmailAlertRecipients}
+            disabled={saving}
+          />
+        ) : null}
         <SettingsToggle
           label="SMS alerts"
-          description="Critical events only"
+          description="Withdrawals, orders, player loads, and reports"
           checked={smsAlerts}
-          onChange={setSmsAlerts}
+          onChange={(next) => {
+            setSmsAlerts(next)
+            if (next && smsAlertRecipients.every((entry) => !entry.trim())) {
+              const profileDigits = nationalUsPhoneDigits(phone)
+              setSmsAlertRecipients(
+                profileDigits.length === 10 ? [formatUsPhoneDisplay(profileDigits)] : [''],
+              )
+            }
+          }}
         />
+        {smsAlerts ? (
+          <SmsAlertRecipientsEditor
+            phones={smsAlertRecipients}
+            onChange={setSmsAlertRecipients}
+            disabled={saving}
+          />
+        ) : null}
         <SettingsToggle
           label="Withdrawal approvals"
           description="Notify when approved/rejected"

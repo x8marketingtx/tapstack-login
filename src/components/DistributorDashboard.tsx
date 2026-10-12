@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import AccountAvatarMenu from './AccountAvatarMenu'
+import './AccountAvatarMenu.css'
 import {
   ApiError,
   applyAuthSession,
@@ -858,9 +860,12 @@ export default function DistributorDashboard({
             <button type="button" className="dist-help-button" onClick={() => setShowHelp(true)}>
               Help
             </button>
-            <button type="button" className="dist-avatar" aria-label="Open profile" onClick={openProfile}>
-              {initials}
-            </button>
+            <AccountAvatarMenu
+              initials={initials}
+              avatarClassName="dist-avatar"
+              onProfileClick={openProfile}
+              onLogout={onLogout}
+            />
           </div>
         </header>
       ) : null}

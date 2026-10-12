@@ -28,6 +28,7 @@ import {
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
 import { consumePendingVendorJoin, peekPendingPlayVendor, setPendingPlayVendor } from './lib/affiliate'
 import { isLocationVerificationEnabled } from './lib/verify'
+import { useIdleLogout } from './lib/idleLogout'
 import {
   applyDocumentTitle,
   migrateLegacyHash,
@@ -275,6 +276,8 @@ function App() {
     navigate({ portal: 'login' }, 'replace')
     setView('login')
   }
+
+  useIdleLogout(goToLogin, Boolean(sessionRole) && isDashboardView(view))
 
   useEffect(() => {
     migrateLegacyHash()

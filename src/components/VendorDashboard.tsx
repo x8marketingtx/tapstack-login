@@ -18,7 +18,9 @@ import VendorAnalyticsPage from './VendorAnalyticsPage'
 import VendorPromosPage from './VendorPromosPage'
 import VendorSettingsPage, { prefetchVendorGames } from './VendorSettingsPage'
 import TopUpModal from './TopUpModal'
+import AccountAvatarMenu from './AccountAvatarMenu'
 import ProfilePage, { initialsFromName, profileFromUser, type PlayerProfile } from './ProfilePage'
+import './AccountAvatarMenu.css'
 import TapStackProBenefits from './TapStackProBenefits'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
 import HelpCenter from './HelpCenter'
@@ -69,8 +71,8 @@ function VendorHeader({
   playerTicketCount = 0,
   onProfileClick,
   onNotificationsClick,
-  onHelpClick,
   onPlayersClick,
+  onLogout,
   onLogoClick,
 }: {
   initials: string
@@ -78,11 +80,10 @@ function VendorHeader({
   playerTicketCount?: number
   onProfileClick: () => void
   onNotificationsClick: () => void
-  onHelpClick: () => void
   onPlayersClick: () => void
+  onLogout?: () => void
   onLogoClick?: () => void
 }) {
-  const [menuOpen, setMenuOpen] = useState(false)
   const badge = notificationCount > 99 ? '99+' : String(notificationCount)
   const playerBadge = playerTicketCount > 99 ? '99+' : String(playerTicketCount)
   return (
@@ -138,63 +139,15 @@ function VendorHeader({
             {playerTicketCount > 0 ? <span className="vendor-badge">{playerBadge}</span> : null}
           </button>
 
-          <div className="vendor-avatar-menu">
-            <button
-              type="button"
-              className="vendor-avatar-button"
-              aria-label="Open account menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              {initials}
-            </button>
-            {menuOpen ? (
-              <div className="vendor-avatar-dropdown" role="menu">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    onProfileClick()
-                  }}
-                >
-                  Profile
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    onHelpClick()
-                  }}
-                >
-                  Help
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    onPlayersClick()
-                  }}
-                >
-                  Chat
-                  {playerTicketCount > 0 ? <span className="vendor-menu-count">{playerBadge}</span> : null}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    onNotificationsClick()
-                  }}
-                >
-                  Notifications
-                  {notificationCount > 0 ? <span className="vendor-menu-count">{badge}</span> : null}
-                </button>
-              </div>
-            ) : null}
-          </div>
+          <AccountAvatarMenu
+            initials={initials}
+            avatarClassName="vendor-avatar-button"
+            menuClassName="vendor-avatar-menu"
+            dropdownClassName="vendor-avatar-dropdown"
+            logoutClassName="vendor-avatar-dropdown-logout"
+            onProfileClick={onProfileClick}
+            onLogout={onLogout}
+          />
         </div>
       </div>
     </header>
@@ -1005,17 +958,13 @@ export default function VendorDashboard({
           notificationCount={pendingOrderCount}
           playerTicketCount={playerTicketCount}
           onProfileClick={openProfile}
-          onHelpClick={() => {
-            setShowProfile(false)
-            setShowPlayerSupport(false)
-            setShowHelp(true)
-          }}
           onPlayersClick={() => {
             setShowProfile(false)
             setShowHelp(false)
             setShowPlayerSupport(true)
           }}
           onNotificationsClick={() => void openNotifications()}
+          onLogout={handleLogout}
           onLogoClick={goHome}
         />
       ) : null}
