@@ -465,7 +465,7 @@ function PromotionsTab() {
             >
               <option value="bonus-credit">Bonus Credit</option>
               <option value="deposit-bonus">Deposit Bonus</option>
-              <option value="giveaway">Giveaway (pool from TapStack Balance)</option>
+              <option value="giveaway">Giveaway (pool from Portfolio Balance)</option>
             </select>
             <svg className="vendor-promos-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M4 6 L8 10 L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />

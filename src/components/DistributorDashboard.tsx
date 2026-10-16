@@ -1022,7 +1022,7 @@ function HomeView({
                   d="M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5V9h-3.25a2.75 2.75 0 0 0 0 5.5H21v1.5A2.5 2.5 0 0 1 18.5 18.5h-13A2.5 2.5 0 0 1 3 16V7.5zm15.75 4.25a1.25 1.25 0 1 1 0-2.5H21v2.5h-2.25z"
                 />
               </svg>
-              Tapstack Balance
+              Portfolio Balance
             </p>
             <p className="dist-wallet-amount">{money(dash.wallet.balanceFormatted ?? dash.wallet.balance)}</p>
             <p className="dist-wallet-meta">

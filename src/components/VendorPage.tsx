@@ -1085,7 +1085,7 @@ export default function VendorPage({
 
           <div className="vendor-balance-card">
             <div className="vendor-balance-copy">
-              <span className="vendor-balance-label">Tapstack Balance</span>
+              <span className="vendor-balance-label">Portfolio Balance</span>
               <span className="vendor-balance-value">{walletBalance || '$0.00'}</span>
             </div>
             <div className="vendor-balance-actions">
@@ -2077,7 +2077,7 @@ export default function VendorPage({
         <div className="vendor-tip-overlay" role="dialog" aria-modal="true" aria-labelledby="vendor-tip-title">
           <div className="vendor-tip-card">
             <h3 id="vendor-tip-title">Tip {vendor.name}</h3>
-            <p>Send a thank-you from your Tapstack Balance to this gameroom.</p>
+            <p>Send a thank-you from your Portfolio Balance to this gameroom.</p>
             <label className="vendor-tip-field">
               <span>Amount</span>
               <div className="vendor-tip-input-wrap">

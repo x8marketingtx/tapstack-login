@@ -340,7 +340,7 @@ export default function AccountPage({
       <section className="account-balance-card">
         <div className="account-balance-top">
           <div>
-            <p className="account-balance-label">Tapstack Balance</p>
+            <p className="account-balance-label">Portfolio Balance</p>
             {loading ? (
               <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
             ) : (

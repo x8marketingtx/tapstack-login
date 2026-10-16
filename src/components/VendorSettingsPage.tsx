@@ -2405,7 +2405,7 @@ function BillingTab() {
           <div>
             <h3 className="vendor-settings-games-card-title">Loadback fees</h3>
             <p className="vendor-settings-games-card-desc">
-              Cover the processing fee on customer loads from your TapStack balance.
+              Cover the processing fee on customer loads from your Portfolio balance.
             </p>
           </div>
         </div>

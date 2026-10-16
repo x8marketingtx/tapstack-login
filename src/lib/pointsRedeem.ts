@@ -70,14 +70,14 @@ export function correctCashBalanceForLegacyPointRedemptions(
 }
 
 export function normalizeCustomerWalletFromApi(
-  wallet: { balance?: number; formatted?: string; points?: number },
+  wallet: { balance?: number; formatted?: string; points?: number; cashBalance?: string },
   txns?: readonly Pick<WalletTxn, 'points' | 'amount'>[],
 ): { balance: number; formatted: string; points: number } | null {
   if (typeof wallet.points !== 'number') return null
   let balance =
     typeof wallet.balance === 'number' && Number.isFinite(wallet.balance)
       ? wallet.balance
-      : parseTapstackCash(wallet.formatted)
+      : parseTapstackCash(wallet.formatted ?? wallet.cashBalance)
   if (txns?.length) {
     balance = correctCashBalanceForLegacyPointRedemptions(balance, txns)
   }
@@ -86,6 +86,18 @@ export function normalizeCustomerWalletFromApi(
     formatted: formatTapstackCash(balance),
     points: wallet.points,
   }
+}
+
+/** One display balance for dashboard + polling — reuse cached txns when poll omits history. */
+export function resolveCustomerWalletDisplay(
+  wallet: { balance?: number; formatted?: string; points?: number; cashBalance?: string },
+  recentTx: readonly WalletTxn[],
+  cachedTxns: readonly WalletTxn[],
+): { balance: number; formatted: string; points: number; txns: WalletTxn[] } | null {
+  const txns = recentTx.length > 0 ? [...recentTx] : [...cachedTxns]
+  const normalized = normalizeCustomerWalletFromApi(wallet, txns)
+  if (!normalized) return null
+  return { ...normalized, txns: recentTx.length > 0 ? [...recentTx] : [...cachedTxns] }
 }
 
 /** Apply 1000:1 redeem credit when the API still credits at 100:1. */

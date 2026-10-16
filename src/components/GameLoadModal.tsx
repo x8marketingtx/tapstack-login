@@ -3,9 +3,9 @@ import { ApiError, getToken, isApiConfigured, tapstackApi } from '../api/client'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { decodeIcon } from '../data/vendors'
 import { openWertTopUp } from '../api/wert'
+import TopUpPresetGrid, { TOPUP_PRESET_TILES } from './TopUpPresetGrid'
 import './GameLoadModal.css'
 
-const PRESETS = [10, 25, 50, 100]
 const CARD_MIN = 5
 const LOAD_FEE_PCT = 10
 
@@ -107,7 +107,7 @@ export default function GameLoadModal({
 }: GameLoadModalProps) {
   const isRedeem = intent === 'redeem'
   const isMove = intent === 'move'
-  const [amount, setAmount] = useState('25')
+  const [amount, setAmount] = useState('0')
   const [mobileId, setMobileId] = useState('')
   const [note, setNote] = useState('')
   const [couponCode, setCouponCode] = useState('')
@@ -126,7 +126,7 @@ export default function GameLoadModal({
 
   useEffect(() => {
     if (!open || !game) return
-    setAmount('25')
+    setAmount('0')
     setMobileId(game.playerMobileId || savedMobileId(vendorId, game.gameKey))
     setNote('')
     setCouponCode('')
@@ -175,8 +175,10 @@ export default function GameLoadModal({
             setAmount((current) => {
               const n = Number(current)
               if (!Number.isFinite(n) || n <= maxGame) return current
-              const fit = [...PRESETS].reverse().find((p) => p <= maxGame)
-              return String(fit ?? Math.max(1, Math.floor(maxGame)))
+              const fit = [...TOPUP_PRESET_TILES]
+                .reverse()
+                .find((p) => p.amount <= maxGame)
+              return String(fit?.amount ?? Math.max(1, Math.floor(maxGame)))
             })
           }
         }
@@ -194,6 +196,14 @@ export default function GameLoadModal({
 
   const target: GameLoadTarget = game
   const isManual = target.mode !== 'auto'
+  function addPreset(value: number) {
+    setAmount((current) => {
+      const base = Number(current)
+      const next = (Number.isFinite(base) ? base : 0) + value
+      return String(next)
+    })
+  }
+
   const numericAmount = Number(amount)
   const availableWallet = parseMoney(walletFormatted)
   const hasKnownGameBalance = Boolean(gameBalance && gameBalance !== '—' && !loadingWallet)
@@ -411,7 +421,7 @@ export default function GameLoadModal({
                   : `$${success.amount.toFixed(0)} transfer request sent. The vendor will process it shortly. No transfer fee.`
                 : isRedeem
                 ? success.auto
-                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to your Tapstack Balance.`
+                  ? `$${success.amount.toFixed(0)} moved from ${game.name} to your Portfolio Balance.`
                   : `$${success.amount.toFixed(0)} redeem request sent for ${game.name}. The vendor will process it shortly.`
                 : success.auto
                   ? success.couponCredit > 0
@@ -423,7 +433,7 @@ export default function GameLoadModal({
             </p>
             <div className="game-load-success-balances">
               <div>
-                <span>Tapstack Balance</span>
+                <span>Portfolio Balance</span>
                 <strong>{success.cashBalance}</strong>
               </div>
               {!isManual ? (
@@ -463,7 +473,7 @@ export default function GameLoadModal({
             <div className="game-load-balances">
               {!isMove ? (
                 <div className="game-load-balance-card">
-                  <span className="game-load-balance-label">Tapstack Balance</span>
+                  <span className="game-load-balance-label">Portfolio Balance</span>
                   <strong className="game-load-balance-value">
                     {loadingWallet ? '…' : walletFormatted}
                   </strong>
@@ -489,10 +499,10 @@ export default function GameLoadModal({
                 : isRedeem
                 ? isManual
                   ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
-                  : 'Pull credits from your connected game account into your Tapstack Balance.'
+                  : 'Pull credits from your connected game account into your Portfolio Balance.'
                 : isManual
-                  ? 'Tapstack Balance is used first. If it isn’t enough, the rest is charged to your card. Include your game Mobile ID so the vendor can credit the right account.'
-                  : 'Tapstack Balance is used first. If it isn’t enough, the rest is charged to your card, then credits move into the connected game account.'}
+                  ? 'Portfolio Balance is used first. If it isn’t enough, the rest is charged to your card. Include your game Mobile ID so the vendor can credit the right account.'
+                  : 'Portfolio Balance is used first. If it isn’t enough, the rest is charged to your card, then credits move into the connected game account.'}
             </p>
 
             {isMove ? (
@@ -519,18 +529,7 @@ export default function GameLoadModal({
               </>
             ) : null}
 
-            <div className="game-load-presets">
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  className={`game-load-preset ${Number(amount) === preset ? 'is-active' : ''}`}
-                  onClick={() => setAmount(String(preset))}
-                >
-                  ${preset}
-                </button>
-              ))}
-            </div>
+            <TopUpPresetGrid onAdd={addPreset} />
 
             <form className="game-load-form" onSubmit={handleSubmit}>
               <label className="game-load-label" htmlFor="game-load-amount">
@@ -601,7 +600,7 @@ export default function GameLoadModal({
                     autoComplete="off"
                   />
                   <p className="game-load-optional">
-                    $ Credit and freeplay extras are added to this game load, not your Tapstack Balance.
+                    $ Credit and freeplay extras are added to this game load, not your Portfolio Balance.
                   </p>
                 </>
               ) : null}

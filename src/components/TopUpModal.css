@@ -53,30 +53,6 @@
   color: #6b7280;
 }
 
-.topup-presets {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.topup-preset {
-  padding: 10px 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #f9fafb;
-  color: #374151;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.topup-preset--active {
-  border-color: #059669;
-  background: #ecfdf5;
-  color: #047857;
-}
-
 .topup-label {
   display: block;
   margin-bottom: 6px;

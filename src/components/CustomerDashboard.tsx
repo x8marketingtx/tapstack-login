@@ -55,12 +55,7 @@ import {
 } from '../lib/routing'
 import { clearPlayerAffiliateRef, consumePendingPlayVendor, detectNewPlayerAffiliates, getPlayerAffiliateRef, peekPendingPlayVendor, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
-import {
-  correctCashBalanceForLegacyPointRedemptions,
-  formatTapstackCash,
-  normalizeCustomerWalletFromApi,
-  parseTapstackCash,
-} from '../lib/pointsRedeem'
+import { resolveCustomerWalletDisplay } from '../lib/pointsRedeem'
 import { MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
 import { usePlayerNotifications } from '../lib/playerNotifications'
 import './CustomerDashboard.css'
@@ -416,6 +411,7 @@ function GamesHome({
   onRemoveVendor,
   cashBalance,
   loading,
+  walletReady = true,
   activities,
   onSeeAllActivity,
   balanceEpoch = 0,
@@ -433,6 +429,7 @@ function GamesHome({
   onRemoveVendor: (vendor: Vendor) => void
   cashBalance: string
   loading?: boolean
+  walletReady?: boolean
   activities: ActivityRow[]
   onSeeAllActivity: () => void
   balanceEpoch?: number
@@ -565,8 +562,8 @@ function GamesHome({
         <section className="balance-card" aria-busy={loading || undefined}>
           <div className="balance-card-main">
             <div className="balance-copy">
-              <p className="balance-label">Tapstack Balance</p>
-              {loading ? (
+              <p className="balance-label">Portfolio Balance</p>
+              {loading || !walletReady ? (
                 <div className="dash-skeleton dash-skeleton--amount" aria-hidden="true" />
               ) : (
                 <p className="balance-amount">{cashBalance}</p>
@@ -924,8 +921,40 @@ export default function CustomerDashboard({
   } | null>(null)
   const [loading, setLoading] = useState(shouldLoadFromApi)
   const [cashBalance, setCashBalance] = useState(shouldLoadFromApi ? '' : '$125.00')
+  const [walletReady, setWalletReady] = useState(!shouldLoadFromApi)
+  const walletTxnsRef = useRef<WalletTxn[]>([])
   const [pointsBalance, setPointsBalance] = useState(shouldLoadFromApi ? 0 : 3400)
   const [walletTxns, setWalletTxns] = useState<WalletTxn[]>([])
+  walletTxnsRef.current = walletTxns
+
+  const applyCustomerWallet = useCallback(
+    (
+      wallet: { balance?: number; formatted?: string; points?: number; cashBalance?: string },
+      recentTx?: WalletTxn[],
+    ) => {
+      const incoming = Array.isArray(recentTx) ? recentTx : []
+      const resolved = resolveCustomerWalletDisplay(wallet, incoming, walletTxnsRef.current)
+      if (!resolved) return
+      if (incoming.length > 0) setWalletTxns(resolved.txns)
+      setCashBalance(resolved.formatted)
+      setPointsBalance(resolved.points)
+      setWalletReady(true)
+    },
+    [],
+  )
+
+  const syncWalletFromApi = useCallback(() => {
+    if (!shouldLoadFromApi) return
+    void tapstackApi
+      .customerWallet()
+      .then((res) => {
+        if (res.wallet) {
+          applyCustomerWallet(res.wallet, Array.isArray(res.recentTx) ? res.recentTx : [])
+        }
+      })
+      .catch(() => undefined)
+  }, [shouldLoadFromApi, applyCustomerWallet])
+
   const playerNotifications = usePlayerNotifications({
     useApi: shouldLoadFromApi,
     userId: cachedUser?.id,
@@ -1363,17 +1392,7 @@ export default function CustomerDashboard({
         const nextProfile = profileFromUser(user, level, levelProgressPct)
         const userId = user?.id
 
-        if (Array.isArray(dash.recentTx)) {
-          setWalletTxns(dash.recentTx)
-          const corrected = correctCashBalanceForLegacyPointRedemptions(
-            parseTapstackCash(dash.wallet.cashBalance ?? dash.wallet.balance),
-            dash.recentTx,
-          )
-          setCashBalance(formatTapstackCash(corrected))
-        } else {
-          setCashBalance(dash.wallet.cashBalance)
-        }
-        setPointsBalance(dash.wallet.points)
+        applyCustomerWallet(dash.wallet, Array.isArray(dash.recentTx) ? dash.recentTx : [])
         setProfile(nextProfile)
         setVerification(verificationFromUser(user))
 
@@ -1505,6 +1524,7 @@ export default function CustomerDashboard({
           setCashBalance((value) => value || '$0.00')
           setPointsBalance((value) => value || 0)
           setVendors(loadLocalVendors(fallback?.id))
+          setWalletReady(true)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -1514,27 +1534,14 @@ export default function CustomerDashboard({
     return () => {
       cancelled = true
     }
-  }, [shouldLoadFromApi, onRoleMismatch])
+  }, [shouldLoadFromApi, onRoleMismatch, applyCustomerWallet])
 
   const refreshMoney = useCallback(() => {
-    if (!shouldLoadFromApi) return
-    void tapstackApi
-      .customerWallet()
-      .then((res) => {
-        const recentTx = Array.isArray(res.recentTx) ? res.recentTx : []
-        if (Array.isArray(res.recentTx)) setWalletTxns(recentTx)
-        if (res.wallet) {
-          const normalized = normalizeCustomerWalletFromApi(res.wallet, recentTx)
-          if (normalized) {
-            setCashBalance(normalized.formatted)
-            setPointsBalance(normalized.points)
-          }
-        }
-      })
-      .catch(() => undefined)
-  }, [shouldLoadFromApi])
+    if (!shouldLoadFromApi || !walletReady) return
+    syncWalletFromApi()
+  }, [shouldLoadFromApi, walletReady, syncWalletFromApi])
 
-  useIntervalRefresh(refreshMoney, MONEY_REFRESH_MS, shouldLoadFromApi && !showVerify)
+  useIntervalRefresh(refreshMoney, MONEY_REFRESH_MS, shouldLoadFromApi && !showVerify && walletReady)
 
   async function handleAddVendor() {
     const code = inviteCode.trim().toUpperCase()
@@ -1681,13 +1688,15 @@ export default function CustomerDashboard({
     )
   }
 
+  const displayCashBalance = walletReady ? cashBalance || '$0.00' : ''
+
   if (selectedVendor) {
     return (
       <>
         <VendorPage
           vendor={selectedVendor}
           activeTab={activeTab}
-          cashBalance={cashBalance || '$0.00'}
+          cashBalance={displayCashBalance || '$0.00'}
           profile={profile}
           onBack={closeVendor}
           onTabChange={handleTabChange}
@@ -1702,18 +1711,8 @@ export default function CustomerDashboard({
           onRequireVerified={requireVerified}
           verification={verification}
           onOpenVerify={openVerify}
-          onCashBalanceChange={(next) => {
-            setCashBalance(next)
-            if (shouldLoadFromApi) {
-              void tapstackApi
-                .customerWallet()
-                .then((res) => {
-                  if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
-                })
-                .catch(() => {
-                  /* keep current */
-                })
-            }
+          onCashBalanceChange={() => {
+            syncWalletFromApi()
           }}
           onGameTransferSuccess={() => {
             setVendorBalanceEpoch((value) => value + 1)
@@ -1737,10 +1736,10 @@ export default function CustomerDashboard({
           open={topUpOpen}
           onClose={() => setTopUpOpen(false)}
           ownerType="player"
-          title="Top up Tapstack balance"
+          title="Top up Portfolio balance"
           onVerifyRequired={openVerify}
           onSuccess={(wallet) => {
-            if (wallet) {
+            if (!shouldLoadFromApi && wallet) {
               setCashBalance(`$${wallet.balance.toFixed(2)}`)
               setPointsBalance(wallet.points)
             }
@@ -1750,24 +1749,10 @@ export default function CustomerDashboard({
                 title: 'Balance topped up',
                 body: wallet
                   ? `New balance $${wallet.balance.toFixed(2)}`
-                  : 'Your TapStack balance was updated.',
+                  : 'Your Portfolio balance was updated.',
               })
             }
-            if (shouldLoadFromApi) {
-              void tapstackApi
-                .customerWallet()
-                .then((res) => {
-                  if (res.wallet?.formatted) setCashBalance(res.wallet.formatted)
-                  else if (typeof res.wallet?.balance === 'number') {
-                    setCashBalance(`$${res.wallet.balance.toFixed(2)}`)
-                  }
-                  if (typeof res.wallet?.points === 'number') setPointsBalance(res.wallet.points)
-                  if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
-                })
-                .catch(() => {
-                  /* keep current */
-                })
-            }
+            syncWalletFromApi()
           }}
         />
         {affiliateWelcomeModal}
@@ -1827,8 +1812,9 @@ export default function CustomerDashboard({
                 onVendorSelect={openVendor}
                 onVendorTransfer={startVendorTransfer}
                 onRemoveVendor={requestRemoveVendor}
-                cashBalance={cashBalance || '$0.00'}
+                cashBalance={displayCashBalance || '$0.00'}
                 loading={loading}
+                walletReady={walletReady}
                 balanceEpoch={vendorBalanceEpoch}
                 activities={
                   shouldLoadFromApi ? mapTxnsToActivities(walletTxns) : DEMO_ACTIVITIES
@@ -1845,12 +1831,8 @@ export default function CustomerDashboard({
                 }}
                 onRedeem={openAccountPointsWallet}
                 pointsBalance={pointsBalance}
-                onWalletUpdate={(wallet) => {
-                  if (typeof wallet.points === 'number') setPointsBalance(wallet.points)
-                  if (wallet.formatted) setCashBalance(wallet.formatted)
-                  else if (typeof wallet.balance === 'number') {
-                    setCashBalance(`$${wallet.balance.toFixed(2)}`)
-                  }
+                onWalletUpdate={() => {
+                  syncWalletFromApi()
                 }}
               />
             )}
@@ -1888,32 +1870,18 @@ export default function CustomerDashboard({
 
             {activeTab === 'account' && headerProfile && (
               <AccountPage
-                cashBalance={cashBalance || '$0.00'}
+                cashBalance={displayCashBalance || '$0.00'}
                 pointsBalance={pointsBalance}
                 profile={headerProfile}
-                loading={loading}
+                loading={loading || !walletReady}
                 transactions={walletTxns}
                 vendors={vendors}
                 scrollToSectionId={accountScrollTarget}
                 onScrollToSectionDone={() => setAccountScrollTarget(null)}
                 onOpenProfile={openProfile}
                 onVerifyRequired={openVerify}
-                onWalletUpdate={(wallet) => {
-                  if (typeof wallet.points === 'number') setPointsBalance(wallet.points)
-                  if (wallet.formatted) setCashBalance(wallet.formatted)
-                  else if (typeof wallet.balance === 'number') {
-                    setCashBalance(`$${wallet.balance.toFixed(2)}`)
-                  }
-                  if (shouldLoadFromApi) {
-                    void tapstackApi
-                      .customerWallet()
-                      .then((res) => {
-                        if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
-                      })
-                      .catch(() => {
-                        /* keep */
-                      })
-                  }
+                onWalletUpdate={() => {
+                  syncWalletFromApi()
                 }}
               />
             )}
@@ -1934,10 +1902,10 @@ export default function CustomerDashboard({
         open={topUpOpen}
         onClose={() => setTopUpOpen(false)}
         ownerType="player"
-        title="Top up Tapstack balance"
+        title="Top up Portfolio balance"
         onVerifyRequired={openVerify}
         onSuccess={(wallet) => {
-          if (wallet) {
+          if (!shouldLoadFromApi && wallet) {
             setCashBalance(`$${wallet.balance.toFixed(2)}`)
             setPointsBalance(wallet.points)
           }
@@ -1947,24 +1915,10 @@ export default function CustomerDashboard({
               title: 'Balance topped up',
               body: wallet
                 ? `New balance $${wallet.balance.toFixed(2)}`
-                : 'Your TapStack balance was updated.',
+                : 'Your Portfolio balance was updated.',
             })
           }
-          if (shouldLoadFromApi) {
-            void tapstackApi
-              .customerWallet()
-              .then((res) => {
-                if (res.wallet?.formatted) setCashBalance(res.wallet.formatted)
-                else if (typeof res.wallet?.balance === 'number') {
-                  setCashBalance(`$${res.wallet.balance.toFixed(2)}`)
-                }
-                if (typeof res.wallet?.points === 'number') setPointsBalance(res.wallet.points)
-                if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
-              })
-              .catch(() => {
-                /* keep current */
-              })
-          }
+          syncWalletFromApi()
         }}
       />
       {gamePick ? (
@@ -1988,10 +1942,10 @@ export default function CustomerDashboard({
           vendorName={homeTransfer.vendor.name}
           game={homeTransfer.game}
           games={homeTransfer.vendor.games.map(toGameLoadTarget)}
-          cashBalance={cashBalance || '$0.00'}
+          cashBalance={displayCashBalance || '$0.00'}
           onClose={() => setHomeTransfer(null)}
           onSuccess={({ cashBalance: nextCash }) => {
-            setCashBalance(nextCash)
+            if (!shouldLoadFromApi) setCashBalance(nextCash)
             setVendorBalanceEpoch((value) => value + 1)
             const transfer = homeTransfer
             if (transfer && !shouldLoadFromApi) {
@@ -2007,16 +1961,7 @@ export default function CustomerDashboard({
                 body: `${transfer.game.name} · ${transfer.vendor.name}`,
               })
             }
-            if (shouldLoadFromApi) {
-              void tapstackApi
-                .customerWallet()
-                .then((res) => {
-                  if (Array.isArray(res.recentTx)) setWalletTxns(res.recentTx)
-                })
-                .catch(() => {
-                  /* keep current */
-                })
-            }
+            syncWalletFromApi()
           }}
           onVerifyRequired={openVerify}
         />

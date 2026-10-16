@@ -141,30 +141,6 @@
   color: #64748b;
 }
 
-.game-load-presets {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.game-load-preset {
-  padding: 10px 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #f9fafb;
-  color: #374151;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.game-load-preset.is-active {
-  border-color: color-mix(in srgb, var(--vendor-accent, #2563eb) 55%, #93c5fd);
-  background: color-mix(in srgb, var(--vendor-accent, #2563eb) 12%, #fff);
-  color: var(--vendor-accent, #1d4ed8);
-}
-
 .game-load-label {
   display: block;
   margin-bottom: 6px;

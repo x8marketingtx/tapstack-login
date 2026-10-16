@@ -368,7 +368,7 @@ export default function VendorOrderDetailModal({
                     ) : null}
                     {order.type === 'manual-load' || order.type === 'auto-load' ? (
                       <p className="vod-auto-hint">
-                        Reject &amp; refund returns the player&apos;s paid amount (and load fee) to their Tapstack Balance.
+                        Reject &amp; refund returns the player&apos;s paid amount (and load fee) to their Portfolio Balance.
                       </p>
                     ) : null}
                     <label htmlFor="vod-staff-note">

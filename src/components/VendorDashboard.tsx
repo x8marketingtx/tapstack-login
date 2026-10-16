@@ -414,7 +414,7 @@ function VendorHome({
       <section className="vendor-wallet-card">
         <div className="vendor-wallet-top">
           <div>
-            <p className="vendor-wallet-label">Tapstack Balance</p>
+            <p className="vendor-wallet-label">Portfolio Balance</p>
             <p className="vendor-wallet-amount">{walletBalance}</p>
             <p className="vendor-wallet-meta">USDC · Available</p>
           </div>
