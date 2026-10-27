@@ -433,8 +433,12 @@
 .ad-watch-nitro [class*='next'],
 .ad-watch-nitro [class*='Next'],
 .ad-watch-nitro [class*='stay'],
-.ad-watch-nitro [class*='Stay'] {
+.ad-watch-nitro [class*='Stay'],
+.ad-watch-nitro [class*='autoskip'],
+.ad-watch-nitro [class*='auto-skip'],
+.ad-watch-nitro [class*='AutoSkip'] {
   display: none !important;
+  pointer-events: none;
 }
 
 .ad-watch-video::-webkit-media-controls {

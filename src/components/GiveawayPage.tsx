@@ -411,7 +411,8 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
         const slot = document.getElementById(NITROPAY_TICKETS_PLACEMENT)
         if (slot) {
           stopWatchingPlayer = watchTicketsAdComplete(slot, markComplete, (pct) => {
-            if (!cancelled && !finishingRef.current) setWatchProgress(pct)
+            if (cancelled || finishingRef.current) return
+            setWatchProgress((prev) => (pct === 0 || pct >= prev ? pct : prev))
           })
           if (cancelled) {
             stopWatchingPlayer()
