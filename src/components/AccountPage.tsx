@@ -112,6 +112,7 @@ export default function AccountPage({
   onOpenProfile,
   onWalletUpdate,
   onVerifyRequired,
+  onWithdraw,
   scrollToSectionId,
   onScrollToSectionDone,
 }: {
@@ -124,6 +125,7 @@ export default function AccountPage({
   onOpenProfile?: () => void
   onWalletUpdate?: (wallet: { balance?: number; formatted?: string; points: number }) => void
   onVerifyRequired?: () => void
+  onWithdraw?: () => void
   scrollToSectionId?: string | null
   onScrollToSectionDone?: () => void
 }) {
@@ -352,7 +354,7 @@ export default function AccountPage({
           </div>
         </div>
         <div className="account-balance-actions">
-          <button type="button" className="account-withdraw-btn" disabled={loading}>
+          <button type="button" className="account-withdraw-btn" disabled={loading || !onWithdraw} onClick={onWithdraw}>
             Withdraw
           </button>
         </div>

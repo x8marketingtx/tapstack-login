@@ -32,6 +32,7 @@ import PromosPage from './PromosPage'
 import VendorPage from './VendorPage'
 import './VendorPage.css'
 import TopUpModal from './TopUpModal'
+import WithdrawModal from './WithdrawModal'
 import GameLoadModal, { type GameLoadTarget, type GameTransferIntent } from './GameLoadModal'
 import ProfilePage, {
   DEMO_PLAYER_PROFILE,
@@ -414,6 +415,7 @@ function GamesHome({
   walletReady = true,
   activities,
   onSeeAllActivity,
+  onWithdraw,
   balanceEpoch = 0,
 }: {
   inviteCode: string
@@ -432,6 +434,7 @@ function GamesHome({
   walletReady?: boolean
   activities: ActivityRow[]
   onSeeAllActivity: () => void
+  onWithdraw?: () => void
   balanceEpoch?: number
 }) {
   const sortedVendors = sortVendorsByFavorite(vendors, favoriteKeys)
@@ -569,7 +572,12 @@ function GamesHome({
                 <p className="balance-amount">{cashBalance}</p>
               )}
             </div>
-            <button type="button" className="balance-btn balance-btn--withdraw" disabled={loading}>
+            <button
+              type="button"
+              className="balance-btn balance-btn--withdraw"
+              disabled={loading || !onWithdraw}
+              onClick={onWithdraw}
+            >
               Withdraw
             </button>
           </div>
@@ -910,6 +918,7 @@ export default function CustomerDashboard({
   })
   const [linkingPlayVendor, setLinkingPlayVendor] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [gamePick, setGamePick] = useState<{ vendor: Vendor; intent: 'load' | 'redeem' } | null>(null)
   const [gamePickLoading, setGamePickLoading] = useState(false)
   const [vendorBalanceEpoch, setVendorBalanceEpoch] = useState(0)
@@ -1820,6 +1829,10 @@ export default function CustomerDashboard({
                   shouldLoadFromApi ? mapTxnsToActivities(walletTxns) : DEMO_ACTIVITIES
                 }
                 onSeeAllActivity={() => handleTabChange('account')}
+                onWithdraw={() => {
+                  if (!requireVerified()) return
+                  setWithdrawOpen(true)
+                }}
               />
             )}
 
@@ -1883,6 +1896,10 @@ export default function CustomerDashboard({
                 onWalletUpdate={() => {
                   syncWalletFromApi()
                 }}
+                onWithdraw={() => {
+                  if (!requireVerified()) return
+                  setWithdrawOpen(true)
+                }}
               />
             )}
 
@@ -1916,6 +1933,30 @@ export default function CustomerDashboard({
               body: wallet
                 ? `New balance $${wallet.balance.toFixed(2)}`
                 : 'Your Portfolio balance was updated.',
+            })
+          }
+          syncWalletFromApi()
+        }}
+      />
+      <WithdrawModal
+        open={withdrawOpen}
+        cashBalance={displayCashBalance || '$0.00'}
+        onClose={() => setWithdrawOpen(false)}
+        onVerifyRequired={openVerify}
+        onSuccess={(wallet) => {
+          if (!shouldLoadFromApi && wallet) {
+            setCashBalance(`$${wallet.balance.toFixed(2)}`)
+            if (typeof wallet.points === 'number' && wallet.points > 0) {
+              setPointsBalance(wallet.points)
+            }
+          }
+          if (!shouldLoadFromApi) {
+            playerNotifications.push({
+              kind: 'wallet',
+              title: 'Withdraw complete',
+              body: wallet
+                ? `New balance $${wallet.balance.toFixed(2)}`
+                : 'Portfolio NFTs were burned and cash was released.',
             })
           }
           syncWalletFromApi()

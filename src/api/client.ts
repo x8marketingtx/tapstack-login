@@ -32,6 +32,26 @@ export type WalletTxn = {
   createdAt: string
 }
 
+export type PortfolioNft = {
+  id: number
+  walletId: number
+  ownerType?: string
+  ownerId?: number
+  amount: number
+  denomination: number
+  tokenId: string
+  status: string
+  mintTx: string
+  burnTx: string
+  mintExplorerUrl?: string
+  burnExplorerUrl?: string
+  tokenExplorerUrl?: string
+  burner: string
+  walletAddress: string
+  createdAt: string
+  burnedAt: string
+}
+
 export type PlayerNotificationKind =
   | 'platform'
   | 'game_load'
@@ -1149,7 +1169,20 @@ export const tapstackApi = {
     apiRequest<{
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
       recentTx: WalletTxn[]
+      nfts?: PortfolioNft[]
+      nftsTotal?: number
     }>('/customer/wallet'),
+  customerWalletWithdraw: (amount: number) =>
+    apiRequest<{
+      ok: boolean
+      wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
+      nfts?: PortfolioNft[]
+      burned?: PortfolioNft[]
+      change?: PortfolioNft[]
+    }>('/customer/wallet/withdraw', {
+      method: 'POST',
+      body: { amount },
+    }),
   customerWalletTransactions: (opts?: { beforeId?: number; limit?: number; since?: string } | number) => {
     const query =
       typeof opts === 'number' || opts === undefined
