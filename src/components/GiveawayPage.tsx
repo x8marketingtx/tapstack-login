@@ -92,18 +92,19 @@ function mintDemoTicket(source: string): GiveawayTicket {
   }
 }
 
-/** Normalize legacy cash prize labels to points copy. */
+/** Always show cash prize in the mega-draw hero (API may return legacy points copy). */
 function normalizePrize(prize: string | undefined): string {
   const raw = (prize || '').trim()
-  if (
-    !raw ||
-    /25[,.]?000\s*points/i.test(raw) ||
-    /\$?\s*25[,.]?000/i.test(raw) ||
-    /win\s*\$?\s*10[.,]000/i.test(raw)
-  ) {
+  if (!raw || /points/i.test(raw) || /\$?\s*25[,.]?000/i.test(raw)) {
     return MEGA_DRAW_PRIZE
   }
-  return raw
+  if (/win\s*\$?\s*10[.,]0{3}/i.test(raw)) {
+    return MEGA_DRAW_PRIZE
+  }
+  if (/\$[\d,.]+/.test(raw)) {
+    return raw
+  }
+  return MEGA_DRAW_PRIZE
 }
 
 function normalizeHowItWorks(lines: string[]): string[] {
@@ -144,6 +145,7 @@ function normalizeHowItWorksTierLines(lines: string[], tier: TicketTier): string
 function withClientTierRates(state: GiveawayState): GiveawayState {
   return {
     ...state,
+    prize: normalizePrize(state.prize),
     tierRate: clientTierRate(state.tier),
     howItWorks: normalizeHowItWorksTierLines(state.howItWorks, state.tier),
   }

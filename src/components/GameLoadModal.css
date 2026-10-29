@@ -114,6 +114,69 @@
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+.game-load-balance-card--portfolio {
+  grid-column: 1 / -1;
+  text-align: center;
+  background: linear-gradient(135deg, #fde68a 0%, #fbbf24 38%, #f59e0b 72%, #d97706 100%);
+  border-color: rgba(180, 83, 9, 0.35);
+}
+
+.game-load-balance-card--portfolio .game-load-balance-label {
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.game-load-balance-card--portfolio .game-load-balance-value {
+  color: #451a03;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-load-balance-card--playable {
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.game-load-balance-card--playable .game-load-balance-label {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.game-load-balance-card--playable .game-load-balance-value {
+  color: #f8fafc;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-load-balance-card--redeemable {
+  background: linear-gradient(135deg, #bbf7d0 0%, #6ee7b7 38%, #34d399 72%, #059669 100%);
+  border-color: rgba(5, 150, 105, 0.35);
+}
+
+.game-load-balance-card--redeemable .game-load-balance-label {
+  color: #047857;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.game-load-balance-card--redeemable .game-load-balance-value {
+  color: #064e3b;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
 .game-load-balance-label {
   display: block;
   margin-bottom: 4px;

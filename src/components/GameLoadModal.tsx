@@ -472,20 +472,20 @@ export default function GameLoadModal({
 
             <div className="game-load-balances">
               {!isMove ? (
-                <div className="game-load-balance-card">
+                <div className="game-load-balance-card game-load-balance-card--portfolio">
                   <span className="game-load-balance-label">Portfolio Balance</span>
                   <strong className="game-load-balance-value">
                     {loadingWallet ? '…' : walletFormatted}
                   </strong>
                 </div>
               ) : null}
-              <div className="game-load-balance-card">
+              <div className="game-load-balance-card game-load-balance-card--playable">
                 <span className="game-load-balance-label">Playable</span>
                 <strong className="game-load-balance-value">
                   {loadingWallet ? '…' : payableBalance}
                 </strong>
               </div>
-              <div className="game-load-balance-card">
+              <div className="game-load-balance-card game-load-balance-card--redeemable">
                 <span className="game-load-balance-label">Redeemable</span>
                 <strong className="game-load-balance-value">
                   {loadingWallet ? '…' : gameBalance}
