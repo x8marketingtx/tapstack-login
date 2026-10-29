@@ -143,3 +143,15 @@
   flex-direction: column;
   gap: 10px;
 }
+
+.topup-modal--paysio {
+  max-width: 440px;
+}
+
+.paysio-checkout-wrap {
+  min-height: 320px;
+}
+
+.paysio-checkout {
+  min-height: 280px;
+}

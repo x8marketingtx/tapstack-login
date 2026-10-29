@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError, tapstackApi } from '../api/client'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
+import {
+  createEmbeddedPaysioSession,
+  fetchPaymentsConfig,
+  type CardProcessor,
+} from '../api/payments'
+import { mountPaysioCheckout, type PaysioSessionResponse } from '../api/paysio'
 import { openWertTopUp, type TopUpOwnerType } from '../api/wert'
 import TopUpPresetGrid from './TopUpPresetGrid'
 import './TopUpModal.css'
@@ -41,6 +47,10 @@ export default function TopUpModal({
   const [depositAddress, setDepositAddress] = useState('')
   const [cryptoNetwork, setCryptoNetwork] = useState('polygon')
   const [cryptoToken, setCryptoToken] = useState('USDC')
+  const [processor, setProcessor] = useState<CardProcessor>('wert')
+  const [paysioSession, setPaysioSession] = useState<PaysioSessionResponse | null>(null)
+  const [checkoutEl, setCheckoutEl] = useState<HTMLDivElement | null>(null)
+  const unmountRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -48,7 +58,51 @@ export default function TopUpModal({
     setError('')
     setStatus('')
     setLoading(false)
+    setPaysioSession(null)
+    void fetchPaymentsConfig()
+      .then((config) => setProcessor(config.processor))
+      .catch(() => setProcessor('wert'))
   }, [open])
+
+  useEffect(() => {
+    if (!open || !paysioSession || !checkoutEl) return
+    let cancelled = false
+    void mountPaysioCheckout(checkoutEl, paysioSession, {
+      onComplete: (wallet) => {
+        if (cancelled) return
+        setStatus('Payment successful. Balance updated.')
+        setLoading(false)
+        onSuccess?.(wallet)
+        setTimeout(() => {
+          onClose()
+          setStatus('')
+          setPaysioSession(null)
+        }, 900)
+      },
+      onError: (message) => {
+        if (cancelled) return
+        setError(message)
+        setLoading(false)
+        setStatus('')
+      },
+    }).then((unmount) => {
+      if (cancelled) {
+        unmount()
+        return
+      }
+      unmountRef.current = unmount
+    }).catch((err) => {
+      if (cancelled) return
+      setError(err instanceof Error ? err.message : 'Could not open Paysio checkout.')
+      setLoading(false)
+      setPaysioSession(null)
+    })
+    return () => {
+      cancelled = true
+      unmountRef.current?.()
+      unmountRef.current = null
+    }
+  }, [open, paysioSession, checkoutEl, onClose, onSuccess])
 
   if (!open) return null
 
@@ -72,6 +126,13 @@ export default function TopUpModal({
     setLoading(true)
 
     try {
+      if (processor === 'paysio') {
+        const session = await createEmbeddedPaysioSession(numericAmount, ownerType)
+        setPaysioSession(session)
+        setStatus('Enter your card below.')
+        setLoading(false)
+        return
+      }
       await openWertTopUp({
         amount: numericAmount,
         ownerType,
@@ -133,9 +194,9 @@ export default function TopUpModal({
   }
 
   return (
-    <div className="topup-overlay" role="presentation" onClick={onClose}>
+    <div className="topup-overlay" role="presentation" onClick={paysioSession ? undefined : onClose}>
       <div
-        className="topup-modal"
+        className={`topup-modal${paysioSession ? ' topup-modal--paysio' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="topup-title"
@@ -191,6 +252,14 @@ export default function TopUpModal({
               send your Bearer token.
             </p>
 
+            {paysioSession ? (
+              <div className="paysio-checkout-wrap">
+                {status ? <p className="topup-status">{status}</p> : null}
+                {error ? <p className="topup-error">{error}</p> : null}
+                <div ref={setCheckoutEl} id="paysio-checkout" className="paysio-checkout" />
+              </div>
+            ) : (
+              <>
             <TopUpPresetGrid onAdd={addPreset} />
 
             <form className="topup-form" onSubmit={handleSubmit}>
@@ -216,6 +285,8 @@ export default function TopUpModal({
                 {loading ? 'Processing payment…' : `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
               </button>
             </form>
+              </>
+            )}
           </>
         )}
       </div>

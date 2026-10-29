@@ -2510,6 +2510,7 @@ export const tapstackApi = {
       method: 'POST',
       body: { amount, ownerType },
     }),
+  paymentsConfig: () => apiRequest('/payments/config', { auth: false }),
 }
 
 export type RedeemApprovalMode = 'manual' | 'auto' | 'hybrid'

@@ -3,7 +3,7 @@ import { ApiError, getToken, isApiConfigured, tapstackApi, type WalletTxn } from
 import { resolveCustomerWalletDisplay } from '../lib/pointsRedeem'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { decodeIcon } from '../data/vendors'
-import { openWertTopUp } from '../api/wert'
+import { startHostedCardTopUp } from '../api/payments'
 import TopUpPresetGrid, { TOPUP_PRESET_TILES } from './TopUpPresetGrid'
 import './GameLoadModal.css'
 
@@ -38,7 +38,7 @@ function collectCardRemainder(amount: number): Promise<number | undefined> {
       if (closeTimer) window.clearTimeout(closeTimer)
       fn()
     }
-    openWertTopUp({
+    startHostedCardTopUp({
       amount,
       ownerType: 'player',
       onSuccess: (wallet) => finish(() => resolve(wallet?.balance)),
