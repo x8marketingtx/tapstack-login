@@ -14,6 +14,7 @@ import { gameArtUrl } from '../data/gameArt'
 import { gamePlayUrl, openGamePlay } from '../data/gamePlay'
 import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
+import { resolveCustomerWalletDisplay } from '../lib/pointsRedeem'
 import { MONEY_REFRESH_GAME_LIMIT, MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader, { type DashboardHeaderNotifications } from './DashboardHeader'
@@ -479,7 +480,10 @@ export default function VendorPage({
       try {
         const res = await tapstackApi.customerWallet()
         if (cancelled) return
+        const recentTx = Array.isArray(res.recentTx) ? res.recentTx : []
+        const resolved = resolveCustomerWalletDisplay(res.wallet, recentTx, recentTx)
         const next =
+          resolved?.formatted ||
           res.wallet.formatted ||
           (typeof res.wallet.balance === 'number' ? `$${res.wallet.balance.toFixed(2)}` : '')
         if (next) {
@@ -1086,7 +1090,7 @@ export default function VendorPage({
           <div className="vendor-balance-card">
             <div className="vendor-balance-copy">
               <span className="vendor-balance-label">Portfolio Balance</span>
-              <span className="vendor-balance-value">{walletBalance || '$0.00'}</span>
+              <span className="vendor-balance-value">{cashBalance || walletBalance || '$0.00'}</span>
             </div>
             <div className="vendor-balance-actions">
             {onTopUp ? (
@@ -1965,7 +1969,7 @@ export default function VendorPage({
             redeemableBalance: gameBalances[key]?.redeemableFormatted,
           }
         })}
-        cashBalance={walletBalance}
+        cashBalance={cashBalance}
         onClose={() => {
           setLoadGame(null)
           setTransferIntent('load')

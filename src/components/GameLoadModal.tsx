@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, getToken, isApiConfigured, tapstackApi } from '../api/client'
+import { ApiError, getToken, isApiConfigured, tapstackApi, type WalletTxn } from '../api/client'
+import { resolveCustomerWalletDisplay } from '../lib/pointsRedeem'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { decodeIcon } from '../data/vendors'
 import { openWertTopUp } from '../api/wert'
@@ -12,6 +13,15 @@ const LOAD_FEE_PCT = 10
 function parseMoney(value: string): number {
   const n = Number(String(value).replace(/[^0-9.-]/g, ''))
   return Number.isFinite(n) ? n : 0
+}
+
+function portfolioFromWalletResponse(
+  wallet: Parameters<typeof resolveCustomerWalletDisplay>[0],
+  recentTx: WalletTxn[],
+  fallback: string,
+): string {
+  const resolved = resolveCustomerWalletDisplay(wallet, recentTx, recentTx)
+  return resolved?.formatted ?? fallback
 }
 
 function money(value: number): string {
@@ -147,8 +157,7 @@ export default function GameLoadModal({
     setLoadingWallet(true)
     ;(async () => {
       try {
-        const [walletRes, balRes, gamesRes] = await Promise.all([
-          tapstackApi.customerWallet().catch(() => null),
+        const [balRes, gamesRes] = await Promise.all([
           game.mode === 'auto'
             ? tapstackApi.vendorGameBalance(vendorId, game.gameKey).catch(() => null)
             : Promise.resolve(null),
@@ -157,10 +166,6 @@ export default function GameLoadModal({
             : Promise.resolve(null),
         ])
         if (cancelled) return
-        if (walletRes?.wallet?.formatted) setWalletFormatted(walletRes.wallet.formatted)
-        else if (typeof walletRes?.wallet?.balance === 'number') {
-          setWalletFormatted(`$${walletRes.wallet.balance.toFixed(2)}`)
-        }
         if (typeof gamesRes?.loadFeePct === 'number' && Number.isFinite(gamesRes.loadFeePct)) {
           setLoadFeePct(gamesRes.loadFeePct)
         }
@@ -190,9 +195,11 @@ export default function GameLoadModal({
     return () => {
       cancelled = true
     }
-  }, [open, game?.gameKey, vendorId, intent])
+  }, [open, game?.gameKey, vendorId, intent, cashBalance])
 
   if (!open || !game) return null
+
+  const portfolioDisplay = cashBalance || walletFormatted || '$0.00'
 
   const target: GameLoadTarget = game
   const isManual = target.mode !== 'auto'
@@ -205,7 +212,7 @@ export default function GameLoadModal({
   }
 
   const numericAmount = Number(amount)
-  const availableWallet = parseMoney(walletFormatted)
+  const availableWallet = parseMoney(portfolioDisplay)
   const hasKnownGameBalance = Boolean(gameBalance && gameBalance !== '—' && !loadingWallet)
   const availableGame = parseMoney(gameBalance)
   const destGames = games.filter((item) => item.gameKey !== target.gameKey)
@@ -310,19 +317,20 @@ export default function GameLoadModal({
           ? await tapstackApi.createVendorRedeem(vendorId, payload)
           : await tapstackApi.createVendorLoad(vendorId, payload)
 
-      let nextCash = walletFormatted
+      let nextCash = portfolioDisplay
       let nextGame = gameBalance
-      if (res.wallet?.formatted) {
-        nextCash = res.wallet.formatted
+      if (res.wallet) {
+        nextCash = portfolioFromWalletResponse(
+          res.wallet,
+          [],
+          portfolioDisplay,
+        )
         setWalletFormatted(nextCash)
       } else {
         try {
           const walletRes = await tapstackApi.customerWallet()
-          nextCash =
-            walletRes.wallet.formatted ||
-            (typeof walletRes.wallet.balance === 'number'
-              ? `$${walletRes.wallet.balance.toFixed(2)}`
-              : walletFormatted)
+          const recentTx = Array.isArray(walletRes.recentTx) ? walletRes.recentTx : []
+          nextCash = portfolioFromWalletResponse(walletRes.wallet, recentTx, portfolioDisplay)
           setWalletFormatted(nextCash)
         } catch {
           if (!isRedeem) {
@@ -475,7 +483,7 @@ export default function GameLoadModal({
                 <div className="game-load-balance-card game-load-balance-card--portfolio">
                   <span className="game-load-balance-label">Portfolio Balance</span>
                   <strong className="game-load-balance-value">
-                    {loadingWallet ? '…' : walletFormatted}
+                    {portfolioDisplay}
                   </strong>
                 </div>
               ) : null}
