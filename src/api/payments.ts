@@ -1,8 +1,8 @@
 import { apiRequest } from './client'
 import {
+  chargePaysioPayment,
   createPaysioSession,
   openPaysioHostedCheckout,
-  type PaysioSessionResponse,
 } from './paysio'
 import { openWertTopUp, type TopUpOwnerType } from './wert'
 
@@ -59,15 +59,4 @@ export async function startHostedCardTopUp(opts: CardTopUpHandlers): Promise<voi
   })
 }
 
-export async function createEmbeddedPaysioSession(
-  amount: number,
-  ownerType?: TopUpOwnerType,
-): Promise<PaysioSessionResponse> {
-  return createPaysioSession({
-    amount,
-    ownerType,
-    uiMode: 'embedded',
-    origin: window.location.origin,
-    successUrl: window.location.origin + window.location.pathname,
-  })
-}
+export { chargePaysioPayment }

@@ -1562,7 +1562,11 @@ export default function CustomerDashboard({
     syncWalletFromApi()
   }, [shouldLoadFromApi, walletReady, syncWalletFromApi])
 
-  useIntervalRefresh(refreshMoney, MONEY_REFRESH_MS, shouldLoadFromApi && !showVerify && walletReady)
+  useIntervalRefresh(
+    refreshMoney,
+    MONEY_REFRESH_MS,
+    shouldLoadFromApi && !showVerify && walletReady && !topUpOpen,
+  )
 
   async function handleAddVendor() {
     const code = inviteCode.trim().toUpperCase()

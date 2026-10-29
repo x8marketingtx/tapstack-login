@@ -851,7 +851,7 @@ export default function VendorDashboard({
   useIntervalRefresh(
     refreshPendingCount,
     MONEY_REFRESH_MS,
-    shouldLoadFromApi && activeTab !== 'orders' && !showVerify,
+    shouldLoadFromApi && activeTab !== 'orders' && !showVerify && !topUpOpen,
   )
 
   const refreshVendorMoney = useCallback(() => {
@@ -884,7 +884,11 @@ export default function VendorDashboard({
       .catch(() => undefined)
   }, [shouldLoadFromApi])
 
-  useIntervalRefresh(refreshVendorMoney, MONEY_REFRESH_MS, shouldLoadFromApi && !showVerify)
+  useIntervalRefresh(
+    refreshVendorMoney,
+    MONEY_REFRESH_MS,
+    shouldLoadFromApi && !showVerify && !topUpOpen,
+  )
 
   async function openNotifications() {
     setNotificationsOpen(true)

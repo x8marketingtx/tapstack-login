@@ -135,13 +135,13 @@
 
 .vendor-balance-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 14px;
   margin: 0 0 18px;
-  padding: 16px 16px 16px 18px;
-  border-radius: 16px;
-  background: #111827;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(165deg, #1f2937 0%, #111827 62%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: none;
 }
@@ -151,12 +151,6 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-}
-
-.vendor-balance-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
 }
 
 .vendor-stat-label {
@@ -200,21 +194,26 @@
 }
 
 .vendor-balance-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.vendor-balance-actions:has(> :only-child) {
+  grid-template-columns: 1fr;
 }
 
 .vendor-topup-btn {
-  flex-shrink: 0;
-  padding: 10px 14px;
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
 }

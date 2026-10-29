@@ -15,17 +15,55 @@ export type PaysioSessionResponse = {
   walletCurrency: string
 }
 
-type PaysioGlobal = (key: string) => {
-  mountCheckout: (
-    target: string | HTMLElement,
-    opts: {
-      clientSecret: string
-      appearance?: Record<string, unknown>
-      onComplete?: (result: { transactionId?: string; orderLabel?: string }) => void
-      onError?: (error: { message?: string }) => void
-    },
-  ) => Promise<{ unmount: () => void }>
+export type PaysioChargeResponse = {
+  ok?: boolean
+  clickId: string
+  chargeId?: string
+  status?: string
+  pending?: boolean
+  wallet?: { balance: number; points: number; currency: string }
 }
+
+export type PaysioWalletPayment = {
+  walletType?: string
+  paysioWallet: Record<string, unknown>
+  wallet?: Record<string, unknown>
+  threeDS?: Record<string, unknown>
+}
+
+type CardInputsHandle = {
+  unmount: () => void
+}
+
+type WalletElements = {
+  mountWallets: (
+    target: string | HTMLElement,
+    opts: Record<string, unknown>,
+  ) => void
+  updateAmount: (amount: number) => void
+  on: (event: string, fn: (data: PaysioWalletPayment) => unknown) => void
+  unmount: () => void
+}
+
+type PaysioInstance = {
+  mountCardInputs: (
+    target: string | HTMLElement | { cardNumber: string; cardExpiry: string; cardCvc: string },
+    opts?: Record<string, unknown>,
+  ) => Promise<CardInputsHandle>
+  createToken: () => Promise<{ token: string; card?: { last4?: string; brand?: string } }>
+  threeDS: () => {
+    authenticate: (opts: {
+      amount: number
+      token: string
+      email?: string
+      iframeTarget?: string
+    }) => Promise<Record<string, unknown>>
+  }
+  elements: () => WalletElements
+  reset?: () => void
+}
+
+type PaysioGlobal = (key: string) => PaysioInstance
 
 declare global {
   interface Window {
@@ -34,6 +72,8 @@ declare global {
 }
 
 let paysioScript: Promise<PaysioGlobal> | null = null
+let paysioInstance: PaysioInstance | null = null
+let paysioInstanceKey = ''
 
 function loadPaysioJs(): Promise<PaysioGlobal> {
   if (window.Paysio) return Promise.resolve(window.Paysio)
@@ -61,6 +101,16 @@ function loadPaysioJs(): Promise<PaysioGlobal> {
   return paysioScript
 }
 
+export async function getPaysio(publishableKey: string): Promise<PaysioInstance> {
+  const Paysio = await loadPaysioJs()
+  if (paysioInstance && paysioInstanceKey === publishableKey) {
+    return paysioInstance
+  }
+  paysioInstance = Paysio(publishableKey)
+  paysioInstanceKey = publishableKey
+  return paysioInstance
+}
+
 export async function createPaysioSession(payload: {
   amount: number
   ownerType?: TopUpOwnerType
@@ -86,59 +136,119 @@ export async function confirmPaysioPayment(clickId: string): Promise<{
   })
 }
 
-const TAPSTACK_APPEARANCE = {
+export async function chargePaysioPayment(payload: {
+  amount: number
+  ownerType?: TopUpOwnerType
+  paymentToken?: string
+  paysioWallet?: Record<string, unknown>
+  wallet?: Record<string, unknown>
+  threeDs?: Record<string, unknown>
+  postalCode?: string
+}): Promise<PaysioChargeResponse> {
+  return apiRequest<PaysioChargeResponse>('/payments/paysio/charge', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+const CARD_APPEARANCE = {
   variables: {
-    colorPrimary: '#059669',
-    colorBackground: '#ffffff',
-    colorText: '#111827',
-    colorTextMuted: '#6b7280',
-    colorBorder: '#e5e7eb',
-    borderRadius: '12px',
-    buttonBorderRadius: '12px',
     fontFamily: 'Inter, system-ui, sans-serif',
     fontSize: '15px',
+    fontWeight: '600',
+    colorText: '#111827',
+    colorTextPlaceholder: '#9ca3af',
+    colorBackground: '#f9fafb',
+    colorBorder: '#e5e7eb',
+    colorBorderFocus: '#059669',
+    colorBorderInvalid: '#dc2626',
+    colorTextInvalid: '#dc2626',
+    colorIcon: '#9ca3af',
+    caretColor: '#059669',
+    borderRadius: '12px',
+    borderWidth: '1px',
+    inputHeight: '46px',
+    inputPaddingX: '12px',
+    boxShadow: 'none',
+    boxShadowFocus: '0 0 0 1px #059669',
+    rowGap: '8px',
+    showLockIcon: false,
   },
 }
 
-export async function mountPaysioCheckout(
-  target: string | HTMLElement,
-  session: PaysioSessionResponse,
-  handlers: {
-    onComplete?: (wallet?: { balance: number; points: number; currency: string }) => void
-    onError?: (message: string) => void
-  },
-): Promise<() => void> {
-  const Paysio = await loadPaysioJs()
-  const paysio = Paysio(session.publishableKey)
-  let finished = false
+export async function mountPaysioCardForm(
+  publishableKey: string,
+  fields: { cardNumber: string; cardExpiry: string; cardCvc: string },
+  onChange?: (state: { complete: boolean; error?: string }) => void,
+): Promise<CardInputsHandle> {
+  const paysio = await getPaysio(publishableKey)
+  return paysio.mountCardInputs(fields, {
+    appearance: CARD_APPEARANCE,
+    placeholders: { number: 'Card number', expiry: 'MM / YY', cvc: 'Security code' },
+    onChange,
+  })
+}
 
-  const checkout = await paysio.mountCheckout(target, {
-    clientSecret: session.clientSecret,
-    appearance: TAPSTACK_APPEARANCE,
-    onComplete: () => {
-      void (async () => {
-        try {
-          const result = await confirmPaysioPayment(session.clickId)
-          if (result.pending) {
-            handlers.onError?.('Payment is still confirming. Wait a moment and keep this window open.')
-            return
-          }
-          finished = true
-          handlers.onComplete?.(result.wallet)
-        } catch (err) {
-          handlers.onError?.(err instanceof Error ? err.message : 'Could not confirm payment.')
-        }
-      })()
+export async function mountPaysioWallets(
+  publishableKey: string,
+  target: string | HTMLElement,
+  amount: number,
+  onWalletPay: (data: PaysioWalletPayment) => Promise<boolean>,
+): Promise<WalletElements> {
+  const paysio = await getPaysio(publishableKey)
+  const elements = paysio.elements()
+  elements.mountWallets(target, {
+    amount,
+    currency: 'USD',
+    country: 'US',
+    collectShipping: false,
+    buttonHeight: 44,
+    gap: 8,
+    direction: 'column',
+    applePay: {
+      buttonStyle: 'black',
+      buttonType: 'top-up',
+      borderRadius: 12,
     },
-    onError: (error) => {
-      if (finished) return
-      handlers.onError?.(error?.message || 'Paysio checkout error')
+    googlePay: {
+      buttonColor: 'black',
+      buttonType: 'pay',
+      buttonRadius: 12,
+      buttonSizeMode: 'fill',
     },
   })
+  elements.on('walletPayment', (data) => onWalletPay(data))
+  return elements
+}
 
-  return () => {
-    checkout.unmount()
+export async function tokenizeAndChargeCard(opts: {
+  publishableKey: string
+  amount: number
+  ownerType?: TopUpOwnerType
+  email?: string
+  postalCode?: string
+  threeDsTarget?: string
+}): Promise<PaysioChargeResponse> {
+  const paysio = await getPaysio(opts.publishableKey)
+  const { token } = await paysio.createToken()
+  let threeDs: Record<string, unknown> | undefined
+  try {
+    threeDs = await paysio.threeDS().authenticate({
+      amount: opts.amount,
+      token,
+      email: opts.email,
+      iframeTarget: opts.threeDsTarget,
+    })
+  } catch {
+    threeDs = undefined
   }
+  return chargePaysioPayment({
+    amount: opts.amount,
+    ownerType: opts.ownerType,
+    paymentToken: token,
+    threeDs,
+    postalCode: opts.postalCode,
+  })
 }
 
 export async function openPaysioHostedCheckout(

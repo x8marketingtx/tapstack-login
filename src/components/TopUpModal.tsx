@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, tapstackApi } from '../api/client'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
+import { fetchPaymentsConfig, type CardProcessor } from '../api/payments'
 import {
-  createEmbeddedPaysioSession,
-  fetchPaymentsConfig,
-  type CardProcessor,
-} from '../api/payments'
-import { mountPaysioCheckout, type PaysioSessionResponse } from '../api/paysio'
+  chargePaysioPayment,
+  mountPaysioCardForm,
+  mountPaysioWallets,
+  tokenizeAndChargeCard,
+  type PaysioWalletPayment,
+} from '../api/paysio'
 import { openWertTopUp, type TopUpOwnerType } from '../api/wert'
 import TopUpPresetGrid from './TopUpPresetGrid'
 import './TopUpModal.css'
@@ -39,6 +41,7 @@ export default function TopUpModal({
   onVerifyRequired,
 }: TopUpModalProps) {
   const [amount, setAmount] = useState('0')
+  const [postalCode, setPostalCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
@@ -48,66 +51,168 @@ export default function TopUpModal({
   const [cryptoNetwork, setCryptoNetwork] = useState('polygon')
   const [cryptoToken, setCryptoToken] = useState('USDC')
   const [processor, setProcessor] = useState<CardProcessor>('wert')
-  const [paysioSession, setPaysioSession] = useState<PaysioSessionResponse | null>(null)
-  const [checkoutEl, setCheckoutEl] = useState<HTMLDivElement | null>(null)
-  const unmountRef = useRef<(() => void) | null>(null)
+  const [publishableKey, setPublishableKey] = useState('')
+  const [step, setStep] = useState<'amount' | 'pay'>('amount')
+  const [cardReady, setCardReady] = useState(false)
+  const [cardComplete, setCardComplete] = useState(false)
+
+  const walletsRef = useRef<HTMLDivElement | null>(null)
+  const walletApiRef = useRef<{ updateAmount: (n: number) => void; unmount: () => void } | null>(null)
+  const amountRef = useRef(0)
+  const postalRef = useRef('')
+  const onCloseRef = useRef(onClose)
+  const onSuccessRef = useRef(onSuccess)
+  const onVerifyRef = useRef(onVerifyRequired)
+  const ownerTypeRef = useRef(ownerType)
+  onCloseRef.current = onClose
+  onSuccessRef.current = onSuccess
+  onVerifyRef.current = onVerifyRequired
+  ownerTypeRef.current = ownerType
+  postalRef.current = postalCode
 
   useEffect(() => {
     if (!open) return
     setAmount('0')
+    setPostalCode('')
     setError('')
     setStatus('')
     setLoading(false)
-    setPaysioSession(null)
+    setStep('amount')
+    setCardReady(false)
+    setCardComplete(false)
+    setPublishableKey('')
     void fetchPaymentsConfig()
-      .then((config) => setProcessor(config.processor))
+      .then((config) => {
+        setProcessor(config.processor)
+        setPublishableKey(config.paysio.publishableKey || '')
+      })
       .catch(() => setProcessor('wert'))
   }, [open])
 
+  const numericAmount = Number(amount)
+  amountRef.current = Number.isFinite(numericAmount) ? numericAmount : 0
+
   useEffect(() => {
-    if (!open || !paysioSession || !checkoutEl) return
+    if (!open || processor !== 'paysio' || !publishableKey || method !== 'card' || step !== 'pay') return
     let cancelled = false
-    void mountPaysioCheckout(checkoutEl, paysioSession, {
-      onComplete: (wallet) => {
-        if (cancelled) return
-        setStatus('Payment successful. Balance updated.')
-        setLoading(false)
-        onSuccess?.(wallet)
-        setTimeout(() => {
-          onClose()
-          setStatus('')
-          setPaysioSession(null)
-        }, 900)
-      },
-      onError: (message) => {
-        if (cancelled) return
-        setError(message)
-        setLoading(false)
-        setStatus('')
-      },
-    }).then((unmount) => {
-      if (cancelled) {
-        unmount()
-        return
-      }
-      unmountRef.current = unmount
-    }).catch((err) => {
-      if (cancelled) return
-      setError(err instanceof Error ? err.message : 'Could not open Paysio checkout.')
+    let unmountCard: (() => void) | null = null
+    let wallets: { updateAmount: (n: number) => void; unmount: () => void } | null = null
+
+    const finish = (
+      wallet?: { balance: number; points: number; currency: string },
+    ) => {
+      setStatus('Payment successful. Balance updated.')
       setLoading(false)
-      setPaysioSession(null)
-    })
+      onSuccessRef.current?.(wallet)
+      window.setTimeout(() => {
+        onCloseRef.current()
+        setStatus('')
+      }, 900)
+    }
+
+    const fail = (message: string, err?: unknown) => {
+      if (shouldOpenVerifyFromApiError(err)) onVerifyRef.current?.()
+      setError(message)
+      setLoading(false)
+      setStatus('')
+    }
+
+    void (async () => {
+      try {
+        const card = await mountPaysioCardForm(
+          publishableKey,
+          {
+            cardNumber: '#paysio-card-number',
+            cardExpiry: '#paysio-card-expiry',
+            cardCvc: '#paysio-card-cvc',
+          },
+          ({ complete, error: fieldError }) => {
+            if (cancelled) return
+            setCardComplete(complete)
+            setCardReady(true)
+            if (fieldError) setError(fieldError)
+          },
+        )
+        if (cancelled) {
+          card.unmount()
+          return
+        }
+        unmountCard = card.unmount
+        setCardReady(true)
+
+        if (walletsRef.current) {
+          wallets = await mountPaysioWallets(
+            publishableKey,
+            walletsRef.current,
+            Math.max(amountRef.current, 1),
+            async (data: PaysioWalletPayment) => {
+              const payAmount = amountRef.current
+              if (!Number.isFinite(payAmount) || payAmount < 1) {
+                fail('Enter an amount of at least $1 first.')
+                return false
+              }
+              setError('')
+              setStatus('Processing Apple Pay / Google Pay…')
+              setLoading(true)
+              try {
+                const result = await chargePaysioPayment({
+                  amount: payAmount,
+                  ownerType: ownerTypeRef.current,
+                  paysioWallet: data.paysioWallet,
+                  wallet: data.wallet,
+                  threeDs: data.threeDS,
+                  postalCode: postalRef.current.trim() || undefined,
+                })
+                finish(result.wallet)
+                return true
+              } catch (err) {
+                fail(
+                  err instanceof ApiError
+                    ? err.message
+                    : err instanceof Error
+                      ? err.message
+                      : 'Wallet payment failed.',
+                  err,
+                )
+                return false
+              }
+            },
+          )
+          if (cancelled) {
+            wallets.unmount()
+            wallets = null
+            return
+          }
+          walletApiRef.current = wallets
+          if (amountRef.current >= 1) wallets.updateAmount(amountRef.current)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          fail(err instanceof Error ? err.message : 'Could not load card fields.')
+        }
+      }
+    })()
+
     return () => {
       cancelled = true
-      unmountRef.current?.()
-      unmountRef.current = null
+      unmountCard?.()
+      wallets?.unmount()
+      walletApiRef.current = null
     }
-  }, [open, paysioSession, checkoutEl, onClose, onSuccess])
+  }, [open, processor, publishableKey, method, step])
+
+  useEffect(() => {
+    if (!open || processor !== 'paysio') return
+    if (Number.isFinite(numericAmount) && numericAmount >= 1) {
+      walletApiRef.current?.updateAmount(numericAmount)
+    }
+  }, [open, processor, numericAmount])
 
   if (!open) return null
 
-  const numericAmount = Number(amount)
-  const canSubmit = Number.isFinite(numericAmount) && numericAmount >= 1 && !loading
+  const canSubmitWert = Number.isFinite(numericAmount) && numericAmount >= 1 && !loading
+  const canContinuePaysio = Number.isFinite(numericAmount) && numericAmount >= 1 && !loading
+  const canSubmitPaysio = canContinuePaysio && cardComplete && cardReady
 
   function addPreset(value: number) {
     setAmount((current) => {
@@ -119,20 +224,47 @@ export default function TopUpModal({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!canSubmit) return
+    if (processor === 'paysio') {
+      if (step !== 'pay') {
+        if (!canContinuePaysio) return
+        setError('')
+        setStatus('')
+        setStep('pay')
+        return
+      }
+      if (!canSubmitPaysio || !publishableKey) return
+      setError('')
+      setStatus('Verifying card…')
+      setLoading(true)
+      try {
+        const result = await tokenizeAndChargeCard({
+          publishableKey,
+          amount: numericAmount,
+          ownerType,
+          postalCode: postalCode.trim() || undefined,
+          threeDsTarget: '#paysio-threeds',
+        })
+        setStatus('Payment successful. Balance updated.')
+        setLoading(false)
+        onSuccess?.(result.wallet)
+        window.setTimeout(() => {
+          onClose()
+          setStatus('')
+        }, 900)
+      } catch (err) {
+        if (shouldOpenVerifyFromApiError(err)) onVerifyRequired?.()
+        setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not charge card.')
+        setLoading(false)
+        setStatus('')
+      }
+      return
+    }
 
+    if (!canSubmitWert) return
     setError('')
     setStatus('Opening secure checkout…')
     setLoading(true)
-
     try {
-      if (processor === 'paysio') {
-        const session = await createEmbeddedPaysioSession(numericAmount, ownerType)
-        setPaysioSession(session)
-        setStatus('Enter your card below.')
-        setLoading(false)
-        return
-      }
       await openWertTopUp({
         amount: numericAmount,
         ownerType,
@@ -156,9 +288,7 @@ export default function TopUpModal({
         },
       })
     } catch (err) {
-      if (shouldOpenVerifyFromApiError(err)) {
-        onVerifyRequired?.()
-      }
+      if (shouldOpenVerifyFromApiError(err)) onVerifyRequired?.()
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not start payment.')
       setLoading(false)
       setStatus('')
@@ -183,9 +313,7 @@ export default function TopUpModal({
       setCryptoToken(rail.token || 'USDC')
       setStatus(rail.message || 'Connected. Send USDC to the deposit address.')
     } catch (err) {
-      if (shouldOpenVerifyFromApiError(err)) {
-        onVerifyRequired?.()
-      }
+      if (shouldOpenVerifyFromApiError(err)) onVerifyRequired?.()
       setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not connect MetaMask.')
       setStatus('')
     } finally {
@@ -194,16 +322,35 @@ export default function TopUpModal({
   }
 
   return (
-    <div className="topup-overlay" role="presentation" onClick={paysioSession ? undefined : onClose}>
+    <div className="topup-overlay" role="presentation" onClick={onClose}>
       <div
-        className={`topup-modal${paysioSession ? ' topup-modal--paysio' : ''}`}
+        className="topup-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="topup-title"
         onClick={(event) => event.stopPropagation()}
       >
+        <span className="topup-handle" aria-hidden="true" />
         <div className="topup-header">
-          <h2 id="topup-title">{title}</h2>
+          {processor === 'paysio' && step === 'pay' ? (
+            <button
+              type="button"
+              className="topup-back"
+              aria-label="Back"
+              onClick={() => {
+                setStep('amount')
+                setError('')
+                setStatus('')
+                setCardComplete(false)
+                setCardReady(false)
+              }}
+            >
+              ‹
+            </button>
+          ) : (
+            <span className="topup-header-spacer" />
+          )}
+          <h2 id="topup-title">{step === 'pay' ? 'Payment' : title}</h2>
           <button type="button" className="topup-close" onClick={onClose} aria-label="Close">
             ×
           </button>
@@ -247,46 +394,97 @@ export default function TopUpModal({
           </div>
         ) : (
           <>
-            <p className="topup-copy">
-              Pay with card, Apple Pay, or Google Pay. You must be logged in (OTP or portal) so the request can
-              send your Bearer token.
-            </p>
-
-            {paysioSession ? (
-              <div className="paysio-checkout-wrap">
-                {status ? <p className="topup-status">{status}</p> : null}
-                {error ? <p className="topup-error">{error}</p> : null}
-                <div ref={setCheckoutEl} id="paysio-checkout" className="paysio-checkout" />
-              </div>
+            {step === 'amount' ? (
+              <p className="topup-copy">Added to your Portfolio Balance</p>
             ) : (
-              <>
-            <TopUpPresetGrid onAdd={addPreset} />
+              <p className="topup-copy">Apple Pay, Google Pay, or card</p>
+            )}
+
+            {step === 'amount' ? <TopUpPresetGrid onAdd={addPreset} /> : null}
 
             <form className="topup-form" onSubmit={handleSubmit}>
-              <label className="topup-label" htmlFor="topup-amount">
-                Amount (USD)
-              </label>
-              <div className="topup-amount-wrap">
-                <span aria-hidden="true">$</span>
-                <input
-                  id="topup-amount"
-                  type="number"
-                  min={1}
-                  step="1"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                />
-              </div>
+              {step === 'amount' ? (
+                <div className="topup-hero-amount">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    id="topup-amount"
+                    type="number"
+                    min={1}
+                    step="1"
+                    value={amount === '0' ? '' : amount}
+                    placeholder="0"
+                    onChange={(event) => setAmount(event.target.value || '0')}
+                  />
+                </div>
+              ) : (
+                <div className="topup-pay-chip">
+                  Paying ${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}
+                </div>
+              )}
+
+              {processor === 'paysio' && step === 'pay' ? (
+                <>
+                  <div ref={walletsRef} id="paysio-wallets" className="topup-wallets" />
+                  <p className="topup-or">or card</p>
+                  <div className="topup-card-panel">
+                    <label className="topup-label" htmlFor="paysio-card-number">
+                      Card number
+                    </label>
+                    <div id="paysio-card-number" className="topup-card-field" />
+                    <div className="topup-card-row">
+                      <div>
+                        <label className="topup-label" htmlFor="paysio-card-expiry">
+                          Expiry
+                        </label>
+                        <div id="paysio-card-expiry" className="topup-card-field" />
+                      </div>
+                      <div>
+                        <label className="topup-label" htmlFor="paysio-card-cvc">
+                          Security code
+                        </label>
+                        <div id="paysio-card-cvc" className="topup-card-field" />
+                      </div>
+                    </div>
+                    <label className="topup-label" htmlFor="topup-zip">
+                      Billing ZIP
+                    </label>
+                    <input
+                      id="topup-zip"
+                      className="topup-zip"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="postal-code"
+                      placeholder="Optional"
+                      value={postalCode}
+                      onChange={(event) => setPostalCode(event.target.value)}
+                    />
+                  </div>
+                  <div id="paysio-threeds" className="topup-threeds" />
+                  {!cardReady ? <p className="topup-status">Loading card fields…</p> : null}
+                </>
+              ) : null}
 
               {status ? <p className="topup-status">{status}</p> : null}
               {error ? <p className="topup-error">{error}</p> : null}
 
-              <button type="submit" className="topup-submit" disabled={!canSubmit}>
-                {loading ? 'Processing payment…' : `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
+              <button
+                type="submit"
+                className="topup-submit"
+                disabled={
+                  processor === 'paysio'
+                    ? step === 'pay'
+                      ? !canSubmitPaysio
+                      : !canContinuePaysio
+                    : !canSubmitWert
+                }
+              >
+                {loading
+                  ? processor === 'paysio'
+                    ? 'Charging card…'
+                    : 'Processing payment…'
+                  : `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
               </button>
             </form>
-              </>
-            )}
           </>
         )}
       </div>

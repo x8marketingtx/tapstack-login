@@ -71,16 +71,13 @@ export function correctCashBalanceForLegacyPointRedemptions(
 
 export function normalizeCustomerWalletFromApi(
   wallet: { balance?: number; formatted?: string; points?: number; cashBalance?: string },
-  txns?: readonly Pick<WalletTxn, 'points' | 'amount'>[],
+  _txns?: readonly Pick<WalletTxn, 'points' | 'amount'>[],
 ): { balance: number; formatted: string; points: number } | null {
   if (typeof wallet.points !== 'number') return null
-  let balance =
+  const balance =
     typeof wallet.balance === 'number' && Number.isFinite(wallet.balance)
       ? wallet.balance
       : parseTapstackCash(wallet.formatted ?? wallet.cashBalance)
-  if (txns?.length) {
-    balance = correctCashBalanceForLegacyPointRedemptions(balance, txns)
-  }
   return {
     balance,
     formatted: formatTapstackCash(balance),
@@ -100,28 +97,18 @@ export function resolveCustomerWalletDisplay(
   return { ...normalized, txns: recentTx.length > 0 ? [...recentTx] : [...cachedTxns] }
 }
 
-/** Apply 1000:1 redeem credit when the API still credits at 100:1. */
+/** Trust the wallet API after a points redeem. */
 export function walletAfterPointsRedeem(
   pts: number,
   cashBefore: number,
   pointsBefore: number,
   apiWallet: { balance?: number; points?: number; formatted?: string },
 ): { balance: number; points: number; formatted: string } {
-  const correctCredit = pointsToCash(pts)
-  const legacyCredit = pts / LEGACY_POINTS_PER_DOLLAR
   const apiBalance =
     typeof apiWallet.balance === 'number' && Number.isFinite(apiWallet.balance) ? apiWallet.balance : null
   const points =
     typeof apiWallet.points === 'number' ? apiWallet.points : Math.max(0, pointsBefore - pts)
-
-  let balance = cashBefore + correctCredit
-  if (apiBalance != null) {
-    if (Math.abs(apiBalance - (cashBefore + legacyCredit)) < LEGACY_TOLERANCE) {
-      balance = cashBefore + correctCredit
-    } else if (Math.abs(apiBalance - (cashBefore + correctCredit)) < LEGACY_TOLERANCE) {
-      balance = apiBalance
-    }
-  }
+  const balance = apiBalance != null ? apiBalance : cashBefore + pointsToCash(pts)
 
   return {
     balance,
