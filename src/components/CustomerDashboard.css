@@ -607,7 +607,9 @@
 .balance-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -626,6 +628,10 @@
   border: none;
   background: linear-gradient(180deg, #6ee7b7 0%, #34d399 100%);
   color: #064e3b;
+}
+
+.balance-btn--send:hover:not(:disabled) {
+  filter: brightness(1.05);
 }
 
 .balance-btn--withdraw {

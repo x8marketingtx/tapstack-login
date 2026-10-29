@@ -415,6 +415,7 @@ function GamesHome({
   walletReady = true,
   activities,
   onSeeAllActivity,
+  onTopUp,
   onWithdraw,
   balanceEpoch = 0,
 }: {
@@ -434,6 +435,7 @@ function GamesHome({
   walletReady?: boolean
   activities: ActivityRow[]
   onSeeAllActivity: () => void
+  onTopUp?: () => void
   onWithdraw?: () => void
   balanceEpoch?: number
 }) {
@@ -572,14 +574,24 @@ function GamesHome({
                 <p className="balance-amount">{cashBalance}</p>
               )}
             </div>
-            <button
-              type="button"
-              className="balance-btn balance-btn--withdraw"
-              disabled={loading || !onWithdraw}
-              onClick={onWithdraw}
-            >
-              Withdraw
-            </button>
+            <div className="balance-actions">
+              <button
+                type="button"
+                className="balance-btn balance-btn--send"
+                disabled={loading || !onTopUp}
+                onClick={onTopUp}
+              >
+                Top Up
+              </button>
+              <button
+                type="button"
+                className="balance-btn balance-btn--withdraw"
+                disabled={loading || !onWithdraw}
+                onClick={onWithdraw}
+              >
+                Withdraw
+              </button>
+            </div>
           </div>
         </section>
 
@@ -1829,6 +1841,10 @@ export default function CustomerDashboard({
                   shouldLoadFromApi ? mapTxnsToActivities(walletTxns) : DEMO_ACTIVITIES
                 }
                 onSeeAllActivity={() => handleTabChange('account')}
+                onTopUp={() => {
+                  if (!requireVerified()) return
+                  setTopUpOpen(true)
+                }}
                 onWithdraw={() => {
                   if (!requireVerified()) return
                   setWithdrawOpen(true)
@@ -1895,6 +1911,10 @@ export default function CustomerDashboard({
                 onVerifyRequired={openVerify}
                 onWalletUpdate={() => {
                   syncWalletFromApi()
+                }}
+                onTopUp={() => {
+                  if (!requireVerified()) return
+                  setTopUpOpen(true)
                 }}
                 onWithdraw={() => {
                   if (!requireVerified()) return
