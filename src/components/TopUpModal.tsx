@@ -19,6 +19,7 @@ type TopUpModalProps = {
   ownerType?: TopUpOwnerType
   title?: string
   presets?: number[]
+  initialAmount?: number
   onSuccess?: (wallet?: { balance: number; points: number; currency: string }) => void
   onVerifyRequired?: () => void
 }
@@ -37,6 +38,7 @@ export default function TopUpModal({
   onClose,
   ownerType = 'player',
   title = 'Top up wallet',
+  initialAmount = 0,
   onSuccess,
   onVerifyRequired,
 }: TopUpModalProps) {
@@ -72,7 +74,7 @@ export default function TopUpModal({
 
   useEffect(() => {
     if (!open) return
-    setAmount('0')
+    setAmount(initialAmount > 0 ? String(Math.ceil(initialAmount)) : '0')
     setPostalCode('')
     setError('')
     setStatus('')
@@ -87,7 +89,7 @@ export default function TopUpModal({
         setPublishableKey(config.paysio.publishableKey || '')
       })
       .catch(() => setProcessor('wert'))
-  }, [open])
+  }, [open, initialAmount])
 
   const numericAmount = Number(amount)
   amountRef.current = Number.isFinite(numericAmount) ? numericAmount : 0
@@ -152,7 +154,7 @@ export default function TopUpModal({
                 return false
               }
               setError('')
-              setStatus('Processing Apple Pay / Google Pay…')
+              setStatus('Waiting for payment confirmation…')
               setLoading(true)
               try {
                 const result = await chargePaysioPayment({
@@ -234,7 +236,7 @@ export default function TopUpModal({
       }
       if (!canSubmitPaysio || !publishableKey) return
       setError('')
-      setStatus('Verifying card…')
+      setStatus('Waiting for payment confirmation…')
       setLoading(true)
       try {
         const result = await tokenizeAndChargeCard({
@@ -480,7 +482,7 @@ export default function TopUpModal({
               >
                 {loading
                   ? processor === 'paysio'
-                    ? 'Charging card…'
+                    ? 'Confirming payment…'
                     : 'Processing payment…'
                   : `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
               </button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import AccountAvatarMenu from './AccountAvatarMenu'
 import './AccountAvatarMenu.css'
 import {
@@ -302,6 +302,7 @@ const DEMO_DIST_VENDORS: VendorsData = {
     {
       id: '1',
       name: 'Lucky Strike Arcade',
+      email: 'lucky@example.com',
       tier: 'Gold',
       status: 'active',
       deposits: '$12,400',
@@ -691,7 +692,10 @@ export default function DistributorDashboard({
       if (!analytics) void loadAnalytics().catch(() => undefined)
     }
     if (tab === 'analytics' && !analytics) void loadAnalytics().catch(() => undefined)
-    if (tab === 'invoices' && !invoices) void loadInvoices().catch(() => undefined)
+    if (tab === 'invoices') {
+      if (!invoices) void loadInvoices().catch(() => undefined)
+      if (!vendors) void loadVendors().catch(() => undefined)
+    }
     if (tab === 'settings' && !settings) void loadSettings().catch(() => undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, loading])
@@ -938,6 +942,7 @@ export default function DistributorDashboard({
             {tab === 'invoices' ? (
               <InvoicesView
                 invoices={filteredInvoices}
+                vendors={vendors?.vendors || []}
                 filter={invoiceFilter}
                 onFilter={setInvoiceFilter}
                 onRefresh={() => void loadInvoices()}
@@ -1559,29 +1564,194 @@ function AnalyticsView({
   )
 }
 
+function VendorSelect({
+  vendors,
+  value,
+  onChange,
+}: {
+  vendors: DistributorVendorRow[]
+  value: string
+  onChange: (id: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [active, setActive] = useState(0)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const selected = vendors.find((row) => String(row.id) === value)
+  const needle = query.trim().toLowerCase()
+  const matches = vendors.filter((row) => {
+    if (!needle) return true
+    return `${row.name} ${row.email || ''}`.toLowerCase().includes(needle)
+  })
+
+  useEffect(() => {
+    if (!open) return
+    setQuery('')
+    setActive(0)
+    const focusTimer = window.setTimeout(() => searchRef.current?.focus(), 0)
+    function onDoc(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => {
+      window.clearTimeout(focusTimer)
+      document.removeEventListener('mousedown', onDoc)
+    }
+  }, [open])
+
+  useEffect(() => {
+    const node = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)
+    node?.scrollIntoView({ block: 'nearest' })
+  }, [active])
+
+  function pick(id: string) {
+    onChange(id)
+    setOpen(false)
+  }
+
+  function onKey(event: KeyboardEvent) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActive((i) => Math.min(matches.length - 1, i + 1))
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActive((i) => Math.max(0, i - 1))
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      const row = matches[active]
+      if (row) pick(String(row.id))
+    } else if (event.key === 'Escape') {
+      setOpen(false)
+    }
+  }
+
+  if (!vendors.length) {
+    return <p className="dist-empty">No vendors in your network yet.</p>
+  }
+
+  return (
+    <div className={`dist-s2${open ? ' is-open' : ''}`} ref={rootRef}>
+      <button
+        type="button"
+        className="dist-s2-control"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((next) => !next)}
+      >
+        {selected ? (
+          <span className="dist-s2-value">
+            <span className="dist-invoice-avatar">{initialsFromName(selected.name)}</span>
+            <span className="dist-invoice-vendor-copy">
+              <strong>{selected.name}</strong>
+              <small>{selected.email || 'No email on file'}</small>
+            </span>
+          </span>
+        ) : (
+          <span className="dist-s2-placeholder">Select a vendor…</span>
+        )}
+        <span className="dist-s2-caret" aria-hidden="true">
+          {open ? '▴' : '▾'}
+        </span>
+      </button>
+      {selected && !open ? (
+        <button
+          type="button"
+          className="dist-s2-clear"
+          aria-label="Clear vendor"
+          onClick={(event) => {
+            event.stopPropagation()
+            onChange('')
+          }}
+        >
+          ×
+        </button>
+      ) : null}
+      {open ? (
+        <div className="dist-s2-menu" onKeyDown={onKey}>
+          <input
+            ref={searchRef}
+            className="dist-s2-search"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setActive(0)
+            }}
+            placeholder="Search name or email…"
+            autoComplete="off"
+          />
+          <div className="dist-s2-list" role="listbox" ref={listRef}>
+            {matches.map((row, index) => {
+              const id = String(row.id)
+              const isActive = index === active
+              const isSelected = id === value
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="option"
+                  data-index={index}
+                  aria-selected={isSelected}
+                  className={`dist-s2-option${isActive ? ' is-active' : ''}${isSelected ? ' is-selected' : ''}`}
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => pick(id)}
+                >
+                  <span className="dist-invoice-avatar">{initialsFromName(row.name)}</span>
+                  <span className="dist-invoice-vendor-copy">
+                    <strong>{row.name}</strong>
+                    <small>{row.email || 'No email on file'}</small>
+                  </span>
+                </button>
+              )
+            })}
+            {!matches.length ? <p className="dist-s2-empty">No results</p> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function InvoicesView({
   invoices,
+  vendors,
   filter,
   onFilter,
   onRefresh,
 }: {
   invoices: NonNullable<InvoicesData>['invoices']
+  vendors: DistributorVendorRow[]
   filter: InvoiceFilter
   onFilter: (f: InvoiceFilter) => void
   onRefresh: () => void
 }) {
   const [creating, setCreating] = useState(false)
-  const [vendor, setVendor] = useState('')
+  const [kind, setKind] = useState<'vendor' | 'email'>('vendor')
+  const [vendorId, setVendorId] = useState('')
+  const [email, setEmail] = useState('')
   const [amount, setAmount] = useState('')
   const [subject, setSubject] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const selectedVendor = vendors.find((row) => String(row.id) === vendorId)
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault()
-    if (!vendor.trim() || !amount.trim()) {
-      setError('Vendor and amount are required.')
+    if (!amount.trim()) {
+      setError('Amount is required.')
+      return
+    }
+    if (kind === 'vendor' && !vendorId) {
+      setError('Pick a vendor from your network.')
+      return
+    }
+    if (kind === 'email' && !email.trim()) {
+      setError('Enter an email address.')
       return
     }
     if (file) {
@@ -1596,30 +1766,34 @@ function InvoicesView({
     }
     setBusy(true)
     setError('')
+    setNotice('')
+    const payload = {
+      kind,
+      vendorId: kind === 'vendor' ? vendorId : undefined,
+      email: kind === 'email' ? email.trim() : undefined,
+      vendor: kind === 'vendor' ? selectedVendor?.name : email.trim(),
+      amount: amount.trim(),
+      subject: subject.trim() || undefined,
+      description: subject.trim() || undefined,
+    }
     try {
-      if (file) {
-        await tapstackApi.distributorUploadInvoice({
-          vendor: vendor.trim(),
-          amount: amount.trim(),
-          subject: subject.trim() || undefined,
-          file,
-        })
-      } else {
-        await tapstackApi.distributorCreateInvoice({
-          vendor: vendor.trim(),
-          amount: amount.trim(),
-          subject: subject.trim() || undefined,
-          description: subject.trim() || undefined,
-        })
-      }
-      setVendor('')
+      const result = file
+        ? await tapstackApi.distributorUploadInvoice({ ...payload, file })
+        : await tapstackApi.distributorCreateInvoice(payload)
+      setVendorId('')
+      setEmail('')
       setAmount('')
       setSubject('')
       setFile(null)
       setCreating(false)
       onRefresh()
+      if (result.mailed === false) {
+        setError(result.message || 'Invoice saved, but the email did not send.')
+      } else {
+        setNotice(result.message || 'Invoice sent.')
+      }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create invoice.')
+      setError(err instanceof ApiError ? err.message : 'Could not send invoice.')
     } finally {
       setBusy(false)
     }
@@ -1630,7 +1804,7 @@ function InvoicesView({
       <div className="dist-title-row">
         <div>
           <h1 className="dist-title">Invoices</h1>
-          <p className="dist-subtitle">Bill vendors · track payments</p>
+          <p className="dist-subtitle">Bill your vendors or send to any email</p>
         </div>
         <button
           type="button"
@@ -1642,33 +1816,123 @@ function InvoicesView({
       </div>
 
       {creating ? (
-        <form className="dist-invoice-form" onSubmit={(event) => void handleCreate(event)}>
-          <label>
-            Vendor
-            <input value={vendor} onChange={(e) => setVendor(e.target.value)} required />
-          </label>
-          <label>
-            Amount
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="100.00" />
-          </label>
-          <label>
-            Subject
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Invoice subject" />
-          </label>
-          <label>
-            PDF (optional, 2 MB max, deleted after 3 months)
+        <form className="dist-invoice-sheet" onSubmit={(event) => void handleCreate(event)}>
+          <div className="dist-invoice-types" role="tablist" aria-label="Invoice type">
+            <button
+              type="button"
+              className={`dist-invoice-type${kind === 'vendor' ? ' is-active' : ''}`}
+              onClick={() => setKind('vendor')}
+            >
+              <span className="dist-invoice-type-icon" aria-hidden="true">
+                🏪
+              </span>
+              <span>
+                <strong>My vendors</strong>
+                <small>Affiliates in your network</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`dist-invoice-type${kind === 'email' ? ' is-active' : ''}`}
+              onClick={() => setKind('email')}
+            >
+              <span className="dist-invoice-type-icon" aria-hidden="true">
+                ✉
+              </span>
+              <span>
+                <strong>Direct email</strong>
+                <small>Send to any address</small>
+              </span>
+            </button>
+          </div>
+
+          {kind === 'vendor' ? (
+            <div className="dist-invoice-block">
+              <p className="dist-invoice-label">
+                Choose vendor
+                {vendors.length ? <span> · {vendors.length} in network</span> : null}
+              </p>
+              <VendorSelect vendors={vendors} value={vendorId} onChange={setVendorId} />
+            </div>
+          ) : (
+            <label className="dist-invoice-block">
+              <span className="dist-invoice-label">Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="vendor@example.com"
+                required
+              />
+            </label>
+          )}
+
+          <div className="dist-invoice-grid">
+            <label className="dist-invoice-block dist-invoice-amount">
+              <span className="dist-invoice-label">Amount</span>
+              <span className="dist-invoice-money">
+                <span aria-hidden="true">$</span>
+                <input
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  required
+                  inputMode="decimal"
+                  placeholder="0.00"
+                />
+              </span>
+            </label>
+            <label className="dist-invoice-block">
+              <span className="dist-invoice-label">Subject</span>
+              <input
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="Monthly statement"
+              />
+            </label>
+          </div>
+
+          <div className="dist-invoice-block">
+            <p className="dist-invoice-label">PDF attachment</p>
             <input
+              ref={fileRef}
+              className="dist-invoice-file-input"
               type="file"
               accept="application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
-          </label>
-          {error ? <p className="dist-empty">{error}</p> : null}
-          <button type="submit" className="dist-btn dist-btn--primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Save invoice'}
-          </button>
+            <button
+              type="button"
+              className={`dist-invoice-file${file ? ' has-file' : ''}`}
+              onClick={() => fileRef.current?.click()}
+            >
+              <span aria-hidden="true">{file ? '📄' : '＋'}</span>
+              <span>
+                <strong>{file ? file.name : 'Attach PDF'}</strong>
+                <small>{file ? 'Tap to replace · 2 MB max' : 'Optional · 2 MB max · deleted after 3 months'}</small>
+              </span>
+            </button>
+          </div>
+
+          {error ? <p className="dist-invoice-error">{error}</p> : null}
+          <div className="dist-invoice-actions">
+            <button
+              type="button"
+              className="dist-btn dist-btn--ghost"
+              onClick={() => setCreating(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="dist-btn dist-btn--primary"
+              disabled={busy || (kind === 'vendor' && !vendors.length)}
+            >
+              {busy ? 'Sending…' : 'Send invoice'}
+            </button>
+          </div>
         </form>
       ) : null}
+      {notice ? <p className="dist-invoice-notice">{notice}</p> : null}
 
       <div className="dist-seg">
         {(['all', 'draft', 'sent', 'paid', 'overdue'] as InvoiceFilter[]).map((f) => (
@@ -1686,29 +1950,30 @@ function InvoicesView({
       <div className="dist-invoice-list">
         {invoices.map((inv) => (
           <article key={inv.id} className="dist-invoice-card">
-            <div className="dist-invoice-top">
-              <h3>
-                {inv.invoiceId} {inv.vendor}
-              </h3>
-              <span className={`dist-badge dist-badge--${inv.status.toLowerCase()}`}>{inv.status}</span>
-            </div>
-            <p className="dist-muted">{inv.subject || inv.description}</p>
-            <div className="dist-invoice-foot">
-              <span>
-                {inv.pdfUrl ? (
-                  <a href={inv.pdfUrl} target="_blank" rel="noreferrer">
-                    PDF
-                  </a>
-                ) : inv.attachments ? (
-                  `📎 ${inv.attachments}`
-                ) : (
-                  ''
-                )}
-              </span>
-              <div>
-                <strong>{inv.amount}</strong>
-				<small>{inv.dueDate}</small>
+            <span className="dist-invoice-avatar">{initialsFromName(inv.vendor || inv.email || 'IN')}</span>
+            <div className="dist-invoice-card-copy">
+              <div className="dist-invoice-top">
+                <h3>{inv.vendor || inv.email || inv.invoiceId}</h3>
+                <span className={`dist-badge dist-badge--${inv.status.toLowerCase()}`}>{inv.status}</span>
               </div>
+              <p className="dist-muted">
+                {inv.invoiceId}
+                {' · '}
+                {inv.kind === 'email' ? 'Email' : 'Vendor'}
+                {inv.email ? ` · ${inv.email}` : ''}
+              </p>
+              {inv.subject || inv.description ? (
+                <p className="dist-invoice-subject">{inv.subject || inv.description}</p>
+              ) : null}
+              {inv.pdfUrl ? (
+                <a className="dist-invoice-pdf" href={inv.pdfUrl} target="_blank" rel="noreferrer">
+                  View PDF
+                </a>
+              ) : null}
+            </div>
+            <div className="dist-invoice-amt">
+              <strong>{inv.amount}</strong>
+              {inv.dueDate ? <small>{inv.dueDate}</small> : null}
             </div>
           </article>
         ))}

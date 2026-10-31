@@ -21,6 +21,37 @@ export function getSessionEpoch(): number {
 
 export type SessionRole = 'player' | 'vendor' | 'distributor' | 'admin'
 
+export type InvoiceDistributor = {
+  id?: number
+  name: string
+  email?: string
+}
+
+export type PublicInvoice = {
+  id: string
+  token: string
+  invoiceId: string
+  kind?: 'vendor' | 'email'
+  status: string
+  amount: string
+  amountValue: number
+  subject?: string
+  dueDate?: string
+  email?: string
+  vendorName?: string
+  payUrl: string
+  qrUrl: string
+  pdfUrl?: string
+  paidAt?: string
+  distributor: InvoiceDistributor
+}
+
+export type VendorInvoice = PublicInvoice & {
+  wallet?: { balance: number; formatted: string; currency: string }
+  canPay?: boolean
+  shortfall?: number
+}
+
 export type WalletTxn = {
   id: number
   type: string
@@ -926,11 +957,13 @@ export function canAccessView(view: string, role: SessionRole | null): boolean {
 export class ApiError extends Error {
   status: number
   code?: string
+  data?: Record<string, unknown>
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, data?: Record<string, unknown>) {
     super(message)
     this.status = status
     this.code = code
+    this.data = data
   }
 }
 
@@ -986,7 +1019,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       (data as { error?: string }).error ||
       `Request failed (${res.status})`
     const code = (data as { code?: string }).code
-    throw new ApiError(message, res.status, code)
+    const extra = (data as { data?: Record<string, unknown> }).data
+    throw new ApiError(message, res.status, code, extra)
   }
 
   return absolutizeMediaTree(data) as T
@@ -1310,7 +1344,28 @@ export const tapstackApi = {
         rawAmount?: number
       }>
       messagesBadge?: number
+      notificationsBadge?: number
+      pendingInvoices?: Array<{
+        token: string
+        invoiceId: string
+        amount: string
+        amountValue?: number
+        status: string
+        subject?: string
+        distributorName?: string
+      }>
     }>('/vendor/dashboard'),
+  publicInvoice: (token: string) =>
+    apiRequest<PublicInvoice>(`/invoices/${encodeURIComponent(token)}`, { auth: false }),
+  vendorInvoices: () =>
+    apiRequest<{ invoices: VendorInvoice[]; pending: VendorInvoice[] }>('/vendor/invoices'),
+  vendorInvoice: (token: string) =>
+    apiRequest<VendorInvoice>(`/vendor/invoices/${encodeURIComponent(token)}`),
+  vendorPayInvoice: (token: string) =>
+    apiRequest<{ ok: boolean; paid: boolean; invoice: VendorInvoice }>(
+      `/vendor/invoices/${encodeURIComponent(token)}/pay`,
+      { method: 'POST', body: {} },
+    ),
   vendorWallet: () =>
     apiRequest<{
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
@@ -2311,6 +2366,7 @@ export const tapstackApi = {
       vendors: Array<{
         id: string
         name: string
+        email?: string
         tier: string
         status: 'active' | 'restricted' | string
         deposits: string
@@ -2374,7 +2430,10 @@ export const tapstackApi = {
       invoices: Array<{
         id: string
         invoiceId: string
+        kind?: 'vendor' | 'email'
         vendor: string
+        vendorId?: string
+        email?: string
         status: string
         description: string
         amount: string
@@ -2386,18 +2445,27 @@ export const tapstackApi = {
       }>
     }>('/distributor/invoices'),
   distributorCreateInvoice: (payload: {
-    vendor: string
+    kind: 'vendor' | 'email'
+    vendorId?: string
+    email?: string
+    vendor?: string
     amount: string
     description?: string
     subject?: string
     dueDate?: string
   }) =>
-    apiRequest<{ ok: boolean; id: number; invoiceId: string }>('/distributor/invoices', {
-      method: 'POST',
-      body: payload,
-    }),
+    apiRequest<{ ok: boolean; id: number; invoiceId: string; mailed?: boolean; message?: string }>(
+      '/distributor/invoices',
+      {
+        method: 'POST',
+        body: payload,
+      },
+    ),
   distributorUploadInvoice: async (payload: {
-    vendor: string
+    kind: 'vendor' | 'email'
+    vendorId?: string
+    email?: string
+    vendor?: string
     amount: string
     subject?: string
     file: File
@@ -2405,8 +2473,11 @@ export const tapstackApi = {
     const base = getApiBase()
     const token = getToken()
     const body = new FormData()
-    body.append('vendor', payload.vendor)
+    body.append('kind', payload.kind)
     body.append('amount', payload.amount)
+    if (payload.vendorId) body.append('vendorId', payload.vendorId)
+    if (payload.email) body.append('email', payload.email)
+    if (payload.vendor) body.append('vendor', payload.vendor)
     if (payload.subject) body.append('subject', payload.subject)
     body.append('file', payload.file)
     const qs =
@@ -2432,7 +2503,14 @@ export const tapstackApi = {
         (data as { code?: string }).code,
       )
     }
-    return absolutizeMediaTree(data) as { ok: boolean; id: number; invoiceId: string; pdfUrl?: string }
+    return absolutizeMediaTree(data) as {
+      ok: boolean
+      id: number
+      invoiceId: string
+      mailed?: boolean
+      message?: string
+      pdfUrl?: string
+    }
   },
   distributorSettings: () =>
     apiRequest<{

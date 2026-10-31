@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
 import { ApiError, applyAuthSession, clearSession, isApiConfigured, setDemoSession, tapstackApi } from '../api/client'
 import { getPendingVendorJoin, getPendingVendorJoinName } from '../lib/affiliate'
+import { peekPendingInvoiceToken, payPathForToken } from '../lib/invoicePay'
 import { LegalLinks, type InfoPage } from './LegalPage'
 import SmsConsentCheckbox, { SmsShareNote } from './SmsConsentCheckbox'
 import { TapStackLogo } from './TapStackLogo'
@@ -155,7 +156,10 @@ function PortalLogin({
           throw new ApiError(portalRoleError(portalType), 403, 'tapstack_role_mismatch')
         }
         applyAuthSession(res.token, res.user)
-        window.location.replace(portalHomePath(portalType))
+        const invoiceToken = portalType === 'vendor' ? peekPendingInvoiceToken() : ''
+        window.location.replace(
+          invoiceToken ? payPathForToken(invoiceToken) : portalHomePath(portalType),
+        )
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Login failed.')
       } finally {
@@ -171,7 +175,8 @@ function PortalLogin({
         username: '@luckystrike',
         phone: '+15558124200',
       })
-      window.location.replace('/vendor')
+      const invoiceToken = peekPendingInvoiceToken()
+      window.location.replace(invoiceToken ? payPathForToken(invoiceToken) : '/vendor')
       return
     }
 

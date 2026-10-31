@@ -9,6 +9,7 @@ import {
   normalizeSessionRole,
   tapstackApi,
   type SessionRole,
+  type VendorInvoice,
   type VendorOrderItem,
 } from '../api/client'
 import { TapStackLogo } from './TapStackLogo'
@@ -36,6 +37,9 @@ import {
   type VerificationState,
 } from '../lib/verify'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
+import { peekPendingInvoiceToken } from '../lib/invoicePay'
+import { VendorInvoiceList, VendorInvoicePayPage } from './VendorInvoicePages'
+import './InvoicePay.css'
 import {
   consumePendingVendorJoin,
   consumeVendorAffiliateWelcome,
@@ -63,6 +67,7 @@ type VendorHomeExtras = {
   signupLinkDisplay?: string
   distributorName?: string
   kycIncomplete?: boolean
+  pendingInvoiceCount?: number
 }
 
 function VendorHeader({
@@ -154,7 +159,17 @@ function VendorHeader({
   )
 }
 
-type VendorNotification = VendorOrderItem & { kind: 'load' | 'redeem' }
+type VendorNotification =
+  | (VendorOrderItem & { kind: 'load' | 'redeem' })
+  | {
+      kind: 'invoice'
+      id: string
+      token: string
+      name: string
+      amount: string
+      time?: string
+      game?: string
+    }
 
 function VendorNotificationsModal({
   open,
@@ -162,12 +177,14 @@ function VendorNotificationsModal({
   loading,
   onClose,
   onViewOrders,
+  onOpenInvoice,
 }: {
   open: boolean
   items: VendorNotification[]
   loading: boolean
   onClose: () => void
   onViewOrders: () => void
+  onOpenInvoice?: (token: string) => void
 }) {
   if (!open) return null
 
@@ -192,23 +209,33 @@ function VendorNotificationsModal({
         <div className="vendor-notif-body">
           {loading ? <p className="vendor-notif-empty">Loading…</p> : null}
           {!loading && items.length === 0 ? (
-            <p className="vendor-notif-empty">No pending loads or redeems.</p>
+            <p className="vendor-notif-empty">No pending invoices, loads, or redeems.</p>
           ) : null}
           {!loading && items.length > 0 ? (
             <ul className="vendor-notif-list">
               {items.map((item) => (
                 <li key={`${item.kind}-${item.id}`} className="vendor-notif-item">
-                  <span className={`vendor-notif-pill vendor-notif-pill--${item.kind}`}>
-                    {item.kind === 'redeem' ? 'Redeem' : 'Load'}
-                  </span>
-                  <div className="vendor-notif-copy">
-                    <p className="vendor-notif-name">{item.name || 'Player'}</p>
-                    <p className="vendor-notif-meta">
-                      {item.game || 'Game'}
-                      {item.time ? ` · ${item.time}` : ''}
-                    </p>
-                  </div>
-                  <span className="vendor-notif-amount">{item.amount || '—'}</span>
+                  <button
+                    type="button"
+                    className="vendor-notif-item-btn"
+                    onClick={() => {
+                      if (item.kind === 'invoice') onOpenInvoice?.(item.token)
+                      else onViewOrders()
+                    }}
+                  >
+                    <span className={`vendor-notif-pill vendor-notif-pill--${item.kind}`}>
+                      {item.kind === 'invoice' ? 'Invoice' : item.kind === 'redeem' ? 'Redeem' : 'Load'}
+                    </span>
+                    <div className="vendor-notif-copy">
+                      <p className="vendor-notif-name">{item.name || 'Player'}</p>
+                      <p className="vendor-notif-meta">
+                        {item.kind === 'invoice'
+                          ? 'Pending invoice'
+                          : `${item.game || 'Game'}${item.time ? ` · ${item.time}` : ''}`}
+                      </p>
+                    </div>
+                    <span className="vendor-notif-amount">{item.amount || '—'}</span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -261,6 +288,7 @@ function VendorHome({
   onCompleteKyc,
   onInviteCodeChange,
   onWithdraw,
+  onOpenInvoices,
 }: {
   walletBalance: string
   storeName: string
@@ -275,6 +303,7 @@ function VendorHome({
   onGoPro?: () => void
   onCompleteKyc?: () => void
   onInviteCodeChange?: (code: string) => Promise<void> | void
+  onOpenInvoices?: () => void
 }) {
   const [txPage, setTxPage] = useState(1)
   const pagedTx = pageItems(recentTx, txPage)
@@ -320,6 +349,22 @@ function VendorHome({
 
   return (
     <div className="vendor-home">
+      {extras?.pendingInvoiceCount && extras.pendingInvoiceCount > 0 && onOpenInvoices ? (
+        <div className="vendor-invoice-notice">
+          <div>
+            <p className="vendor-invoice-notice-title">
+              {extras.pendingInvoiceCount === 1
+                ? 'You have a pending invoice'
+                : `You have ${extras.pendingInvoiceCount} pending invoices`}
+            </p>
+            <p className="vendor-invoice-notice-copy">Pay from your vendor balance, or top up first if you are short.</p>
+          </div>
+          <button type="button" className="vendor-invoice-notice-btn" onClick={onOpenInvoices}>
+            View
+          </button>
+        </div>
+      ) : null}
+
       {extras?.kycIncomplete && onCompleteKyc ? (
         <div className="vendor-kyc-notice">
           <div>
@@ -556,6 +601,16 @@ export default function VendorDashboard({
   const [showVerify, setShowVerify] = useState(
     () => initialRoute.portal === 'vendor' && Boolean(initialRoute.verify),
   )
+  const [invoiceToken, setInvoiceToken] = useState(
+    () => (initialRoute.portal === 'vendor' && initialRoute.invoiceToken) || peekPendingInvoiceToken(),
+  )
+  const [showInvoices, setShowInvoices] = useState(
+    () =>
+      initialRoute.portal === 'vendor' &&
+      (Boolean(initialRoute.invoices) || Boolean(initialRoute.invoiceToken) || Boolean(peekPendingInvoiceToken())),
+  )
+  const [vendorInvoices, setVendorInvoices] = useState<VendorInvoice[]>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showPlayerSupport, setShowPlayerSupport] = useState(false)
   const [playerTicketCount, setPlayerTicketCount] = useState(0)
@@ -601,6 +656,8 @@ export default function VendorDashboard({
     setActiveTab(route.tab)
     setShowProfile(Boolean(route.profile))
     setShowVerify(Boolean(route.verify))
+    setInvoiceToken(route.invoiceToken || '')
+    setShowInvoices(Boolean(route.invoices) || Boolean(route.invoiceToken))
   }
 
   useEffect(() => {
@@ -628,11 +685,17 @@ export default function VendorDashboard({
       applyDocumentTitle({ portal: 'vendor', tab: activeTab, profile: true })
       return
     }
-    applyDocumentTitle({ portal: 'vendor', tab: activeTab })
-  }, [activeTab, showProfile, showVerify])
+    applyDocumentTitle({
+      portal: 'vendor',
+      tab: activeTab,
+      invoices: showInvoices && !invoiceToken,
+      invoiceToken: invoiceToken || undefined,
+    })
+  }, [activeTab, showProfile, showVerify, showInvoices, invoiceToken])
 
   useEffect(() => {
     if (!mustBlockVendorPortal(verification)) return
+    rememberVerifyReturn()
     setShowProfile(false)
     setTopUpOpen(false)
     if (!showVerify) setShowVerify(true)
@@ -646,8 +709,35 @@ export default function VendorDashboard({
     setShowPlayerSupport(false)
     setNotificationsOpen(false)
     setTopUpOpen(false)
+    setShowInvoices(false)
+    setInvoiceToken('')
     setActiveTab('home')
     navigate({ portal: 'vendor', tab: 'home' }, 'replace')
+  }
+
+  function openInvoiceList() {
+    setShowProfile(false)
+    setShowVerify(false)
+    setShowHelp(false)
+    setShowPlayerSupport(false)
+    setNotificationsOpen(false)
+    setInvoiceToken('')
+    setShowInvoices(true)
+    setActiveTab('home')
+    navigate({ portal: 'vendor', tab: 'home', invoices: true })
+  }
+
+  function openInvoicePay(token: string) {
+    if (!token) return
+    setShowProfile(false)
+    setShowVerify(false)
+    setShowHelp(false)
+    setShowPlayerSupport(false)
+    setNotificationsOpen(false)
+    setInvoiceToken(token)
+    setShowInvoices(true)
+    setActiveTab('home')
+    navigate({ portal: 'vendor', tab: 'home', invoiceToken: token })
   }
 
   function handleTabChange(tab: VendorTab) {
@@ -662,6 +752,8 @@ export default function VendorDashboard({
     setShowVerify(false)
     setShowHelp(false)
     setShowPlayerSupport(false)
+    setShowInvoices(false)
+    setInvoiceToken('')
     setActiveTab(tab)
     navigate({ portal: 'vendor', tab })
   }
@@ -707,6 +799,14 @@ export default function VendorDashboard({
       if (route.portal === 'vendor' && route.profile) {
         setShowProfile(true)
         navigate({ portal: 'vendor', tab: activeTab, profile: true })
+        return
+      }
+      if (route.portal === 'vendor' && route.invoiceToken) {
+        openInvoicePay(route.invoiceToken)
+        return
+      }
+      if (route.portal === 'vendor' && route.invoices) {
+        openInvoiceList()
         return
       }
     }
@@ -780,12 +880,15 @@ export default function VendorDashboard({
 
         const code = dash?.store?.inviteCode || dash?.store?.code || ''
         if (code) setInviteCode(String(code).toUpperCase())
-        if (dash?.store?.membership || dash?.store?.distributorName) {
+        if (dash?.store?.membership || dash?.store?.distributorName || dash?.pendingInvoices) {
           setHomeExtras((prev) => ({
             ...prev,
             proActive: Boolean(dash.store?.membership?.active),
             proPrice: dash.store?.membership?.priceFormatted,
             distributorName: dash.store?.distributorName || prev?.distributorName,
+            pendingInvoiceCount: Array.isArray(dash.pendingInvoices)
+              ? dash.pendingInvoices.length
+              : prev?.pendingInvoiceCount,
           }))
         }
 
@@ -822,7 +925,10 @@ export default function VendorDashboard({
   const refreshPendingCount = useCallback(async () => {
     if (!shouldLoadFromApi) return
     try {
-      const res = await tapstackApi.vendorOrders()
+      const [res, invoiceRes] = await Promise.all([
+        tapstackApi.vendorOrders(),
+        tapstackApi.vendorInvoices().catch(() => ({ invoices: [], pending: [] })),
+      ])
       const manual = Array.isArray(res.manualLoads) ? res.manualLoads : []
       const auto = Array.isArray(res.autoLoads)
         ? res.autoLoads.filter((item) => {
@@ -831,7 +937,17 @@ export default function VendorDashboard({
           })
         : []
       const redeems = Array.isArray(res.redeems) ? res.redeems : []
+      const pendingInv = Array.isArray(invoiceRes.pending) ? invoiceRes.pending : []
+      setVendorInvoices(Array.isArray(invoiceRes.invoices) ? invoiceRes.invoices : pendingInv)
+      setHomeExtras((prev) => ({ ...prev, pendingInvoiceCount: pendingInv.length }))
       const items: VendorNotification[] = [
+        ...pendingInv.map((row) => ({
+          kind: 'invoice' as const,
+          id: row.token,
+          token: row.token,
+          name: row.distributor.name,
+          amount: row.amount,
+        })),
         ...manual.map((item) => ({ ...item, kind: 'load' as const })),
         ...auto.map((item) => ({ ...item, kind: 'load' as const })),
         ...redeems.map((item) => ({ ...item, kind: 'redeem' as const })),
@@ -847,6 +963,19 @@ export default function VendorDashboard({
   useEffect(() => {
     void refreshPendingCount()
   }, [refreshPendingCount, activeTab, notificationsOpen])
+
+  useEffect(() => {
+    if (!showInvoices || !shouldLoadFromApi) return
+    setInvoicesLoading(true)
+    void tapstackApi
+      .vendorInvoices()
+      .then((res) => {
+        setVendorInvoices(res.invoices || [])
+        setHomeExtras((prev) => ({ ...prev, pendingInvoiceCount: (res.pending || []).length }))
+      })
+      .catch(() => undefined)
+      .finally(() => setInvoicesLoading(false))
+  }, [showInvoices, shouldLoadFromApi])
 
   useIntervalRefresh(
     refreshPendingCount,
@@ -895,24 +1024,7 @@ export default function VendorDashboard({
     if (!shouldLoadFromApi) return
     setNotificationsLoading(true)
     try {
-      const res = await tapstackApi.vendorOrders()
-      const manual = Array.isArray(res.manualLoads) ? res.manualLoads : []
-      const auto = Array.isArray(res.autoLoads)
-        ? res.autoLoads.filter((item) => {
-            const status = String(item.status || '').toLowerCase()
-            return status !== 'approved' && status !== 'rejected'
-          })
-        : []
-      const redeems = Array.isArray(res.redeems) ? res.redeems : []
-      const items: VendorNotification[] = [
-        ...manual.map((item) => ({ ...item, kind: 'load' as const })),
-        ...auto.map((item) => ({ ...item, kind: 'load' as const })),
-        ...redeems.map((item) => ({ ...item, kind: 'redeem' as const })),
-      ]
-      setPendingNotifications(items)
-      setPendingOrderCount(items.length)
-    } catch {
-      // keep last known list
+      await refreshPendingCount()
     } finally {
       setNotificationsLoading(false)
     }
@@ -973,7 +1085,7 @@ export default function VendorDashboard({
         />
       ) : null}
 
-      <main className={`vendor-main ${showProfile || showHelp || showPlayerSupport ? 'vendor-main--profile' : ''}`}>
+      <main className={`vendor-main ${showProfile || showHelp || showPlayerSupport || showInvoices ? 'vendor-main--profile' : ''}`}>
         {showPlayerSupport ? (
           <HelpCenter
             mode="store-inbox"
@@ -999,7 +1111,23 @@ export default function VendorDashboard({
         ) : (
           <>
             <VerifyBanner state={verification} onVerify={openVerify} />
-            {activeTab === 'home' && (
+            {showInvoices && invoiceToken ? (
+              <VendorInvoicePayPage
+                token={invoiceToken}
+                onBack={openInvoiceList}
+                onPaid={() => {
+                  void refreshPendingCount()
+                  void refreshVendorMoney()
+                }}
+                onVerifyRequired={openVerify}
+              />
+            ) : showInvoices ? (
+              <VendorInvoiceList
+                invoices={vendorInvoices}
+                loading={invoicesLoading}
+                onOpen={openInvoicePay}
+              />
+            ) : activeTab === 'home' && (
               <VendorHome
                 walletBalance={walletBalance}
                 storeName={profile.displayName}
@@ -1019,6 +1147,7 @@ export default function VendorDashboard({
                   if (!requireVerified()) return
                 }}
                 onProfileClick={openProfile}
+                onOpenInvoices={openInvoiceList}
                 onCompleteKyc={openVerify}
                 onInviteCodeChange={async (next) => {
                   const res = await tapstackApi.saveVendorSettings({ profile: { inviteCode: next } })
@@ -1033,17 +1162,17 @@ export default function VendorDashboard({
                 }}
               />
             )}
-            {activeTab === 'orders' && <VendorOrdersPage />}
-            {activeTab === 'analytics' && <VendorAnalyticsPage />}
-            {activeTab === 'promos' && <VendorPromosPage />}
-            <div hidden={activeTab !== 'settings'}>
+            {!showInvoices && activeTab === 'orders' && <VendorOrdersPage />}
+            {!showInvoices && activeTab === 'analytics' && <VendorAnalyticsPage />}
+            {!showInvoices && activeTab === 'promos' && <VendorPromosPage />}
+            <div hidden={showInvoices || activeTab !== 'settings'}>
               <VendorSettingsPage initialTab={settingsTab} />
             </div>
           </>
         )}
       </main>
 
-      {!showProfile && !showHelp && !showPlayerSupport ? (
+      {!showProfile && !showHelp && !showPlayerSupport && !showInvoices ? (
         <VendorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       ) : null}
 
@@ -1055,6 +1184,10 @@ export default function VendorDashboard({
         onViewOrders={() => {
           setNotificationsOpen(false)
           handleTabChange('orders')
+        }}
+        onOpenInvoice={(token) => {
+          setNotificationsOpen(false)
+          openInvoicePay(token)
         }}
       />
 

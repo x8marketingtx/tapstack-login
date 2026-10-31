@@ -1095,6 +1095,25 @@
   padding: 12px 16px;
 }
 
+.vendor-notif-item-btn {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vendor-notif-pill--invoice {
+  background: #ecfeff;
+  color: #0e7490;
+}
+
 .vendor-notif-item + .vendor-notif-item {
   border-top: 1px solid #f3f4f6;
 }

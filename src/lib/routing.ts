@@ -22,6 +22,7 @@ export type RouteState =
   | { portal: 'apply' }
   | { portal: 'join'; slug: string }
   | { portal: 'play'; code: string }
+  | { portal: 'invoice'; token: string }
   | { portal: 'about' }
   | { portal: 'contact' }
   | { portal: 'terms' | 'privacy' | 'returns'; section?: string }
@@ -33,7 +34,7 @@ export type RouteState =
       verify?: boolean
       promosHistory?: boolean
     }
-  | { portal: 'vendor'; tab: VendorTab; profile?: boolean; verify?: boolean }
+  | { portal: 'vendor'; tab: VendorTab; profile?: boolean; verify?: boolean; invoices?: boolean; invoiceToken?: string }
   | { portal: 'admin'; tab: AdminTab }
   | { portal: 'distributor'; tab: DistributorTab; profile?: boolean; verify?: boolean }
 
@@ -120,6 +121,9 @@ export function parseLocation(pathname = window.location.pathname, hash = window
   if (root === 'play' && parts[1]) {
     return { portal: 'play', code: decodeURIComponent(parts[1]) }
   }
+  if (root === 'invoice' && parts[1]) {
+    return { portal: 'invoice', token: decodeURIComponent(parts[1]) }
+  }
   if (root === 'otp') return { portal: 'otp' }
 
   if (root === 'customer') {
@@ -142,6 +146,12 @@ export function parseLocation(pathname = window.location.pathname, hash = window
   if (root === 'vendor') {
     if (parts[1] === 'profile') return { portal: 'vendor', tab: 'home', profile: true }
     if (parts[1] === 'verify') return { portal: 'vendor', tab: 'home', verify: true }
+    if (parts[1] === 'invoices') {
+      const invoiceToken = parts[2] ? decodeURIComponent(parts[2]) : undefined
+      return invoiceToken
+        ? { portal: 'vendor', tab: 'home', invoiceToken }
+        : { portal: 'vendor', tab: 'home', invoices: true }
+    }
     const tab = (parts[1] || 'home') as VendorTab
     return { portal: 'vendor', tab: VENDOR_TABS.has(tab) ? tab : 'home' }
   }
@@ -181,6 +191,8 @@ export function pathForRoute(route: RouteState): string {
       return `/join/${encodeURIComponent(route.slug)}`
     case 'play':
       return `/play/${encodeURIComponent(route.code)}`
+    case 'invoice':
+      return `/invoice/${encodeURIComponent(route.token)}`
     case 'about':
       return '/about'
     case 'contact':
@@ -203,6 +215,8 @@ export function pathForRoute(route: RouteState): string {
     case 'vendor': {
       if (route.profile) return '/vendor/profile'
       if (route.verify) return '/vendor/verify'
+      if (route.invoiceToken) return `/vendor/invoices/${encodeURIComponent(route.invoiceToken)}`
+      if (route.invoices) return '/vendor/invoices'
       if (route.tab === 'home') return '/vendor'
       return `/vendor/${route.tab}`
     }
@@ -256,6 +270,8 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
       return `Join · ${TITLE_BRAND}`
     case 'play':
       return `Play · ${TITLE_BRAND}`
+    case 'invoice':
+      return `Pay invoice · ${TITLE_BRAND}`
     case 'about':
       return `About Us · ${TITLE_BRAND}`
     case 'contact':
@@ -293,6 +309,8 @@ export function titleForRoute(route: RouteState, opts: DocumentTitleOptions = {}
     case 'vendor': {
       if (route.profile) return `Profile · Vendor · ${TITLE_BRAND}`
       if (route.verify) return `Verify identity · Vendor · ${TITLE_BRAND}`
+      if (route.invoiceToken) return `Pay invoice · Vendor · ${TITLE_BRAND}`
+      if (route.invoices) return `Invoices · Vendor · ${TITLE_BRAND}`
       switch (route.tab) {
         case 'home':
           return `Home · Vendor · ${TITLE_BRAND}`

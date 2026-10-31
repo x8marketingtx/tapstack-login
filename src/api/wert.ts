@@ -49,7 +49,12 @@ export async function confirmWertPayment(payload: {
   orderId?: string
   paymentId?: string
   txId?: string
-}): Promise<{ ok: boolean; wallet?: { balance: number; points: number; currency: string } }> {
+}): Promise<{
+  ok: boolean
+  pending?: boolean
+  status?: string
+  wallet?: { balance: number; points: number; currency: string }
+}> {
   return apiRequest('/payments/wert/confirm', {
     method: 'POST',
     body: payload,
@@ -108,18 +113,38 @@ export async function openWertTopUp({ amount, ownerType, onSuccess, onClose, onE
       'payment-status': async (data: WertPaymentStatus) => {
         const status = data?.status || ''
         try {
-          const result = await confirmWertPayment({
+          const first = await confirmWertPayment({
             clickId: session.clickId,
             status,
             orderId: data?.order_id,
             paymentId: data?.payment_id,
             txId: data?.tx_id,
           })
-          if (status === 'success') {
-            onSuccess?.(result.wallet)
-          } else if (status === 'failed' || status === 'canceled') {
+          if (status === 'failed' || status === 'canceled') {
             onError?.(status === 'canceled' ? 'Payment cancelled.' : 'Payment failed.')
+            return
           }
+          if (status !== 'success') return
+          if (!first.pending && first.wallet) {
+            onSuccess?.(first.wallet)
+            return
+          }
+          const started = Date.now()
+          while (Date.now() - started < 90_000) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1500))
+            const next = await confirmWertPayment({
+              clickId: session.clickId,
+              status: 'success',
+              orderId: data?.order_id,
+              paymentId: data?.payment_id,
+              txId: data?.tx_id,
+            })
+            if (!next.pending && next.wallet) {
+              onSuccess?.(next.wallet)
+              return
+            }
+          }
+          onError?.('Payment is still confirming. Balance updates after the Wert webhook.')
         } catch (err) {
           onError?.(err instanceof Error ? err.message : 'Could not confirm payment.')
         }

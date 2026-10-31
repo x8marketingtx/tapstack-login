@@ -8,6 +8,7 @@ import AdminDashboard from './components/AdminDashboard'
 import DistributorDashboard from './components/DistributorDashboard'
 import ApplyPage from './components/ApplyPage'
 import JoinPage from './components/JoinPage'
+import InvoiceLandingPage from './components/InvoiceLandingPage'
 import LegalPage, { type InfoPage, type LegalDoc } from './components/LegalPage'
 import PublicCompanyPage, { type PublicSitePage } from './components/PublicCompanyPage'
 import GeoBlockedPage from './components/GeoBlockedPage'
@@ -27,6 +28,7 @@ import {
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
 import { consumePendingVendorJoin, peekPendingPlayVendor, setPendingPlayVendor } from './lib/affiliate'
+import { peekPendingInvoiceToken, setPendingInvoiceToken } from './lib/invoicePay'
 import { isLocationVerificationEnabled } from './lib/verify'
 import { useIdleLogout } from './lib/idleLogout'
 import {
@@ -49,6 +51,7 @@ type AppView =
   | 'distributor'
   | 'apply'
   | 'join'
+  | 'invoice'
   | 'about'
   | 'contact'
   | 'terms'
@@ -74,6 +77,7 @@ function viewFromRoute(route: RouteState): AppView {
   if (route.portal === 'otp') return 'otp'
   if (route.portal === 'apply') return 'apply'
   if (route.portal === 'join') return 'join'
+  if (route.portal === 'invoice') return 'invoice'
   if (route.portal === 'play') return getSessionRole() === 'player' ? 'customer' : 'login'
   if (route.portal === 'about' || route.portal === 'contact') return route.portal
   if (route.portal === 'terms' || route.portal === 'privacy' || route.portal === 'returns') {
@@ -105,6 +109,7 @@ function getViewFromLocation(): AppView {
 }
 
 function resolveView(requested: AppView, role: SessionRole | null): AppView {
+  if (requested === 'invoice') return 'invoice'
   if (isDashboardView(requested)) {
     if (!role) return 'login'
     if (!canAccessView(requested, role)) return homeViewForRole(role)
@@ -124,6 +129,7 @@ function App() {
     migrateLegacyHash()
     const incoming = parseLocation()
     if (incoming.portal === 'play') setPendingPlayVendor(incoming.code)
+    if (incoming.portal === 'invoice') setPendingInvoiceToken(incoming.token)
     return resolveView(getViewFromLocation(), getSessionRole())
   })
   const [legalSection, setLegalSection] = useState<string | undefined>(() => {
@@ -144,6 +150,12 @@ function App() {
     const target = nextView || homeViewForRole(role)
     if (role === 'vendor') {
       void consumePendingVendorJoin().finally(() => {
+        const invoiceToken = peekPendingInvoiceToken()
+        if (invoiceToken) {
+          setView('vendor')
+          navigate({ portal: 'vendor', tab: 'home', invoiceToken }, 'replace')
+          return
+        }
         setView(target)
         navigate(routeForView(target), 'replace')
       })
@@ -308,6 +320,17 @@ function App() {
         setView('login')
         return
       }
+      if (route.portal === 'invoice') {
+        setPendingInvoiceToken(route.token)
+        if (role === 'vendor') {
+          navigate({ portal: 'vendor', tab: 'home', invoiceToken: route.token }, 'replace')
+          setView('vendor')
+          return
+        }
+        setView('invoice')
+        setUserType('vendor')
+        return
+      }
       const requested = viewFromRoute(route)
       const resolved = resolveView(requested, role)
       setView(resolved)
@@ -359,6 +382,17 @@ function App() {
             setView('customer')
             return
           }
+        }
+        if (current.portal === 'invoice') {
+          setPendingInvoiceToken(current.token)
+          if (nextRole === 'vendor') {
+            navigate({ portal: 'vendor', tab: 'home', invoiceToken: current.token }, 'replace')
+            setView('vendor')
+            return
+          }
+          setView('invoice')
+          setUserType('vendor')
+          return
         }
         const resolved = resolveView(viewFromRoute(current), nextRole)
         setView(resolved)
@@ -427,6 +461,7 @@ function App() {
     if (isDashboardView(view) && route.portal === view) return
     // Keep /join/:slug while the join handoff screen is mounted.
     if (view === 'join') return
+    if (view === 'invoice') return
 
     replaceUrl(routeForView(view))
   }, [view])
@@ -446,6 +481,30 @@ function App() {
     const route = parseLocation()
     return route.portal === 'join' ? route.slug : ''
   })()
+
+  if (view === 'invoice') {
+    return (
+      <InvoiceLandingPage
+        token={(() => {
+          const route = parseLocation()
+          return route.portal === 'invoice' ? route.token : peekPendingInvoiceToken()
+        })()}
+        onLogin={() => {
+          const route = parseLocation()
+          if (route.portal === 'invoice') setPendingInvoiceToken(route.token)
+          setUserType('vendor')
+          navigate({ portal: 'login' })
+          setView('login')
+        }}
+        onApply={() => {
+          const route = parseLocation()
+          if (route.portal === 'invoice') setPendingInvoiceToken(route.token)
+          setUserType('vendor')
+          goToApply()
+        }}
+      />
+    )
+  }
 
   if (isPublicSiteView(view)) {
     return (

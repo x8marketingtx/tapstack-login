@@ -1,0 +1,452 @@
+html:has(.inv-page),
+body:has(.inv-page),
+#root:has(.inv-page) {
+  height: auto;
+  min-height: 100%;
+}
+
+.inv-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(15, 118, 110, 0.22), transparent 36%),
+    radial-gradient(circle at 92% 12%, rgba(201, 162, 39, 0.16), transparent 32%),
+    linear-gradient(180deg, #10243d 0%, #16324f 42%, #0f172a 100%);
+}
+
+.inv-page-bar {
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.inv-page-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(1080px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 16px 0;
+}
+
+.inv-page-secure {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.inv-page-body {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  padding: 28px 20px 48px;
+  box-sizing: border-box;
+}
+
+.inv-sheet {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  width: min(980px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(8, 15, 30, 0.28);
+}
+
+.inv-sheet--solo,
+.inv-sheet--portal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inv-sheet--solo {
+  padding: 32px;
+}
+
+.inv-sheet--portal {
+  width: 100%;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.inv-sheet-main {
+  padding: 32px 32px 28px;
+}
+
+.inv-sheet-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px;
+  background:
+    linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);
+  border-left: 1px solid #e8edf3;
+}
+
+.inv-sheet-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inv-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.inv-status--due {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.inv-status--paid {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.inv-hero-amount {
+  margin: 10px 0 0;
+  font-size: clamp(36px, 5vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: #0f172a;
+  line-height: 1.05;
+}
+
+.inv-hero-subject {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.inv-from {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  padding: 14px;
+  border: 1px solid #eef2f7;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.inv-from-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e3a5f, #0f766e);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.inv-from-avatar--sm {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.inv-from-label,
+.inv-meta dt {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.inv-from-name {
+  margin: 2px 0 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.inv-from-email {
+  margin: 2px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.inv-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+  margin: 22px 0 0;
+}
+
+.inv-meta dt {
+  margin-bottom: 4px;
+}
+
+.inv-meta dd {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.inv-qr-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.inv-qr-frame img {
+  width: 196px;
+  height: 196px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.inv-qr-frame p,
+.inv-pay-copy {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.inv-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 4px 24px;
+}
+
+.inv-pay--portal {
+  padding: 4px 2px 20px;
+}
+
+.inv-pay-back {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.inv-pay-kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.inv-pay-title {
+  margin: 2px 0 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+.inv-pay-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.inv-pay-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.inv-pay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inv-pay-btn {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1e3a5f, #0f766e);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.inv-pay-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.inv-pay-btn--ghost {
+  background: #fff;
+  color: #1e3a5f;
+  border: 1px solid #dbe3ee;
+}
+
+.inv-pay-link {
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.inv-pay-card {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.inv-pay-card h2,
+.inv-pay-card h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.inv-pay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inv-pay-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inv-pay-item strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.inv-pay-item small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.inv-pay-item-amt {
+  margin-left: auto;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.inv-pay-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.vendor-invoice-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+}
+
+.vendor-invoice-notice-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 750;
+  color: #155e75;
+}
+
+.vendor-invoice-notice-copy {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #0e7490;
+}
+
+.vendor-invoice-notice-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #0e7490;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 820px) {
+  .inv-sheet {
+    grid-template-columns: 1fr;
+  }
+
+  .inv-sheet-side {
+    border-left: 0;
+    border-top: 1px solid #e8edf3;
+  }
+
+  .inv-page-body {
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+
+  .inv-meta {
+    grid-template-columns: 1fr;
+  }
+}

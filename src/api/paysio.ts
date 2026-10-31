@@ -136,6 +136,30 @@ export async function confirmPaysioPayment(clickId: string): Promise<{
   })
 }
 
+export async function waitForPaysioCredit(
+  clickId: string,
+  timeoutMs = 90_000,
+): Promise<PaysioChargeResponse> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const result = await confirmPaysioPayment(clickId)
+    if (result.wallet) {
+      return {
+        ok: true,
+        clickId,
+        status: result.status,
+        pending: false,
+        wallet: result.wallet,
+      }
+    }
+    if (!result.pending) {
+      throw new Error('Card payment failed.')
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 1500))
+  }
+  throw new Error('Payment is confirming. Portfolio updates after the success webhook.')
+}
+
 export async function chargePaysioPayment(payload: {
   amount: number
   ownerType?: TopUpOwnerType
@@ -145,10 +169,14 @@ export async function chargePaysioPayment(payload: {
   threeDs?: Record<string, unknown>
   postalCode?: string
 }): Promise<PaysioChargeResponse> {
-  return apiRequest<PaysioChargeResponse>('/payments/paysio/charge', {
+  const charged = await apiRequest<PaysioChargeResponse>('/payments/paysio/charge', {
     method: 'POST',
     body: payload,
   })
+  if (!charged.clickId) {
+    throw new Error('Paysio did not return a payment id.')
+  }
+  return waitForPaysioCredit(charged.clickId)
 }
 
 const CARD_APPEARANCE = {
@@ -282,6 +310,11 @@ export async function openPaysioHostedCheckout(
             popup?.close()
           } catch {
             /* ignore */
+          }
+          if (!result.wallet) {
+            handlers.onError?.('Card payment failed.')
+            resolve()
+            return
           }
           handlers.onComplete?.(result.wallet)
           resolve()
