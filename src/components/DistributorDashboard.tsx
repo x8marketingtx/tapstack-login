@@ -1736,6 +1736,8 @@ function InvoicesView({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [opened, setOpened] = useState<NonNullable<InvoicesData>['invoices'][number] | null>(null)
+  const [copied, setCopied] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const selectedVendor = vendors.find((row) => String(row.id) === vendorId)
@@ -1799,6 +1801,65 @@ function InvoicesView({
     }
   }
 
+  function openInvoice(inv: NonNullable<InvoicesData>['invoices'][number]) {
+    setCreating(false)
+    setError('')
+    setNotice('')
+    setCopied(false)
+    setOpened(inv)
+    void tapstackApi
+      .distributorInvoice(inv.id)
+      .then((row) => {
+        setOpened((current) =>
+          current && current.id === inv.id
+            ? {
+                ...current,
+                ...row,
+                vendor: row.vendor || row.vendorName || current.vendor,
+              }
+            : current,
+        )
+      })
+      .catch(() => undefined)
+  }
+
+  async function resendOpened() {
+    if (!opened) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await tapstackApi.distributorResendInvoice(opened.id)
+      if (result.invoice?.status) {
+        setOpened((current) =>
+          current ? { ...current, status: result.invoice?.status || current.status, payUrl: result.invoice?.payUrl || current.payUrl, qrUrl: result.invoice?.qrUrl || current.qrUrl } : current,
+        )
+      }
+      if (result.mailed === false) {
+        setError(result.message || 'Invoice saved, but the email did not send.')
+      } else {
+        setNotice(result.message || 'Invoice sent again.')
+      }
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not resend invoice.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copyPayLink() {
+    const url = opened?.payUrl
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1400)
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
     <div className="dist-stack">
       <div className="dist-title-row">
@@ -1809,13 +1870,90 @@ function InvoicesView({
         <button
           type="button"
           className="dist-btn dist-btn--primary dist-btn--sm"
-          onClick={() => setCreating((open) => !open)}
+          onClick={() => {
+            if (opened) {
+              setOpened(null)
+              setError('')
+              setNotice('')
+              return
+            }
+            setCreating((open) => !open)
+          }}
         >
-          {creating ? 'Close' : '+ Create'}
+          {opened || creating ? 'Close' : '+ Create'}
         </button>
       </div>
 
-      {creating ? (
+      {opened ? (
+        <section className="dist-invoice-sheet dist-invoice-detail">
+          <button type="button" className="dist-invoice-back" onClick={() => setOpened(null)}>
+            ← All invoices
+          </button>
+          <div className="dist-invoice-detail-top">
+            <div>
+              <p className="dist-invoice-label">Invoice</p>
+              <h2 className="dist-invoice-detail-id">{opened.invoiceId}</h2>
+            </div>
+            <span className={`dist-badge dist-badge--${opened.status.toLowerCase()}`}>{opened.status}</span>
+          </div>
+          <p className="dist-invoice-detail-amount">{opened.amount}</p>
+          {opened.subject || opened.description ? (
+            <p className="dist-invoice-subject">{opened.subject || opened.description}</p>
+          ) : null}
+
+          <div className="dist-invoice-vendor is-selected is-locked">
+            <span className="dist-invoice-avatar">{initialsFromName(opened.vendor || opened.email || 'IN')}</span>
+            <span className="dist-invoice-vendor-copy">
+              <strong>{opened.vendor || opened.email || 'Recipient'}</strong>
+              <small>
+                {opened.kind === 'email' ? 'Direct email' : 'Vendor'}
+                {opened.email ? ` · ${opened.email}` : ''}
+              </small>
+            </span>
+          </div>
+
+          {opened.dueDate ? <p className="dist-muted">{opened.dueDate}</p> : null}
+
+          {opened.qrUrl ? (
+            <div className="dist-invoice-qr">
+              <img src={opened.qrUrl} alt="Invoice pay QR code" />
+              <p>Vendor pay link and QR for this invoice.</p>
+            </div>
+          ) : null}
+
+          {opened.pdfUrl ? (
+            <a className="dist-invoice-pdf" href={opened.pdfUrl} target="_blank" rel="noreferrer">
+              View PDF
+            </a>
+          ) : null}
+
+          {error ? <p className="dist-invoice-error">{error}</p> : null}
+          {notice ? <p className="dist-invoice-notice">{notice}</p> : null}
+
+          <div className="dist-invoice-actions">
+            {opened.payUrl ? (
+              <a className="dist-btn dist-btn--ghost" href={opened.payUrl} target="_blank" rel="noreferrer">
+                Open pay page
+              </a>
+            ) : null}
+            {opened.payUrl ? (
+              <button type="button" className="dist-btn dist-btn--ghost" onClick={() => void copyPayLink()}>
+                {copied ? 'Link copied' : 'Copy pay link'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="dist-btn dist-btn--primary"
+              disabled={busy || !opened.email}
+              onClick={() => void resendOpened()}
+            >
+              {busy ? 'Sending…' : 'Resend email'}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {creating && !opened ? (
         <form className="dist-invoice-sheet" onSubmit={(event) => void handleCreate(event)}>
           <div className="dist-invoice-types" role="tablist" aria-label="Invoice type">
             <button
@@ -1932,8 +2070,10 @@ function InvoicesView({
           </div>
         </form>
       ) : null}
-      {notice ? <p className="dist-invoice-notice">{notice}</p> : null}
+      {notice && !opened ? <p className="dist-invoice-notice">{notice}</p> : null}
 
+      {!opened ? (
+      <>
       <div className="dist-seg">
         {(['all', 'draft', 'sent', 'paid', 'overdue'] as InvoiceFilter[]).map((f) => (
           <button
@@ -1949,7 +2089,12 @@ function InvoicesView({
 
       <div className="dist-invoice-list">
         {invoices.map((inv) => (
-          <article key={inv.id} className="dist-invoice-card">
+          <button
+            key={inv.id}
+            type="button"
+            className="dist-invoice-card dist-invoice-card--btn"
+            onClick={() => openInvoice(inv)}
+          >
             <span className="dist-invoice-avatar">{initialsFromName(inv.vendor || inv.email || 'IN')}</span>
             <div className="dist-invoice-card-copy">
               <div className="dist-invoice-top">
@@ -1965,20 +2110,17 @@ function InvoicesView({
               {inv.subject || inv.description ? (
                 <p className="dist-invoice-subject">{inv.subject || inv.description}</p>
               ) : null}
-              {inv.pdfUrl ? (
-                <a className="dist-invoice-pdf" href={inv.pdfUrl} target="_blank" rel="noreferrer">
-                  View PDF
-                </a>
-              ) : null}
             </div>
             <div className="dist-invoice-amt">
               <strong>{inv.amount}</strong>
               {inv.dueDate ? <small>{inv.dueDate}</small> : null}
             </div>
-          </article>
+          </button>
         ))}
         {!invoices.length ? <p className="dist-empty">No invoices yet.</p> : null}
       </div>
+      </>
+      ) : null}
     </div>
   )
 }

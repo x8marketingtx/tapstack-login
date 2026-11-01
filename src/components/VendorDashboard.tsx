@@ -37,7 +37,7 @@ import {
   type VerificationState,
 } from '../lib/verify'
 import { applyDocumentTitle, navigate, parseLocation } from '../lib/routing'
-import { peekPendingInvoiceToken } from '../lib/invoicePay'
+import { consumePendingInvoiceToken } from '../lib/invoicePay'
 import { VendorInvoiceList, VendorInvoicePayPage } from './VendorInvoicePages'
 import './InvoicePay.css'
 import {
@@ -602,12 +602,12 @@ export default function VendorDashboard({
     () => initialRoute.portal === 'vendor' && Boolean(initialRoute.verify),
   )
   const [invoiceToken, setInvoiceToken] = useState(
-    () => (initialRoute.portal === 'vendor' && initialRoute.invoiceToken) || peekPendingInvoiceToken(),
+    () => (initialRoute.portal === 'vendor' && initialRoute.invoiceToken) || '',
   )
   const [showInvoices, setShowInvoices] = useState(
     () =>
       initialRoute.portal === 'vendor' &&
-      (Boolean(initialRoute.invoices) || Boolean(initialRoute.invoiceToken) || Boolean(peekPendingInvoiceToken())),
+      (Boolean(initialRoute.invoices) || Boolean(initialRoute.invoiceToken)),
   )
   const [vendorInvoices, setVendorInvoices] = useState<VendorInvoice[]>([])
   const [invoicesLoading, setInvoicesLoading] = useState(false)
@@ -703,6 +703,7 @@ export default function VendorDashboard({
   }, [verification, showVerify, activeTab])
 
   function goHome() {
+    consumePendingInvoiceToken()
     setShowProfile(false)
     setShowVerify(false)
     setShowHelp(false)
@@ -1085,7 +1086,7 @@ export default function VendorDashboard({
         />
       ) : null}
 
-      <main className={`vendor-main ${showProfile || showHelp || showPlayerSupport || showInvoices ? 'vendor-main--profile' : ''}`}>
+      <main className={`vendor-main ${showProfile || showHelp || showPlayerSupport ? 'vendor-main--profile' : ''}`}>
         {showPlayerSupport ? (
           <HelpCenter
             mode="store-inbox"
@@ -1114,7 +1115,7 @@ export default function VendorDashboard({
             {showInvoices && invoiceToken ? (
               <VendorInvoicePayPage
                 token={invoiceToken}
-                onBack={openInvoiceList}
+                onBack={goHome}
                 onPaid={() => {
                   void refreshPendingCount()
                   void refreshVendorMoney()
@@ -1126,6 +1127,7 @@ export default function VendorDashboard({
                 invoices={vendorInvoices}
                 loading={invoicesLoading}
                 onOpen={openInvoicePay}
+                onBack={goHome}
               />
             ) : activeTab === 'home' && (
               <VendorHome
@@ -1172,7 +1174,7 @@ export default function VendorDashboard({
         )}
       </main>
 
-      {!showProfile && !showHelp && !showPlayerSupport && !showInvoices ? (
+      {!showProfile && !showHelp && !showPlayerSupport ? (
         <VendorBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       ) : null}
 

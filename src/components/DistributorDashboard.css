@@ -328,6 +328,9 @@
 }
 
 .dist-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid transparent;
   border-radius: 14px;
   padding: 11px 10px;
@@ -335,6 +338,7 @@
   color: var(--dist-ink);
   font-weight: 700;
   font-size: 13px;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -920,6 +924,20 @@
   gap: 12px;
 }
 
+.dist-invoice-card--btn {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dist-invoice-card--btn:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
 .dist-invoice-card-copy {
   flex: 1;
   min-width: 0;
@@ -1500,7 +1518,67 @@
 .dist-invoice-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.dist-invoice-back {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dist-invoice-detail-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dist-invoice-detail-id {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dist-invoice-detail-amount {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #0f172a;
+}
+
+.dist-invoice-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #eef2f7;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.dist-invoice-qr img {
+  width: 180px;
+  height: 180px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.dist-invoice-qr p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .dist-invoice-error {

@@ -2442,8 +2442,45 @@ export const tapstackApi = {
         subject?: string
         pdfUrl?: string
         pdfExpiresAt?: number
+        token?: string
+        payUrl?: string
+        qrUrl?: string
+        paidAt?: string
       }>
     }>('/distributor/invoices'),
+  distributorInvoice: (id: string) =>
+    apiRequest<{
+      id: string
+      invoiceId: string
+      kind?: 'vendor' | 'email'
+      vendor?: string
+      vendorName?: string
+      vendorId?: string
+      email?: string
+      status: string
+      amount: string
+      subject?: string
+      dueDate?: string
+      pdfUrl?: string
+      token?: string
+      payUrl?: string
+      qrUrl?: string
+      paidAt?: string
+    }>(`/distributor/invoices/${encodeURIComponent(id)}`),
+  distributorResendInvoice: (id: string) =>
+    apiRequest<{
+      ok: boolean
+      mailed?: boolean
+      message?: string
+      invoice?: {
+        id: string
+        invoiceId: string
+        status: string
+        email?: string
+        payUrl?: string
+        qrUrl?: string
+      }
+    }>(`/distributor/invoices/${encodeURIComponent(id)}/resend`, { method: 'POST', body: {} }),
   distributorCreateInvoice: (payload: {
     kind: 'vendor' | 'email'
     vendorId?: string

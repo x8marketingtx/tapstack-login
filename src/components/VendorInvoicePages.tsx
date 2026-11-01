@@ -15,16 +15,21 @@ export function VendorInvoiceList({
   invoices,
   loading,
   onOpen,
+  onBack,
 }: {
   invoices: VendorInvoice[]
   loading: boolean
   onOpen: (token: string) => void
+  onBack: () => void
 }) {
   const pending = invoices.filter((row) => row.status !== 'paid')
   const paid = invoices.filter((row) => row.status === 'paid')
 
   return (
     <div className="inv-pay inv-pay--portal">
+      <button type="button" className="inv-pay-back" onClick={onBack}>
+        ← Dashboard
+      </button>
       <p className="inv-pay-kicker">Vendor portal</p>
       <h1 className="inv-pay-title">Invoices</h1>
       {loading ? <p className="inv-pay-empty">Loading…</p> : null}
@@ -164,7 +169,7 @@ export function VendorInvoicePayPage({
   return (
     <div className="inv-pay inv-pay--portal">
       <button type="button" className="inv-pay-back" onClick={onBack}>
-        ← Invoices
+        ← Dashboard
       </button>
       {error ? <p className="inv-pay-error">{error}</p> : null}
       {invoice ? (
