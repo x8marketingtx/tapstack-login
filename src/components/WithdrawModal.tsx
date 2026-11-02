@@ -132,7 +132,6 @@ export default function WithdrawModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
-  const [explorerUrl, setExplorerUrl] = useState('')
   const [payout, setPayout] = useState<PayoutClaim | null>(null)
   const [missing, setMissing] = useState<PayoutMissingField[]>([])
   const [profilePatch, setProfilePatch] = useState<Record<string, string>>({})
@@ -149,7 +148,6 @@ export default function WithdrawModal({
     setCardComplete(false)
     setError('')
     setStatus('')
-    setExplorerUrl('')
     setPayout(null)
     setMissing([])
     setProfilePatch({})
@@ -217,9 +215,7 @@ export default function WithdrawModal({
         .then((res) => {
           if (cancelled || !res.payout) return
           setPayout(res.payout)
-          if (res.payout.status === 'paid') {
-            setStatus('Payout delivered.')
-          } else if (res.payout.status === 'failed' || res.payout.status === 'expired' || res.payout.status === 'cancelled') {
+          if (res.payout.status === 'failed' || res.payout.status === 'expired' || res.payout.status === 'cancelled') {
             setError('This payout could not be completed. Your balance was restored.')
           }
         })
@@ -277,7 +273,7 @@ export default function WithdrawModal({
     try {
       if (demoSession) {
         const next = Math.max(0, available - numericAmount)
-        setStatus('Payout sent. Portfolio NFTs burned.')
+        setStatus('')
         onSuccess?.({ balance: next, points: 0, formatted: `$${next.toFixed(2)}` })
         setPayout({
           id: 0,
@@ -322,7 +318,6 @@ export default function WithdrawModal({
         state: profilePatch.state?.trim().toUpperCase() || undefined,
         zip: profilePatch.zip ? digitsOnly(profilePatch.zip) : undefined,
       })
-      const burnLink = result.burned?.find((row) => row.burnExplorerUrl)?.burnExplorerUrl || ''
       const nextPayout: PayoutClaim = result.payout ?? {
         id: 0,
         status: 'pending',
@@ -332,13 +327,8 @@ export default function WithdrawModal({
         claimUrl: '',
         open: true,
       }
-      setExplorerUrl(burnLink)
       setPayout(nextPayout)
-      setStatus(
-        nextPayout.status === 'paid'
-          ? 'Payout delivered. Portfolio NFTs burned.'
-          : 'Paysio accepted the payout. Portfolio NFTs burned.',
-      )
+      setStatus('')
       onSuccess?.(result.wallet)
       setLoading(false)
     } catch (err) {
@@ -353,7 +343,19 @@ export default function WithdrawModal({
     }
   }
 
-  const title = done ? 'Payout sent' : step === 'details' ? 'Redeem details' : 'Withdraw'
+  const destination =
+    payout?.method === 'ach'
+      ? 'your bank'
+      : payout?.cardLastFour
+        ? `your card ending ${payout.cardLastFour}`
+        : 'your card'
+  const title = done
+    ? payout?.status === 'paid'
+      ? 'Payout complete'
+      : 'Payout sent'
+    : step === 'details'
+      ? 'Redeem details'
+      : 'Withdraw'
 
   return (
     <div className="topup-overlay" role="presentation" onClick={done || loading ? undefined : onClose}>
@@ -390,19 +392,13 @@ export default function WithdrawModal({
         {done && payout ? (
           <>
             <p className="topup-copy">
-              {`${payout.amountFormatted} is going out${payout.method === 'ach' ? ' by ACH' : ' to your card'}${payout.cardLastFour ? ` ending ${payout.cardLastFour}` : ''}.`}
+              {payout.status === 'paid'
+                ? `Your ${payout.amountFormatted} is on the way to ${destination}.`
+                : `We're sending ${payout.amountFormatted} to ${destination}. This usually takes a few moments.`}
             </p>
-            {status ? <p className="topup-status">{status}</p> : null}
-            {explorerUrl ? (
-              <p className="topup-status">
-                <a href={explorerUrl} target="_blank" rel="noreferrer">
-                  View burn on Basescan
-                </a>
-              </p>
-            ) : null}
             {error ? <p className="topup-error">{error}</p> : null}
             <button type="button" className="topup-submit" onClick={onClose}>
-              {payout.status === 'paid' ? 'Done' : 'Close'}
+              Done
             </button>
           </>
         ) : (
@@ -410,7 +406,7 @@ export default function WithdrawModal({
             <p className="topup-copy">
               {step === 'amount'
                 ? `Choose card or bank on the next step. Available ${cashBalance}.`
-                : `Sending $${numericAmount.toFixed(0)} to your card or bank. This is a payout, not a deposit.`}
+                : `Sending $${numericAmount.toFixed(0)} to your card or bank.`}
             </p>
 
             {step === 'amount' ? <TopUpPresetGrid onAdd={addPreset} /> : null}
@@ -554,9 +550,6 @@ export default function WithdrawModal({
                           <div id="withdraw-card-cvc" className="topup-card-field" />
                         </div>
                       </div>
-                      <p className="topup-status">
-                        Paysio tokenizes the card here. We then send a payout — this is not a deposit.
-                      </p>
                       {!cardReady ? <p className="topup-status">Loading card fields…</p> : null}
                     </div>
                   ) : (

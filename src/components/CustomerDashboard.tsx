@@ -2002,8 +2002,8 @@ export default function CustomerDashboard({
               kind: 'wallet',
               title: 'Withdraw sent',
               body: wallet
-                ? `New balance $${wallet.balance.toFixed(2)}. Paysio is sending the payout.`
-                : 'Paysio accepted the payout. Portfolio NFTs were burned.',
+                ? `Your payout is on the way. New balance $${wallet.balance.toFixed(2)}.`
+                : 'Your payout is on the way.',
             })
           }
           syncWalletFromApi()
