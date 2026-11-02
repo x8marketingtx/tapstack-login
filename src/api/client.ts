@@ -81,6 +81,17 @@ export type PayoutClaim = {
   open?: boolean
 }
 
+export type PayoutMissingField = {
+  key: string
+  label: string
+}
+
+export type PayoutProfile = {
+  ready: boolean
+  missingFields: string[]
+  missing: PayoutMissingField[]
+}
+
 export type WithdrawPayoutInput = {
   amount: number
   method: 'card' | 'ach'
@@ -89,6 +100,14 @@ export type WithdrawPayoutInput = {
   routingNumber?: string
   accountNumber?: string
   accountType?: 'checking' | 'saving'
+  firstName?: string
+  lastName?: string
+  email?: string
+  phone?: string
+  street?: string
+  city?: string
+  state?: string
+  zip?: string
 }
 
 export type PortfolioNft = {
@@ -1234,6 +1253,7 @@ export const tapstackApi = {
       nfts?: PortfolioNft[]
       nftsTotal?: number
       openPayouts?: PayoutClaim[]
+      payoutProfile?: PayoutProfile
     }>('/customer/wallet'),
   customerWalletWithdraw: (input: WithdrawPayoutInput) =>
     apiRequest<{

@@ -601,7 +601,7 @@ function GamesHome({
         {openPayouts.length > 0 ? (
           <div className="payout-claim-banners">
             {openPayouts.map((item) =>
-              item.claimUrl ? (
+              item.status === 'awaiting_claim' && item.claimUrl?.startsWith('http') ? (
                 <a
                   key={item.id}
                   className="payout-claim-banner"

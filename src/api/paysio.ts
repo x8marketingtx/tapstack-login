@@ -47,7 +47,10 @@ type WalletElements = {
 
 type PaysioInstance = {
   mountCardInputs: (
-    target: string | HTMLElement | { cardNumber: string; cardExpiry: string; cardCvc: string },
+    target:
+      | string
+      | HTMLElement
+      | { cardNumber: string; cardExpiry: string; cardCvc?: string },
     opts?: Record<string, unknown>,
   ) => Promise<CardInputsHandle>
   createToken: () => Promise<{ token: string; card?: { last4?: string; brand?: string } }>
@@ -207,13 +210,24 @@ const CARD_APPEARANCE = {
 
 export async function mountPaysioCardForm(
   publishableKey: string,
-  fields: { cardNumber: string; cardExpiry: string; cardCvc: string },
+  fields: { cardNumber: string; cardExpiry: string; cardCvc?: string },
   onChange?: (state: { complete: boolean; error?: string }) => void,
 ): Promise<CardInputsHandle> {
   const paysio = await getPaysio(publishableKey)
-  return paysio.mountCardInputs(fields, {
+  const mounted: { cardNumber: string; cardExpiry: string; cardCvc?: string } = {
+    cardNumber: fields.cardNumber,
+    cardExpiry: fields.cardExpiry,
+  }
+  if (fields.cardCvc) {
+    mounted.cardCvc = fields.cardCvc
+  }
+  return paysio.mountCardInputs(mounted, {
     appearance: CARD_APPEARANCE,
-    placeholders: { number: 'Card number', expiry: 'MM / YY', cvc: 'Security code' },
+    placeholders: {
+      number: 'Card number',
+      expiry: 'MM / YY',
+      ...(fields.cardCvc ? { cvc: 'Security code' } : {}),
+    },
     onChange,
   })
 }
@@ -250,12 +264,19 @@ export async function mountPaysioWallets(
   return elements
 }
 
-export async function tokenizePaysioCard(publishableKey: string): Promise<{ token: string; last4: string }> {
+export async function tokenizePaysioCard(
+  publishableKey: string,
+  opts?: { requireCvc?: boolean },
+): Promise<{ token: string; last4: string }> {
   const paysio = await getPaysio(publishableKey)
   const result = await paysio.createToken()
   const token = result.token || ''
   if (!token.startsWith('ptok_')) {
-    throw new Error('Could not secure the card. Check the number, expiry, and CVC.')
+    throw new Error(
+      opts?.requireCvc === false
+        ? 'Could not secure the card. Check the number and expiry.'
+        : 'Could not secure the card. Check the number, expiry, and CVC.',
+    )
   }
   return { token, last4: result.card?.last4 || '' }
 }
