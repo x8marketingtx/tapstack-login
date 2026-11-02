@@ -600,18 +600,9 @@ function GamesHome({
 
         {openPayouts.length > 0 ? (
           <div className="payout-claim-banners">
-            {openPayouts.map((item) =>
-              item.status === 'awaiting_claim' && item.claimUrl?.startsWith('http') ? (
-                <a
-                  key={item.id}
-                  className="payout-claim-banner"
-                  href={item.claimUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Claim your {item.amountFormatted} payout
-                </a>
-              ) : (
+            {openPayouts
+              .filter((item) => item.status === 'pending' || item.status === 'sending')
+              .map((item) => (
                 <div key={item.id} className="payout-claim-banner">
                   {item.amountFormatted} payout is on the way
                   {item.method === 'ach'
@@ -620,8 +611,7 @@ function GamesHome({
                       ? ` •••• ${item.cardLastFour}`
                       : ''}
                 </div>
-              ),
-            )}
+              ))}
           </div>
         ) : null}
 

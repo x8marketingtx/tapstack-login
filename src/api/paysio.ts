@@ -53,7 +53,12 @@ type PaysioInstance = {
       | { cardNumber: string; cardExpiry: string; cardCvc?: string },
     opts?: Record<string, unknown>,
   ) => Promise<CardInputsHandle>
-  createToken: () => Promise<{ token: string; card?: { last4?: string; brand?: string } }>
+  createToken: (cardData?: {
+    number?: string
+    exp_month?: string
+    exp_year?: string
+    cvv?: string
+  }) => Promise<{ token: string; card?: { last4?: string; brand?: string } }>
   threeDS: () => {
     authenticate: (opts: {
       amount: number
@@ -210,23 +215,26 @@ const CARD_APPEARANCE = {
 
 export async function mountPaysioCardForm(
   publishableKey: string,
-  fields: { cardNumber: string; cardExpiry: string; cardCvc?: string },
+  fields: { cardNumber: string; cardExpiry: string; cardCvc: string },
   onChange?: (state: { complete: boolean; error?: string }) => void,
+  opts?: { reset?: boolean },
 ): Promise<CardInputsHandle> {
+  if (opts?.reset && paysioInstance) {
+    try {
+      paysioInstance.reset?.()
+    } catch {
+      /* ignore a stale SDK instance */
+    }
+    paysioInstance = null
+    paysioInstanceKey = ''
+  }
   const paysio = await getPaysio(publishableKey)
-  const mounted: { cardNumber: string; cardExpiry: string; cardCvc?: string } = {
-    cardNumber: fields.cardNumber,
-    cardExpiry: fields.cardExpiry,
-  }
-  if (fields.cardCvc) {
-    mounted.cardCvc = fields.cardCvc
-  }
-  return paysio.mountCardInputs(mounted, {
+  return paysio.mountCardInputs(fields, {
     appearance: CARD_APPEARANCE,
     placeholders: {
       number: 'Card number',
       expiry: 'MM / YY',
-      ...(fields.cardCvc ? { cvc: 'Security code' } : {}),
+      cvc: 'Security code',
     },
     onChange,
   })

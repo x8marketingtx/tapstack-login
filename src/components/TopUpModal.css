@@ -145,11 +145,25 @@
 }
 
 .topup-card-panel {
+  position: relative;
   margin: 0 0 12px;
   padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   background: #f9fafb;
+}
+
+.topup-card-cvc-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
 }
 
 .topup-status {

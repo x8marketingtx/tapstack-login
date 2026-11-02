@@ -134,6 +134,7 @@ export default function TopUpModal({
             setCardReady(true)
             if (fieldError) setError(fieldError)
           },
+          { reset: true },
         )
         if (cancelled) {
           card.unmount()

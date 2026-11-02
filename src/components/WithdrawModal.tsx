@@ -180,13 +180,16 @@ export default function WithdrawModal({
       {
         cardNumber: '#withdraw-card-number',
         cardExpiry: '#withdraw-card-expiry',
+        cardCvc: '#withdraw-card-cvc',
       },
       ({ complete, error: fieldError }) => {
         if (cancelled) return
-        setCardComplete(complete)
         setCardReady(true)
+        setCardComplete(complete)
         if (fieldError) setError(fieldError)
+        else setError('')
       },
+      { reset: true },
     )
       .then((card) => {
         if (cancelled) {
@@ -296,7 +299,7 @@ export default function WithdrawModal({
           throw new Error('Paysio card fields are not configured.')
         }
         setStatus('Securing card…')
-        const tokenized = await tokenizePaysioCard(publishableKey, { requireCvc: false })
+        const tokenized = await tokenizePaysioCard(publishableKey)
         paymentToken = tokenized.token
         cardLastFour = tokenized.last4
       }
@@ -407,7 +410,7 @@ export default function WithdrawModal({
             <p className="topup-copy">
               {step === 'amount'
                 ? `Choose card or bank on the next step. Available ${cashBalance}.`
-                : `Sending $${numericAmount.toFixed(0)}. Card payouts only need number and expiry — no CVC.`}
+                : `Sending $${numericAmount.toFixed(0)} to your card or bank. This is a payout, not a deposit.`}
             </p>
 
             {step === 'amount' ? <TopUpPresetGrid onAdd={addPreset} /> : null}
@@ -537,10 +540,23 @@ export default function WithdrawModal({
                         Debit card
                       </label>
                       <div id="withdraw-card-number" className="topup-card-field" />
-                      <label className="topup-label" htmlFor="withdraw-card-expiry">
-                        Expiry
-                      </label>
-                      <div id="withdraw-card-expiry" className="topup-card-field" />
+                      <div className="topup-card-row">
+                        <div>
+                          <label className="topup-label" htmlFor="withdraw-card-expiry">
+                            Expiry
+                          </label>
+                          <div id="withdraw-card-expiry" className="topup-card-field" />
+                        </div>
+                        <div>
+                          <label className="topup-label" htmlFor="withdraw-card-cvc">
+                            CVC
+                          </label>
+                          <div id="withdraw-card-cvc" className="topup-card-field" />
+                        </div>
+                      </div>
+                      <p className="topup-status">
+                        Paysio tokenizes the card here. We then send a payout — this is not a deposit.
+                      </p>
                       {!cardReady ? <p className="topup-status">Loading card fields…</p> : null}
                     </div>
                   ) : (
