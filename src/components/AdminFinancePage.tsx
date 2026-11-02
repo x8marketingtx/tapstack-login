@@ -1812,7 +1812,7 @@ function FinanceFeesTab({
             </span>
             <span className="admin-finance-fees-subscription-label-desc">
               {' '}
-              — Monthly Soap subscription vendors pay from Billing
+              — Monthly Paysio membership vendors pay from Billing
             </span>
           </span>
           <div className="admin-finance-fees-money-wrap">

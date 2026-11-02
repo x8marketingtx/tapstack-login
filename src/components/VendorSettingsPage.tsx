@@ -12,6 +12,7 @@ import {
   type VendorMembership,
   type VendorRedeemSettings,
 } from '../api/client'
+import { confirmPaysioPayment } from '../api/paysio'
 import './VendorSettingsPage.css'
 import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
 import TapStackProBenefits from './TapStackProBenefits'
@@ -1252,6 +1253,11 @@ let vendorGamesCache: VendorGame[] | null = null
 let vendorGamesCacheError = ''
 let vendorMembershipCache: VendorMembership | null = null
 let vendorGamesInflight: Promise<VendorGame[]> | null = null
+const PRO_CLICK_KEY = 'tapstack_pro_click_id'
+
+function rememberVendorMembership(membership: VendorMembership | null) {
+  vendorMembershipCache = membership
+}
 
 function rememberVendorGames(games: VendorGame[], error = '') {
   vendorGamesCache = games
@@ -1285,11 +1291,11 @@ async function loadVendorGames(force = false): Promise<{ games: VendorGame[]; er
     .vendorGames()
     .then(async (res) => {
       if (res.membership) {
-        vendorMembershipCache = res.membership
+        rememberVendorMembership(res.membership)
       } else {
         try {
           const billed = await tapstackApi.vendorMembership()
-          vendorMembershipCache = billed.membership
+          rememberVendorMembership(billed.membership)
         } catch {
           /* keep previous cache */
         }
@@ -1888,7 +1894,10 @@ function BillingTab() {
           const settings = await tapstackApi.vendorSettings().catch(() => null)
           if (!cancelled) {
             applyGames(settings?.games)
-            if (settings?.membership) setMembership(settings.membership)
+            if (settings?.membership) {
+              rememberVendorMembership(settings.membership)
+              setMembership(settings.membership)
+            }
             if (settings?.payinCaps) {
               setPayinCaps({
                 auto: settings.payinCaps.auto,
@@ -1921,19 +1930,44 @@ function BillingTab() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (!params.has('pro') || !isApiConfigured() || getToken()?.startsWith('demo:')) return
+    const storedClick = sessionStorage.getItem(PRO_CLICK_KEY) || ''
+    const clickId = params.get('clickId') || storedClick
+    if ((!params.has('pro') && !clickId) || !isApiConfigured() || getToken()?.startsWith('demo:')) {
+      return
+    }
     let cancelled = false
     let attempts = 0
+    const apply = (membership: VendorMembership) => {
+      rememberVendorMembership(membership)
+      setMembership(membership)
+      if (!membership.active) return
+      sessionStorage.removeItem(PRO_CLICK_KEY)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('pro')
+      url.searchParams.delete('clickId')
+      const next = `${url.pathname}${url.search}${url.hash}`
+      window.history.replaceState({}, '', next)
+    }
     const tick = async () => {
       attempts += 1
       try {
+        if (attempts === 1 && clickId) {
+          const confirmed = await confirmPaysioPayment(clickId)
+          if (cancelled) return
+          if (confirmed.membership) {
+            apply(confirmed.membership)
+            if (confirmed.membership.active) return
+          }
+        }
         const res = await tapstackApi.vendorMembership()
         if (cancelled) return
-        setMembership(res.membership)
-        if (res.membership.active || attempts >= 6) return
+        apply(res.membership)
+        if (res.membership.active || attempts >= 20) return
         window.setTimeout(() => void tick(), 2000)
       } catch {
-        /* keep last */
+        if (!cancelled && attempts < 20) {
+          window.setTimeout(() => void tick(), 2000)
+        }
       }
     }
     void tick()
@@ -1946,7 +1980,7 @@ function BillingTab() {
     setSubscribeError('')
     const token = getToken()
     if (!isApiConfigured() || token?.startsWith('demo:')) {
-      setSubscribeError('Connect Soap in WordPress TapStack settings to start Pro checkout.')
+      setSubscribeError('Connect Paysio in WordPress TapStack settings to start Pro checkout.')
       return
     }
     setSubscribeBusy(true)
@@ -1954,14 +1988,18 @@ function BillingTab() {
       const returnUrl = `${window.location.origin}/vendor/settings?pro=1`
       const res = await tapstackApi.vendorSubscribePro(returnUrl)
       if (res.paidFromWallet) {
-        if (res.membership) setMembership(res.membership)
+        if (res.membership) {
+          rememberVendorMembership(res.membership)
+          setMembership(res.membership)
+        }
         return
       }
       if (res.url) {
+        if (res.clickId) sessionStorage.setItem(PRO_CLICK_KEY, res.clickId)
         window.location.assign(res.url)
         return
       }
-      setSubscribeError('Soap did not return a checkout URL.')
+      setSubscribeError('Paysio did not return a checkout URL.')
     } catch (err) {
       setSubscribeError(err instanceof ApiError ? err.message : 'Could not start Pro checkout.')
     } finally {
@@ -2055,7 +2093,7 @@ function BillingTab() {
             <div>
               <h3 className="vendor-settings-games-card-title">{membership.name}</h3>
               <p className="vendor-settings-games-card-desc">
-                Monthly vendor membership billed through Soap. Price is set by TapStack.
+                Monthly vendor membership billed through Paysio. Price is set by TapStack.
               </p>
             </div>
             <span

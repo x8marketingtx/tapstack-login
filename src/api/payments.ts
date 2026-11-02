@@ -17,6 +17,7 @@ export type PaymentsConfig = {
     publishableKey: string
     minAmount: number
     webhookUrl: string
+    payouts?: boolean
   }
 }
 

@@ -63,6 +63,34 @@ export type WalletTxn = {
   createdAt: string
 }
 
+export type PayoutClaim = {
+  id: number
+  status: string
+  amount: number
+  amountFormatted: string
+  method?: string
+  rail?: string
+  firstName?: string
+  lastName?: string
+  claimUrl: string
+  expiresAt?: string
+  payoutLinkId?: string
+  payoutId?: string
+  cardLastFour?: string
+  emailed?: string
+  open?: boolean
+}
+
+export type WithdrawPayoutInput = {
+  amount: number
+  method: 'card' | 'ach'
+  paymentToken?: string
+  cardLastFour?: string
+  routingNumber?: string
+  accountNumber?: string
+  accountType?: 'checking' | 'saving'
+}
+
 export type PortfolioNft = {
   id: number
   walletId: number
@@ -1205,18 +1233,22 @@ export const tapstackApi = {
       recentTx: WalletTxn[]
       nfts?: PortfolioNft[]
       nftsTotal?: number
+      openPayouts?: PayoutClaim[]
     }>('/customer/wallet'),
-  customerWalletWithdraw: (amount: number) =>
+  customerWalletWithdraw: (input: WithdrawPayoutInput) =>
     apiRequest<{
       ok: boolean
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
       nfts?: PortfolioNft[]
       burned?: PortfolioNft[]
       change?: PortfolioNft[]
+      payout?: PayoutClaim
     }>('/customer/wallet/withdraw', {
       method: 'POST',
-      body: { amount },
+      body: input,
     }),
+  customerPayout: (id: number) =>
+    apiRequest<{ payout: PayoutClaim }>(`/customer/payouts/${id}`),
   customerWalletTransactions: (opts?: { beforeId?: number; limit?: number; since?: string } | number) => {
     const query =
       typeof opts === 'number' || opts === undefined
@@ -1788,6 +1820,7 @@ export const tapstackApi = {
       ok: boolean
       url?: string
       checkoutId?: string
+      clickId?: string
       paidFromWallet?: boolean
       walletPaid?: number
       cardDue?: number

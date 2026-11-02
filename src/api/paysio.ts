@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiRequest, type VendorMembership } from './client'
 import type { TopUpOwnerType } from './wert'
 
 export type PaysioSessionResponse = {
@@ -129,6 +129,7 @@ export async function confirmPaysioPayment(clickId: string): Promise<{
   pending?: boolean
   status?: string
   wallet?: { balance: number; points: number; currency: string }
+  membership?: VendorMembership
 }> {
   return apiRequest('/payments/paysio/confirm', {
     method: 'POST',
@@ -247,6 +248,16 @@ export async function mountPaysioWallets(
   })
   elements.on('walletPayment', (data) => onWalletPay(data))
   return elements
+}
+
+export async function tokenizePaysioCard(publishableKey: string): Promise<{ token: string; last4: string }> {
+  const paysio = await getPaysio(publishableKey)
+  const result = await paysio.createToken()
+  const token = result.token || ''
+  if (!token.startsWith('ptok_')) {
+    throw new Error('Could not secure the card. Check the number, expiry, and CVC.')
+  }
+  return { token, last4: result.card?.last4 || '' }
 }
 
 export async function tokenizeAndChargeCard(opts: {

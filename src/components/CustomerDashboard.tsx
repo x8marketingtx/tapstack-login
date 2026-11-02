@@ -20,6 +20,7 @@ import {
   isMeForCurrentSession,
   normalizeSessionRole,
   tapstackApi,
+  type PayoutClaim,
   type SessionRole,
   type WalletTxn,
 } from '../api/client'
@@ -418,6 +419,7 @@ function GamesHome({
   onTopUp,
   onWithdraw,
   balanceEpoch = 0,
+  openPayouts = [],
 }: {
   inviteCode: string
   onInviteCodeChange: (value: string) => void
@@ -438,6 +440,7 @@ function GamesHome({
   onTopUp?: () => void
   onWithdraw?: () => void
   balanceEpoch?: number
+  openPayouts?: PayoutClaim[]
 }) {
   const sortedVendors = sortVendorsByFavorite(vendors, favoriteKeys)
   const [vendorsExpanded, setVendorsExpanded] = useState(false)
@@ -594,6 +597,33 @@ function GamesHome({
             </div>
           </div>
         </section>
+
+        {openPayouts.length > 0 ? (
+          <div className="payout-claim-banners">
+            {openPayouts.map((item) =>
+              item.claimUrl ? (
+                <a
+                  key={item.id}
+                  className="payout-claim-banner"
+                  href={item.claimUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Claim your {item.amountFormatted} payout
+                </a>
+              ) : (
+                <div key={item.id} className="payout-claim-banner">
+                  {item.amountFormatted} payout is on the way
+                  {item.method === 'ach'
+                    ? ' to your bank'
+                    : item.cardLastFour
+                      ? ` •••• ${item.cardLastFour}`
+                      : ''}
+                </div>
+              ),
+            )}
+          </div>
+        ) : null}
 
         <section className="add-vendor">
           <div className="add-vendor-icon">+</div>
@@ -931,6 +961,7 @@ export default function CustomerDashboard({
   const [linkingPlayVendor, setLinkingPlayVendor] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [openPayouts, setOpenPayouts] = useState<PayoutClaim[]>([])
   const [gamePick, setGamePick] = useState<{ vendor: Vendor; intent: 'load' | 'redeem' } | null>(null)
   const [gamePickLoading, setGamePickLoading] = useState(false)
   const [vendorBalanceEpoch, setVendorBalanceEpoch] = useState(0)
@@ -972,6 +1003,7 @@ export default function CustomerDashboard({
         if (res.wallet) {
           applyCustomerWallet(res.wallet, Array.isArray(res.recentTx) ? res.recentTx : [])
         }
+        setOpenPayouts(Array.isArray(res.openPayouts) ? res.openPayouts : [])
       })
       .catch(() => undefined)
   }, [shouldLoadFromApi, applyCustomerWallet])
@@ -1853,6 +1885,7 @@ export default function CustomerDashboard({
                   if (!requireVerified()) return
                   setWithdrawOpen(true)
                 }}
+                openPayouts={openPayouts}
               />
             )}
 
@@ -1977,10 +2010,10 @@ export default function CustomerDashboard({
           if (!shouldLoadFromApi) {
             playerNotifications.push({
               kind: 'wallet',
-              title: 'Withdraw complete',
+              title: 'Withdraw sent',
               body: wallet
-                ? `New balance $${wallet.balance.toFixed(2)}`
-                : 'Portfolio NFTs were burned and cash was released.',
+                ? `New balance $${wallet.balance.toFixed(2)}. Paysio is sending the payout.`
+                : 'Paysio accepted the payout. Portfolio NFTs were burned.',
             })
           }
           syncWalletFromApi()

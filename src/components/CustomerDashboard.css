@@ -1864,3 +1864,24 @@
   font-size: 13px;
   color: #6b7280;
 }
+
+.payout-claim-banners {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.payout-claim-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+}
