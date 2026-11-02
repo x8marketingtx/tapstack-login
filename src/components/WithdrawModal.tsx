@@ -201,18 +201,19 @@ export default function WithdrawModal({
         accountType: method === 'ach' ? accountType : undefined,
       })
       const burnLink = result.burned?.find((row) => row.burnExplorerUrl)?.burnExplorerUrl || ''
-      setExplorerUrl(burnLink)
-      setPayout(result.payout || {
+      const nextPayout: PayoutClaim = result.payout ?? {
         id: 0,
         status: 'pending',
         amount: numericAmount,
         amountFormatted: `$${numericAmount.toFixed(2)}`,
         method,
         claimUrl: '',
-        open: result.payout?.status === 'pending',
-      })
+        open: true,
+      }
+      setExplorerUrl(burnLink)
+      setPayout(nextPayout)
       setStatus(
-        result.payout?.status === 'paid'
+        nextPayout.status === 'paid'
           ? 'Payout delivered. Portfolio NFTs burned.'
           : 'Paysio accepted the payout. Portfolio NFTs burned.',
       )
