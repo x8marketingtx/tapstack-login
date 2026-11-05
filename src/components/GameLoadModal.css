@@ -236,6 +236,13 @@
   outline: none;
 }
 
+.game-load-amount-wrap input::placeholder {
+  color: #9ca3af;
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 1;
+}
+
 .game-load-split {
   margin: 0 0 12px;
   padding: 12px 14px;

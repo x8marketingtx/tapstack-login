@@ -415,7 +415,7 @@ export default function TopUpModal({
                     min={1}
                     step="1"
                     value={amount === '0' ? '' : amount}
-                    placeholder="0"
+                    placeholder="Enter Amount"
                     onChange={(event) => setAmount(event.target.value || '0')}
                   />
                 </div>

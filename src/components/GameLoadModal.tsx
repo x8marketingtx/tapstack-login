@@ -551,8 +551,9 @@ export default function GameLoadModal({
                   min={1}
                   step="1"
                   inputMode="decimal"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
+                  value={amount === '0' ? '' : amount}
+                  placeholder="Enter Amount"
+                  onChange={(event) => setAmount(event.target.value || '0')}
                 />
               </div>
 
