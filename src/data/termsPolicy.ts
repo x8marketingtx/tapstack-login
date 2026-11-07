@@ -32,15 +32,15 @@ export const TERMS_POLICY_SECTIONS: { heading: string; body: string[] }[] = [
     ],
   },
   {
-    heading: "3. Role of TapStack; Payment Facilitation; Who You Contract With",
+    heading: "3. Role of TapStack; Affiliate Operators; Who You Contract With",
     body: [
-      "TapStack may act as a payment facilitator and technology provider for Operators, or as seller/Sponsor on the TapStack Direct Platform. The subsections below explain which rules apply.",
+      "The Services are provided by X8 TAP LLC, doing business as TapStack (\"TapStack,\" \"we,\" \"us,\" or \"our\"). All Operators participating in the platform act as affiliates of TapStack. When you make a purchase through the Services, you transact directly with TapStack, and all payments are made to TapStack.",
     ],
   },
   {
-    heading: "3.1 TapStack as Payment Facilitator and Technology Provider",
+    heading: "3.1 TapStack as Seller; Role of Affiliate Operators",
     body: [
-      "For most consumer transactions processed through the Services, TapStack acts as a payment facilitator and technology provider on behalf of an Operator, under agreements with acquiring and sponsor banks and in accordance with payment network rules. In that role, TapStack facilitates payment acceptance, settlement, compliance tooling, promotional infrastructure, and related technology. TapStack is not the seller of the Operator's products, is not the Sponsor of the Operator's promotions, and does not own, control, or determine the content, odds, rules, prizes, pricing, or gameplay of any Operator Platform.",
+      "TapStack is the seller for purchases made through the Services and receives payments for those purchases on its own behalf. Operators participate as affiliates under separate agreements with TapStack; they are not separate sellers or payment recipients for your purchases. Any compensation payable to an Operator is governed by its agreement with TapStack and does not change your contracting party or the recipient of your payment.",
     ],
   },
   {
