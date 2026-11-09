@@ -31,6 +31,7 @@ export default function PlayerSignupPage({ onBack, onOpenLegal }: PlayerSignupPa
   const [digits, setDigits] = useState(['', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoCode, setDemoCode] = useState(isApiConfigured() ? '' : DEMO_OTP)
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   const code = digits.join('')
@@ -49,7 +50,8 @@ export default function PlayerSignupPage({ onBack, onOpenLegal }: PlayerSignupPa
     if (isApiConfigured()) {
       try {
         setLoading(true)
-        await tapstackApi.requestOtp(phone.trim(), 'signup')
+        const otp = await tapstackApi.requestOtp(phone.trim(), 'signup')
+        setDemoCode(otp.demoCode || '')
         setStep('otp')
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not send code.')
@@ -264,7 +266,7 @@ export default function PlayerSignupPage({ onBack, onOpenLegal }: PlayerSignupPa
             ))}
           </div>
 
-          <p className="player-signup-hint">Demo code: {DEMO_OTP}</p>
+          {demoCode ? <p className="player-signup-hint">Demo code: {demoCode}</p> : null}
           {error ? <p className="player-signup-error">{error}</p> : null}
 
           <button type="submit" className="player-signup-submit" disabled={!otpReady}>

@@ -1077,12 +1077,15 @@ export const tapstackApi = {
   health: () => apiRequest<{ ok: boolean; version: string }>('/health', { auth: false }),
 
   requestOtp: (phone: string, intent: 'login' | 'signup' | 'change_phone' = 'login') =>
-    apiRequest<{ ok: boolean; phone: string; demoCode?: string; intent?: string }>('/auth/otp/request', {
-      method: 'POST',
-      body: { phone, intent },
-      // change_phone requires the logged-in player's token
-      auth: intent === 'change_phone',
-    }),
+    apiRequest<{ ok: boolean; phone: string; demoCode?: string; intent?: string; smsSent?: boolean }>(
+      '/auth/otp/request',
+      {
+        method: 'POST',
+        body: { phone, intent },
+        // change_phone requires the logged-in player's token
+        auth: intent === 'change_phone',
+      },
+    ),
 
   playerExists: (phone: string) =>
     apiRequest<{ exists: boolean; phone: string }>('/auth/player/exists', {

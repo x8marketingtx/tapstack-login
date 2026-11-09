@@ -22,6 +22,14 @@ export default function OtpPage({ phone, onBack }: OtpPageProps) {
   const [digits, setDigits] = useState(['', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoCode] = useState(() => {
+    if (!isApiConfigured()) return DEMO_OTP
+    try {
+      return sessionStorage.getItem('tapstack_otp_demo') || ''
+    } catch {
+      return ''
+    }
+  })
   const inputsRef = useRef<(HTMLInputElement | null)[]>([])
 
   const code = digits.join('')
@@ -134,7 +142,7 @@ export default function OtpPage({ phone, onBack }: OtpPageProps) {
           ))}
         </div>
 
-        <p className="otp-hint">Demo code: {DEMO_OTP}</p>
+        {demoCode ? <p className="otp-hint">Demo code: {demoCode}</p> : null}
 
         {error ? <p className="otp-error">{error}</p> : null}
 

@@ -314,7 +314,13 @@ function PlayersLogin({
             return
           }
         }
-        await tapstackApi.requestOtp(phone.trim(), 'login')
+        const otp = await tapstackApi.requestOtp(phone.trim(), 'login')
+        try {
+          if (otp.demoCode) sessionStorage.setItem('tapstack_otp_demo', otp.demoCode)
+          else sessionStorage.removeItem('tapstack_otp_demo')
+        } catch {
+          /* ignore quota / private mode */
+        }
         clearSession()
         onSubmitPhone(phone.trim())
       } catch (err) {
