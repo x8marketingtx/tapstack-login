@@ -13,6 +13,15 @@ import './VendorOrdersPage.css'
 type OrdersTab = 'loads' | 'redeems' | 'history'
 type HistoryRange = 'today' | '7d' | '30d' | 'custom'
 type HistoryFilter = 'all' | 'loads' | 'redeems'
+type OrderStatusFilter = 'all' | 'completed' | 'pending' | 'failed' | 'attention'
+
+const ORDER_STATUS_FILTERS: { id: OrderStatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'pending', label: 'Pending' },
+  { id: 'failed', label: 'Failed' },
+  { id: 'attention', label: 'Attention Needed' },
+]
 
 type OrdersState = {
   manualLoads: VendorOrderItem[]
@@ -52,14 +61,47 @@ function waitingLabel(item: Pick<VendorOrderItem, 'createdAt' | 'date' | 'time'>
   const raw = item.createdAt || `${item.date || ''} ${item.time || ''}`.trim()
   const ts = raw ? Date.parse(raw) : NaN
   if (!Number.isFinite(ts)) return ''
-  const mins = Math.max(0, Math.floor((Date.now() - ts) / 60000))
-  if (mins < 1) return 'Waiting under 1 min'
+  const secs = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+  if (secs < 60) return `Waiting ${secs}s`
+  const mins = Math.floor(secs / 60)
   if (mins < 60) return `Waiting ${mins} min`
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   if (hours < 24) return rest ? `Waiting ${hours}h ${rest}m` : `Waiting ${hours}h`
   const days = Math.floor(hours / 24)
   return `Waiting ${days}d`
+}
+
+function playerGameAccountId(load: Pick<VendorOrderItem, 'mobileId' | 'playerId'>): string {
+  return String(load.mobileId || load.playerId || '').trim()
+}
+
+function CopyGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function CheckGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 12.5 10 16.5 18 8.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 function formatSignedAmount(amount: string, positive: boolean): string {
@@ -100,6 +142,21 @@ function orderStatusDisplay(item: Pick<VendorOrderItem, 'status' | 'type' | 'err
 function OrderStatusBadge({ item }: { item: Pick<VendorOrderItem, 'status' | 'type' | 'error'> }) {
   const { label, tone } = orderStatusDisplay(item)
   return <span className={`vendor-order-status vendor-order-status--${tone}`}>{label}</span>
+}
+
+function orderStatusFilterCategory(
+  item: Pick<VendorOrderItem, 'status' | 'type' | 'error'>,
+): Exclude<OrderStatusFilter, 'all'> {
+  const { tone } = orderStatusDisplay(item)
+  if (tone === 'completed') return 'completed'
+  if (tone === 'rejected') return 'failed'
+  if (tone === 'attention') return 'attention'
+  return 'pending'
+}
+
+function matchesOrderStatusFilter(item: VendorOrderItem, filter: OrderStatusFilter): boolean {
+  if (filter === 'all') return true
+  return orderStatusFilterCategory(item) === filter
 }
 
 function parseOrderDate(item: VendorOrderItem): number {
@@ -144,7 +201,7 @@ function LoadsTab({
   const [, setWaitTick] = useState(0)
 
   useEffect(() => {
-    const timer = window.setInterval(() => setWaitTick((tick) => tick + 1), 15000)
+    const timer = window.setInterval(() => setWaitTick((tick) => tick + 1), 1000)
     return () => window.clearInterval(timer)
   }, [])
 
@@ -189,15 +246,9 @@ function LoadsTab({
         ) : (
           <ul className="vendor-orders-list">
             {manualLoads.map((load) => (
-              <li
-                key={load.id}
-                className="vendor-order-card vendor-order-card--manual is-openable"
-                onClick={() => onOpenOrder(load.id)}
-              >
+              <li key={load.id} className="vendor-order-card vendor-order-card--manual">
                 <label
                   className={`vendor-order-complete${busyId === load.id ? ' is-busy' : ''}`}
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
                 >
                   <input
                     type="checkbox"
@@ -205,54 +256,78 @@ function LoadsTab({
                     disabled={busyId === load.id}
                     aria-label={`Mark ${load.game || load.name} load completed`}
                     onChange={(event) => {
-                      event.stopPropagation()
                       if (event.target.checked) onComplete(load.id)
                     }}
                   />
                   <span>Completed</span>
                 </label>
 
-                <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>
-                  {decodeIcon(load.icon || '🎮', load.game)}
-                </div>
+                <button
+                  type="button"
+                  className="vendor-order-open vendor-order-open--manual"
+                  onClick={() => onOpenOrder(load.id)}
+                >
+                  <div className="vendor-order-game-icon" style={{ background: load.iconBg || '#ede9fe' }}>
+                    {decodeIcon(load.icon || '🎮', load.game)}
+                  </div>
 
-                <div className="vendor-order-details">
-                  <p className="vendor-order-name">{load.game || 'Game'}</p>
-                  {load.mobileId ? (
-                    <p className="vendor-order-mobile">
-                      <span className="vendor-order-mobile-id">{load.mobileId}</span>
-                      <button
-                        type="button"
-                        className="vendor-order-copy"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          void copyMobileId(load.id, load.mobileId || '')
-                        }}
-                      >
-                        {copiedId === load.id ? 'Copied' : 'Copy'}
-                      </button>
-                    </p>
-                  ) : null}
-                  <p className="vendor-order-player">{load.name || 'Player'}</p>
-                  {waitingLabel(load) ? <p className="vendor-order-wait">{waitingLabel(load)}</p> : null}
-                  {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
-                  <PromoNote item={load} />
-                  {(load.payoutTags || load.playerTags || []).length > 0 ? (
-                    <p className="vendor-order-tags">
-                      {(load.payoutTags || load.playerTags || []).join(' · ')}
-                    </p>
-                  ) : null}
-                </div>
+                  <div className="vendor-order-details">
+                    <p className="vendor-order-name">{load.game || 'Game'}</p>
+                    <div className="vendor-order-player-row">
+                      <span className="vendor-order-player">{load.name || 'Player'}</span>
+                      {playerGameAccountId(load) ? (
+                        <span className="vendor-order-player-id-group">
+                          <span className="vendor-order-player-id" title="Game mobile / account ID">
+                            {playerGameAccountId(load)}
+                          </span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className={`vendor-order-copy-icon${
+                              copiedId === load.id ? ' vendor-order-copy-icon--copied' : ''
+                            }`}
+                            aria-label={copiedId === load.id ? 'Game ID copied' : 'Copy game ID'}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void copyMobileId(load.id, playerGameAccountId(load))
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                void copyMobileId(load.id, playerGameAccountId(load))
+                              }
+                            }}
+                          >
+                            {copiedId === load.id ? <CheckGlyph /> : <CopyGlyph />}
+                          </span>
+                        </span>
+                      ) : null}
+                    </div>
+                    {waitingLabel(load) ? (
+                      <p className="vendor-order-wait" aria-live="polite">
+                        {waitingLabel(load)}
+                      </p>
+                    ) : null}
+                    {load.note ? <p className="vendor-order-note">{load.note}</p> : null}
+                    <PromoNote item={load} />
+                    {(load.payoutTags || load.playerTags || []).length > 0 ? (
+                      <p className="vendor-order-tags">
+                        {(load.payoutTags || load.playerTags || []).join(' · ')}
+                      </p>
+                    ) : null}
+                  </div>
 
-                <div className="vendor-order-right">
-                  <span className="vendor-order-amount">
-                    {formatSignedAmount(
-                      couponExtra(load) > 0 ? formatUsd(gameLoadTotal(load)) : load.amount,
-                      true,
-                    )}
-                  </span>
-                  <OrderStatusBadge item={load} />
-                </div>
+                  <div className="vendor-order-right">
+                    <span className="vendor-order-amount">
+                      {formatSignedAmount(
+                        couponExtra(load) > 0 ? formatUsd(gameLoadTotal(load)) : load.amount,
+                        true,
+                      )}
+                    </span>
+                    <OrderStatusBadge item={load} />
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
@@ -561,6 +636,7 @@ function HistoryTab({
 
 export default function VendorOrdersPage() {
   const [activeOrdersTab, setActiveOrdersTab] = useState<OrdersTab>('loads')
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>('all')
   const [orders, setOrders] = useState<OrdersState>(EMPTY_ORDERS)
   const [loading, setLoading] = useState(isApiConfigured())
   const [error, setError] = useState('')
@@ -609,6 +685,23 @@ export default function VendorOrdersPage() {
 
   useIntervalRefresh(() => void refresh(true), MONEY_REFRESH_MS, isApiConfigured())
 
+  const filteredManualLoads = useMemo(
+    () => orders.manualLoads.filter((item) => matchesOrderStatusFilter(item, statusFilter)),
+    [orders.manualLoads, statusFilter],
+  )
+  const filteredAutoLoads = useMemo(
+    () => orders.autoLoads.filter((item) => matchesOrderStatusFilter(item, statusFilter)),
+    [orders.autoLoads, statusFilter],
+  )
+  const filteredRedeems = useMemo(
+    () => orders.redeems.filter((item) => matchesOrderStatusFilter(item, statusFilter)),
+    [orders.redeems, statusFilter],
+  )
+  const filteredHistory = useMemo(
+    () => orders.history.filter((item) => matchesOrderStatusFilter(item, statusFilter)),
+    [orders.history, statusFilter],
+  )
+
   const tabs: { id: OrdersTab; label: string; count?: number }[] = [
     { id: 'loads', label: 'Loads', count: orders.manualLoads.length },
     { id: 'redeems', label: 'Redeems', count: orders.redeems.length },
@@ -638,13 +731,30 @@ export default function VendorOrdersPage() {
         })}
       </div>
 
+      <div className="vendor-orders-status-filters" role="group" aria-label="Filter by status">
+        {ORDER_STATUS_FILTERS.map((item) => {
+          const active = statusFilter === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`vendor-orders-status-filter-btn ${active ? 'vendor-orders-status-filter-btn--active' : ''}`}
+              aria-pressed={active}
+              onClick={() => setStatusFilter(item.id)}
+            >
+              {item.label}
+            </button>
+          )
+        })}
+      </div>
+
       {error ? <p className="vendor-orders-error">{error}</p> : null}
       {loading ? <p className="vendor-orders-empty">Loading orders…</p> : null}
 
       {!loading && activeOrdersTab === 'loads' ? (
         <LoadsTab
-          manualLoads={orders.manualLoads}
-          autoLoads={orders.autoLoads}
+          manualLoads={filteredManualLoads}
+          autoLoads={filteredAutoLoads}
           busyId={busyId}
           onOpenOrder={setDetailOrderId}
           onComplete={async (id) => {
@@ -664,14 +774,14 @@ export default function VendorOrdersPage() {
       ) : null}
       {!loading && activeOrdersTab === 'redeems' ? (
         <RedeemsTab
-          redeems={orders.redeems}
+          redeems={filteredRedeems}
           pendingTotal={orders.pendingTotal}
           busyId={null}
           onOpenOrder={setDetailOrderId}
         />
       ) : null}
       {!loading && activeOrdersTab === 'history' ? (
-        <HistoryTab history={orders.history} onOpenOrder={setDetailOrderId} />
+        <HistoryTab history={filteredHistory} onOpenOrder={setDetailOrderId} />
       ) : null}
 
       <VendorOrderDetailModal

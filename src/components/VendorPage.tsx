@@ -55,6 +55,56 @@ function saveFavoriteGames(vendorId: number | string | null | undefined, keys: s
 const REDEEMABLE_BALANCE_TOOLTIP =
   'These are your redeemable winnings. Not your playable balance.'
 const PAYABLE_BALANCE_TOOLTIP = 'Credits you can play with in this game.'
+const CONNECT_PASSWORD_TOOLTIP =
+  'Use the original default password from when your game account was created—not a newer password you may have set in the game app. If you do not know your password, click “I Need my default password” below and message this store for help.'
+
+function ConnectFieldInfo({ tooltip }: { tooltip: string }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const tooltipId = useId()
+
+  useEffect(() => {
+    if (!open) return
+    function closeIfOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (wrapRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', closeIfOutside)
+    document.addEventListener('touchstart', closeIfOutside)
+    return () => {
+      document.removeEventListener('mousedown', closeIfOutside)
+      document.removeEventListener('touchstart', closeIfOutside)
+    }
+  }, [open])
+
+  return (
+    <div ref={wrapRef} className={`connect-info-wrap${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="connect-info-btn"
+        aria-label="About default account password"
+        aria-expanded={open}
+        aria-describedby={open ? tooltipId : undefined}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.2" />
+          <path
+            d="M7 6.2v3.6M7 4.4h.01"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
+      <span id={tooltipId} role="tooltip" className="connect-info-tooltip">
+        {tooltip}
+      </span>
+    </div>
+  )
+}
 
 function GameBalanceInfo({ label, tooltip }: { label: string; tooltip: string }) {
   const [open, setOpen] = useState(false)
@@ -1699,16 +1749,19 @@ export default function VendorPage({
                       if (connectError) setConnectError('')
                     }}
                   />
-                  <label className="connect-label" htmlFor="connect-password">
-                    Password
-                  </label>
+                  <div className="connect-label-row connect-label-row--password">
+                    <label className="connect-label connect-label--inline" htmlFor="connect-password">
+                      Password
+                    </label>
+                    <ConnectFieldInfo tooltip={CONNECT_PASSWORD_TOOLTIP} />
+                  </div>
                   <div className="connect-password-row">
                     <input
                       id="connect-password"
                       className="connect-input"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
-                      placeholder="Enter password"
+                      placeholder="Enter Default Account Password"
                       value={password}
                       onChange={(event) => {
                         setPassword(event.target.value)
@@ -1723,6 +1776,16 @@ export default function VendorPage({
                       {showPassword ? 'Hide' : 'Show'}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    className="connect-default-password-btn"
+                    onClick={() => {
+                      if (connectError) setConnectError('')
+                      setChatOpen(true)
+                    }}
+                  >
+                    I Need my default password
+                  </button>
                   {connectError ? <p className="connect-error">{connectError}</p> : null}
                   <button
                     type="submit"

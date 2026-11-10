@@ -1705,6 +1705,7 @@
 .connect-form {
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 .connect-label {
@@ -1712,6 +1713,137 @@
   font-size: 12px;
   font-weight: 600;
   color: #374151;
+}
+
+.connect-label--inline {
+  margin: 0;
+}
+
+.connect-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.connect-label-row--password {
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+}
+
+.connect-label-row--password .connect-info-wrap {
+  position: static;
+}
+
+.connect-info-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.connect-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.connect-info-btn:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.connect-info-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--vendor-accent, #0f766e) 70%, #fff);
+  outline-offset: 2px;
+}
+
+.connect-info-tooltip {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(280px, calc(100vw - 56px));
+  max-width: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #111827;
+  color: #f9fafb;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
+}
+
+.connect-label-row--password .connect-info-tooltip {
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+}
+
+.connect-info-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 11px;
+  border: 6px solid transparent;
+  border-bottom-color: #111827;
+}
+
+.connect-label-row--password .connect-info-tooltip::before {
+  left: 4.75rem;
+  right: auto;
+}
+
+.connect-info-wrap.is-open .connect-info-tooltip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .connect-info-wrap:hover .connect-info-tooltip,
+  .connect-info-wrap:focus-within .connect-info-tooltip {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+.connect-default-password-btn {
+  align-self: flex-start;
+  margin: -4px 0 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--vendor-accent, #0f766e);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.connect-default-password-btn:hover {
+  filter: brightness(0.92);
 }
 
 .connect-input {

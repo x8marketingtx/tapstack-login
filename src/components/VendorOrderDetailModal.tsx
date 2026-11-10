@@ -111,6 +111,8 @@ export default function VendorOrderDetailModal({
     (order?.type === 'auto-load' || order?.type === 'manual-load') &&
     status === 'approved' &&
     !String(order?.fulfilledAt || '').trim()
+  const manualLoadCompleteOnListOnly =
+    order?.type === 'manual-load' && (status === 'pending' || status === 'failed')
   const isActionable =
     Boolean(order) &&
     (order?.type === 'manual-load' ||
@@ -355,6 +357,13 @@ export default function VendorOrderDetailModal({
                   </div>
                 ) : null}
 
+                {manualLoadCompleteOnListOnly ? (
+                  <p className="vod-auto-hint">
+                    Load the player in your game system, then mark <strong>Completed</strong> on the
+                    Orders list. This screen is for reference only.
+                  </p>
+                ) : null}
+
                 {isActionable ? (
                   <>
                     {order.type === 'auto-load' || needsGameLoad ? (
@@ -409,37 +418,39 @@ export default function VendorOrderDetailModal({
                       </div>
                     ) : null}
                     <div className="vod-actions">
-                    <button
-                      type="button"
-                      className="vod-complete-btn"
-                      disabled={Boolean(actionBusy)}
-                      onClick={() => void completeOrder()}
-                    >
-                      {actionBusy === 'complete'
-                        ? needsGameLoad
-                          ? 'Loading to game…'
-                          : 'Completing…'
-                        : needsGameLoad
-                          ? 'Load to game'
-                        : order.type === 'redeem'
-                          ? 'Complete redeem'
-                          : order.type === 'affiliate-payout'
-                            ? 'Approve payout'
-                          : order.type === 'auto-load'
-                            ? 'Complete load'
-                          : 'Complete order'}
-                    </button>
-                    {needsGameLoad ? null : (
-                    <button
-                      type="button"
-                      className="vod-reject-btn"
-                      disabled={Boolean(actionBusy)}
-                      onClick={() => void rejectOrder()}
-                    >
-                      {actionBusy === 'reject' ? 'Rejecting…' : 'Reject & refund'}
-                    </button>
-                    )}
-                  </div>
+                      {!manualLoadCompleteOnListOnly ? (
+                        <button
+                          type="button"
+                          className="vod-complete-btn"
+                          disabled={Boolean(actionBusy)}
+                          onClick={() => void completeOrder()}
+                        >
+                          {actionBusy === 'complete'
+                            ? needsGameLoad
+                              ? 'Loading to game…'
+                              : 'Completing…'
+                            : needsGameLoad
+                              ? 'Load to game'
+                              : order.type === 'redeem'
+                                ? 'Complete redeem'
+                                : order.type === 'affiliate-payout'
+                                  ? 'Approve payout'
+                                  : order.type === 'auto-load'
+                                    ? 'Complete load'
+                                    : 'Complete order'}
+                        </button>
+                      ) : null}
+                      {!needsGameLoad ? (
+                        <button
+                          type="button"
+                          className="vod-reject-btn"
+                          disabled={Boolean(actionBusy)}
+                          onClick={() => void rejectOrder()}
+                        >
+                          {actionBusy === 'reject' ? 'Rejecting…' : 'Reject & refund'}
+                        </button>
+                      ) : null}
+                    </div>
                   </>
                 ) : null}
                 {actionNote ? (

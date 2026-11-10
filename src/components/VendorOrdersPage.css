@@ -76,6 +76,30 @@
   font-weight: 700;
 }
 
+.vendor-orders-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 4px 0;
+}
+
+.vendor-orders-status-filter-btn {
+  padding: 6px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vendor-orders-status-filter-btn--active {
+  border-color: #c4b5fd;
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
 .vendor-orders-content {
   display: flex;
   flex-direction: column;
@@ -223,6 +247,15 @@
   min-width: 0;
   padding: 0;
   background: transparent;
+}
+
+.vendor-order-open--manual {
+  align-items: flex-start;
+  border-radius: 10px;
+}
+
+.vendor-order-open--manual:hover {
+  background: #f8fafc;
 }
 
 .vendor-order-card.is-openable {
@@ -667,18 +700,73 @@
   white-space: nowrap;
 }
 
-.vendor-order-player {
+.vendor-order-player-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin: 4px 0 0;
+  min-width: 0;
+}
+
+.vendor-order-player {
   font-size: 13px;
   font-weight: 650;
   color: #374151;
 }
 
+.vendor-order-player-id-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 6px 2px 8px;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.vendor-order-player-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 750;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.vendor-order-copy-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: #fff;
+  color: #7c3aed;
+  cursor: pointer;
+}
+
+.vendor-order-copy-icon:hover {
+  background: #ede9fe;
+}
+
+.vendor-order-copy-icon--copied {
+  color: #059669;
+  background: #ecfdf5;
+}
+
 .vendor-order-wait {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   font-size: 11px;
   font-weight: 750;
   color: #c2410c;
+  font-variant-numeric: tabular-nums;
 }
 
 .vendor-order-copy {
