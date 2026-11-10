@@ -951,6 +951,7 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
                       TIER_RATES[tier].tickets === 1 ? '' : 's'
                     }`,
                     unlock: TIER_UNLOCK[tier],
+                    unlocked: TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(state.tier),
                   }))
               ).map((rate) => (
                 <li
