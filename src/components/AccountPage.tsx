@@ -45,12 +45,14 @@ type TxRow = {
   meta: string
   amounts: TxAmount[]
   loadReceipt?: WalletTxn
+  pending?: boolean
 }
 
 function mapLedgerToRows(txns: WalletTxn[], vendors: Vendor[]): TxRow[] {
   return txns.map((txn) => {
     const meta = txn.meta || {}
     const isLoad = isLoadTransaction(txn)
+    const pending = Boolean(meta.pending) || txn.type === 'pending_topup'
     const icon = typeof meta.icon === 'string' ? meta.icon : isLoad ? '🎮' : txn.amount >= 0 ? '💰' : '🎮'
     const iconBg =
       typeof meta.iconBg === 'string' ? meta.iconBg : isLoad ? '#dbeafe' : txn.amount >= 0 ? '#dcfce7' : '#dbeafe'
@@ -74,7 +76,11 @@ function mapLedgerToRows(txns: WalletTxn[], vendors: Vendor[]): TxRow[] {
     const title = isLoad
       ? ['Load', vendorName].filter(Boolean).join(' · ')
       : txn.title || txn.type
-    const metaLine = isLoad ? loadTxnMetaLine(txn, vendors) : txn.createdAt || txn.type
+    const metaLine = pending
+      ? 'Waiting for confirmation'
+      : isLoad
+        ? loadTxnMetaLine(txn, vendors)
+        : txn.createdAt || txn.type
     return {
       id: txn.id,
       icon,
@@ -83,6 +89,7 @@ function mapLedgerToRows(txns: WalletTxn[], vendors: Vendor[]): TxRow[] {
       meta: metaLine,
       amounts,
       loadReceipt: isLoad ? txn : undefined,
+      pending,
     }
   })
 }
@@ -209,9 +216,17 @@ export default function AccountPage({
   }, [loadLedger])
 
   useEffect(() => {
-    if (transactions?.length) {
-      setFetchedTxns((prev) => mergeTxns(transactions, prev))
-    }
+    setFetchedTxns((prev) => {
+      const keepPending = new Set(
+        (transactions || [])
+          .filter((txn) => txn.type === 'pending_topup')
+          .map((txn) => txn.id),
+      )
+      const withoutStalePending = prev.filter(
+        (txn) => txn.type !== 'pending_topup' || keepPending.has(txn.id),
+      )
+      return transactions?.length ? mergeTxns(transactions, withoutStalePending) : withoutStalePending
+    })
   }, [transactions])
 
   useEffect(() => {
@@ -493,18 +508,22 @@ export default function AccountPage({
               const rowBody = (
                 <>
                   <div className="tx-icon" style={{ background: tx.iconBg }}>
-                    {tx.icon}
+                    {tx.pending ? <span className="tx-pending-spin" aria-hidden="true" /> : tx.icon}
                   </div>
                   <div className="tx-details">
                     <p className="tx-title">{tx.title}</p>
-                    <p className="tx-meta">{tx.meta}</p>
+                    <p className={`tx-meta${tx.pending ? ' tx-meta--pending' : ''}`}>{tx.meta}</p>
                   </div>
                   <div className="tx-amounts">
                     {tx.amounts.map((item) => (
-                      <span key={item.text} className={`tx-amount tx-amount--${item.variant}`}>
+                      <span
+                        key={item.text}
+                        className={`tx-amount tx-amount--${item.variant}${tx.pending ? ' tx-amount--pending' : ''}`}
+                      >
                         {item.text}
                       </span>
                     ))}
+                    {tx.pending ? <span className="tx-pending-pill">Pending</span> : null}
                   </div>
                 </>
               )
@@ -523,7 +542,7 @@ export default function AccountPage({
                 )
               }
               return (
-                <li key={tx.id} className="tx-item">
+                <li key={tx.id} className={`tx-item${tx.pending ? ' tx-item--pending' : ''}`}>
                   {rowBody}
                 </li>
               )

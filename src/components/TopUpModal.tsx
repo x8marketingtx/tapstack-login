@@ -5,6 +5,7 @@ import { fetchPaymentsConfig, type CardProcessor } from '../api/payments'
 import {
   chargePaysioPayment,
   chargeSavedPaysioCard,
+  confirmPaysioPayment,
   listPaysioMethods,
   mountPaysioCardForm,
   mountPaysioWallets,
@@ -33,6 +34,7 @@ type TopUpModalProps = {
   submitLabel?: string
   copy?: string
   onSuccess?: (wallet?: { balance: number; points: number; currency: string }) => void
+  onPending?: (info: { clickId: string; amount: number }) => void
   onVerifyRequired?: () => void
 }
 
@@ -60,6 +62,7 @@ export default function TopUpModal({
   submitLabel,
   copy,
   onSuccess,
+  onPending,
   onVerifyRequired,
 }: TopUpModalProps) {
   const [amount, setAmount] = useState('0')
@@ -74,7 +77,9 @@ export default function TopUpModal({
   const [cryptoToken, setCryptoToken] = useState('USDC')
   const [processor, setProcessor] = useState<CardProcessor>('wert')
   const [publishableKey, setPublishableKey] = useState('')
-  const [step, setStep] = useState<'amount' | 'pay'>('amount')
+  const [step, setStep] = useState<'amount' | 'pay' | 'checking' | 'done'>('amount')
+  const [checkCopy, setCheckCopy] = useState('')
+  const [pendingClickId, setPendingClickId] = useState('')
   const [cardReady, setCardReady] = useState(false)
   const [cardComplete, setCardComplete] = useState(false)
   const [savedCards, setSavedCards] = useState<SavedPaymentMethod[]>([])
@@ -86,12 +91,17 @@ export default function TopUpModal({
   const postalRef = useRef('')
   const onCloseRef = useRef(onClose)
   const onSuccessRef = useRef(onSuccess)
+  const onPendingRef = useRef(onPending)
   const onVerifyRef = useRef(onVerifyRequired)
   const ownerTypeRef = useRef(ownerType)
+  const purposeRef = useRef(purpose)
+  const leftConfirmUiRef = useRef(false)
   onCloseRef.current = onClose
   onSuccessRef.current = onSuccess
+  onPendingRef.current = onPending
   onVerifyRef.current = onVerifyRequired
   ownerTypeRef.current = ownerType
+  purposeRef.current = purpose
   postalRef.current = postalCode
 
   useEffect(() => {
@@ -104,6 +114,7 @@ export default function TopUpModal({
     setPostalCode('')
     setError('')
     setStatus('')
+    setCheckCopy('')
     setLoading(false)
     setStep(startOnPay && processor === 'paysio' ? 'pay' : 'amount')
     setCardReady(false)
@@ -119,6 +130,120 @@ export default function TopUpModal({
       })
       .catch(() => setProcessor('wert'))
   }, [open, initialAmount, lockAmount, startOnPay])
+
+  function startConfirming(clickId: string) {
+    if (!clickId) {
+      setError('Payment did not return a confirmation id.')
+      setLoading(false)
+      return
+    }
+    leftConfirmUiRef.current = false
+    setError('')
+    setStatus('')
+    setLoading(true)
+    setStep('checking')
+    setCheckCopy(
+      purposeRef.current === 'invoice'
+        ? 'Payment sent. Confirming this invoice…'
+        : 'Payment sent. Confirming with your bank…',
+    )
+    setPendingClickId(clickId)
+    if (purposeRef.current !== 'invoice') {
+      onPendingRef.current?.({
+        clickId,
+        amount: amountRef.current,
+      })
+    }
+  }
+
+  function dismissConfirming() {
+    leftConfirmUiRef.current = true
+    if (pendingClickId) onSuccessRef.current?.()
+    onCloseRef.current()
+  }
+
+  useEffect(() => {
+    if (!pendingClickId) return
+    let cancelled = false
+    const started = Date.now()
+    const leaveMs = 8_000
+    const pollMs = 90_000
+    let leftScreen = leftConfirmUiRef.current
+
+    function leaveScreen(copy: string) {
+      if (leftScreen) return
+      leftScreen = true
+      leftConfirmUiRef.current = true
+      setStep('done')
+      setCheckCopy(copy)
+      setLoading(false)
+      onSuccessRef.current?.()
+      window.setTimeout(() => onCloseRef.current(), 1800)
+    }
+
+    void (async () => {
+      while (!cancelled && Date.now() - started < pollMs) {
+        const elapsed = Date.now() - started
+        if (!leftScreen) {
+          if (elapsed >= leaveMs) {
+            leaveScreen(
+              purposeRef.current === 'invoice'
+                ? 'Payment received. Invoice status will update in a moment — you can keep going.'
+                : 'Payment received. Your balance will update in a moment — you can keep going.',
+            )
+          } else if (elapsed >= 4_000) {
+            setCheckCopy('Still checking this payment…')
+          }
+        }
+        try {
+          const result = await confirmPaysioPayment(pendingClickId)
+          if (cancelled) return
+          if (result.wallet) {
+            setPendingClickId('')
+            setLoading(false)
+            onSuccessRef.current?.(result.wallet)
+            if (!leftScreen && !leftConfirmUiRef.current) {
+              setStep('done')
+              setCheckCopy(
+                purposeRef.current === 'invoice' ? 'Invoice paid.' : 'Balance updated.',
+              )
+              window.setTimeout(() => onCloseRef.current(), 1100)
+            }
+            return
+          }
+          if (!result.pending) {
+            throw new Error('Card payment failed.')
+          }
+        } catch (err) {
+          if (cancelled) return
+          if (Date.now() - started < 4_000) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1200))
+            continue
+          }
+          if (!leftScreen) {
+            setError(err instanceof Error ? err.message : 'Could not confirm payment.')
+            setLoading(false)
+            setStep('pay')
+            setPendingClickId('')
+            return
+          }
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1500))
+      }
+      if (!cancelled) {
+        leaveScreen(
+          purposeRef.current === 'invoice'
+            ? 'Payment received. Invoice status will update in a moment — you can keep going.'
+            : 'Payment received. Your balance will update in a moment — you can keep going.',
+        )
+        setPendingClickId('')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pendingClickId])
 
   const numericAmount = Number(amount)
   amountRef.current = Number.isFinite(numericAmount) ? numericAmount : 0
@@ -148,18 +273,6 @@ export default function TopUpModal({
     let cancelled = false
     let wallets: { updateAmount: (n: number) => void; unmount: () => void } | null = null
 
-    const finish = (
-      wallet?: { balance: number; points: number; currency: string },
-    ) => {
-      setStatus('Payment successful. Balance updated.')
-      setLoading(false)
-      onSuccessRef.current?.(wallet)
-      window.setTimeout(() => {
-        onCloseRef.current()
-        setStatus('')
-      }, 900)
-    }
-
     const fail = (message: string, err?: unknown) => {
       if (shouldOpenVerifyFromApiError(err)) onVerifyRef.current?.()
       setError(message)
@@ -181,7 +294,7 @@ export default function TopUpModal({
               return false
             }
             setError('')
-            setStatus('Waiting for payment confirmation…')
+            setStatus('')
             setLoading(true)
             try {
               const result = await chargePaysioPayment({
@@ -192,7 +305,7 @@ export default function TopUpModal({
                 threeDs: data.threeDS,
                 postalCode: postalRef.current.trim() || undefined,
               })
-              finish(result.wallet)
+              startConfirming(result.clickId)
               return true
             } catch (err) {
               fail(
@@ -306,7 +419,7 @@ export default function TopUpModal({
       }
       if (!canSubmitPaysio || !publishableKey) return
       setError('')
-      setStatus('Waiting for payment confirmation…')
+      setStatus('')
       setLoading(true)
       try {
         const result = usingSavedCard
@@ -331,13 +444,7 @@ export default function TopUpModal({
               invoiceToken,
               invoiceMix,
             })
-        setStatus(purpose === 'invoice' ? 'Invoice paid.' : 'Payment successful. Balance updated.')
-        setLoading(false)
-        onSuccess?.(result.wallet)
-        window.setTimeout(() => {
-          onClose()
-          setStatus('')
-        }, 900)
+        startConfirming(result.clickId)
       } catch (err) {
         if (shouldOpenVerifyFromApiError(err)) onVerifyRequired?.()
         setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Could not charge card.')
@@ -409,7 +516,14 @@ export default function TopUpModal({
   }
 
   return (
-    <div className="topup-overlay" role="presentation" onClick={onClose}>
+    <div
+      className="topup-overlay"
+      role="presentation"
+      onClick={() => {
+        if (step === 'checking' || step === 'done') dismissConfirming()
+        else onClose()
+      }}
+    >
       <div
         className="topup-modal"
         role="dialog"
@@ -419,7 +533,7 @@ export default function TopUpModal({
       >
         <span className="topup-handle" aria-hidden="true" />
         <div className="topup-header">
-          {processor === 'paysio' && step === 'pay' && !startOnPay ? (
+          {processor === 'paysio' && step === 'pay' && !startOnPay && !loading ? (
             <button
               type="button"
               className="topup-back"
@@ -437,13 +551,23 @@ export default function TopUpModal({
           ) : (
             <span className="topup-header-spacer" />
           )}
-          <h2 id="topup-title">{step === 'pay' ? 'Payment' : title}</h2>
-          <button type="button" className="topup-close" onClick={onClose} aria-label="Close">
+          <h2 id="topup-title">
+            {step === 'checking' || step === 'done' ? 'Checking payment' : step === 'pay' ? 'Payment' : title}
+          </h2>
+          <button
+            type="button"
+            className="topup-close"
+            onClick={() => {
+              if (step === 'checking' || step === 'done') dismissConfirming()
+              else onClose()
+            }}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>
 
-        {ownerType === 'vendor' && !hideCrypto ? (
+        {ownerType === 'vendor' && !hideCrypto && step !== 'checking' && step !== 'done' ? (
           <div className="topup-methods" role="tablist" aria-label="Top up method">
             <button
               type="button"
@@ -481,6 +605,27 @@ export default function TopUpModal({
           </div>
         ) : (
           <>
+            {step === 'checking' || step === 'done' ? (
+              <div className={`topup-checking${step === 'done' ? ' is-done' : ''}`}>
+                {step === 'checking' ? <span className="topup-checking-spin" aria-hidden="true" /> : (
+                  <span className="topup-checking-check" aria-hidden="true">
+                    ✓
+                  </span>
+                )}
+                <p className="topup-checking-title">
+                  {step === 'done' ? 'You can close this' : 'Still checking your payment'}
+                </p>
+                <p className="topup-checking-copy">{checkCopy}</p>
+                <button
+                  type="button"
+                  className="topup-submit"
+                  onClick={dismissConfirming}
+                >
+                  {step === 'done' ? 'Done' : 'Close and keep checking'}
+                </button>
+              </div>
+            ) : (
+              <>
             <p className="topup-copy">
               {copy ||
                 (step === 'amount' ? 'Added to your Portfolio Balance' : 'Apple Pay, Google Pay, or card')}
@@ -586,6 +731,8 @@ export default function TopUpModal({
                     `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(lockAmount ? 2 : 0) : '—'}`}
               </button>
             </form>
+              </>
+            )}
           </>
         )}
       </div>

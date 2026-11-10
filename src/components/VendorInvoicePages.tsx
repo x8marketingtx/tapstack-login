@@ -190,9 +190,15 @@ export function VendorInvoicePayPage({
   async function afterCardPay() {
     setCardOpen(false)
     try {
-      const fresh = await load()
-      setInvoice(fresh)
-      if (fresh.status === 'paid') onPaid(fresh)
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const fresh = await load()
+        setInvoice(fresh)
+        if (fresh.status === 'paid') {
+          onPaid(fresh)
+          return
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 2000))
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Card charged, but the invoice did not finish. Refresh and try again.')
     }

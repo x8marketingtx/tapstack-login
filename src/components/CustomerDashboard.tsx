@@ -333,6 +333,49 @@ type ActivityRow = {
   title: string
   date: string
   amounts: ActivityAmount[]
+  pending?: boolean
+}
+
+type PendingTopUp = {
+  clickId: string
+  amount: number
+  at: number
+}
+
+function txnClickId(txn: WalletTxn): string {
+  const meta = txn.meta || {}
+  return String(meta.click_id || meta.clickId || '')
+}
+
+function pendingTopUpActivity(row: PendingTopUp): ActivityRow {
+  return {
+    id: `pending-${row.clickId}`,
+    icon: '💳',
+    iconBg: '#fef3c7',
+    title: 'Top Up via card',
+    date: 'Waiting',
+    amounts: [{ text: `+$${row.amount.toFixed(2)}`, variant: 'cash-positive' }],
+    pending: true,
+  }
+}
+
+function pendingTopUpTxn(row: PendingTopUp): WalletTxn {
+  return {
+    id: -Math.abs(
+      Array.from(row.clickId).reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 0),
+    ) || -1,
+    type: 'pending_topup',
+    amount: row.amount,
+    points: 0,
+    title: 'Top Up via card',
+    meta: {
+      pending: true,
+      click_id: row.clickId,
+      icon: '💳',
+      iconBg: '#fef3c7',
+    },
+    createdAt: new Date(row.at).toISOString(),
+  }
 }
 
 function formatActivityDate(value: string): string {
@@ -906,23 +949,37 @@ function GamesHome({
           ) : (
             <ul className="activity-list">
               {recentActivities.map((item) => (
-                <li key={item.id} className="activity-item">
+                <li
+                  key={item.id}
+                  className={`activity-item${item.pending ? ' activity-item--pending' : ''}`}
+                >
                   <div className="activity-icon" style={{ background: item.iconBg }}>
-                    {item.icon}
+                    {item.pending ? (
+                      <span className="activity-pending-spin" aria-hidden="true" />
+                    ) : (
+                      item.icon
+                    )}
                   </div>
                   <div className="activity-details">
                     <p className="activity-name">{item.title}</p>
-                    <p className="activity-date">{item.date}</p>
+                    <p className={`activity-date${item.pending ? ' activity-date--pending' : ''}`}>
+                      {item.pending ? 'Waiting for confirmation' : item.date}
+                    </p>
                   </div>
                   <div className="activity-amounts">
                     {item.amounts.map((amount) => (
                       <span
                         key={`${item.id}-${amount.text}`}
-                        className={`activity-amount activity-amount--${amount.variant}`}
+                        className={`activity-amount activity-amount--${amount.variant}${
+                          item.pending ? ' activity-amount--pending' : ''
+                        }`}
                       >
-                        {amount.text}
+                        {item.pending ? amount.text.replace('+', '') : amount.text}
                       </span>
                     ))}
+                    {item.pending ? (
+                      <span className="activity-pending-pill">Pending</span>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -992,6 +1049,7 @@ export default function CustomerDashboard({
   const walletTxnsRef = useRef<WalletTxn[]>([])
   const [pointsBalance, setPointsBalance] = useState(shouldLoadFromApi ? 0 : 3400)
   const [walletTxns, setWalletTxns] = useState<WalletTxn[]>([])
+  const [pendingTopUps, setPendingTopUps] = useState<PendingTopUp[]>([])
   walletTxnsRef.current = walletTxns
 
   const applyCustomerWallet = useCallback(
@@ -1611,9 +1669,38 @@ export default function CustomerDashboard({
 
   useIntervalRefresh(
     refreshMoney,
-    MONEY_REFRESH_MS,
-    shouldLoadFromApi && !showVerify && walletReady && !topUpOpen,
+    pendingTopUps.length > 0 ? 2000 : MONEY_REFRESH_MS,
+    shouldLoadFromApi && !showVerify && walletReady && (!topUpOpen || pendingTopUps.length > 0),
   )
+
+  useEffect(() => {
+    if (pendingTopUps.length === 0) return
+    setPendingTopUps((rows) =>
+      rows.filter((row) => {
+        if (Date.now() - row.at > 5 * 60_000) return false
+        return !walletTxns.some((txn) => {
+          const click = txnClickId(txn)
+          if (click) return click === row.clickId
+          const ts = Date.parse(txn.createdAt || '')
+          const isTopup = txn.type === 'paysio_topup' || /top up/i.test(txn.title || '')
+          return (
+            isTopup &&
+            txn.amount === row.amount &&
+            Number.isFinite(ts) &&
+            ts >= row.at - 60_000
+          )
+        })
+      }),
+    )
+  }, [walletTxns, pendingTopUps.length])
+
+  function rememberPendingTopUp(info: { clickId: string; amount: number }) {
+    if (!info.clickId || !Number.isFinite(info.amount) || info.amount < 1) return
+    setPendingTopUps((rows) => [
+      { clickId: info.clickId, amount: info.amount, at: Date.now() },
+      ...rows.filter((row) => row.clickId !== info.clickId),
+    ])
+  }
 
   async function handleAddVendor() {
     const code = inviteCode.trim().toUpperCase()
@@ -1810,6 +1897,7 @@ export default function CustomerDashboard({
           ownerType="player"
           title="Top up Portfolio balance"
           onVerifyRequired={openVerify}
+          onPending={rememberPendingTopUp}
           onSuccess={(wallet) => {
             if (!shouldLoadFromApi && wallet) {
               setCashBalance(`$${wallet.balance.toFixed(2)}`)
@@ -1889,7 +1977,12 @@ export default function CustomerDashboard({
                 walletReady={walletReady}
                 balanceEpoch={vendorBalanceEpoch}
                 activities={
-                  shouldLoadFromApi ? mapTxnsToActivities(walletTxns) : DEMO_ACTIVITIES
+                  shouldLoadFromApi
+                    ? [
+                        ...pendingTopUps.map(pendingTopUpActivity),
+                        ...mapTxnsToActivities(walletTxns),
+                      ]
+                    : DEMO_ACTIVITIES
                 }
                 onSeeAllActivity={() => handleTabChange('account')}
                 onTopUp={() => {
@@ -1955,7 +2048,7 @@ export default function CustomerDashboard({
                 pointsBalance={pointsBalance}
                 profile={headerProfile}
                 loading={loading || !walletReady}
-                transactions={walletTxns}
+                transactions={[...pendingTopUps.map(pendingTopUpTxn), ...walletTxns]}
                 vendors={vendors}
                 scrollToSectionId={accountScrollTarget}
                 onScrollToSectionDone={() => setAccountScrollTarget(null)}
@@ -1993,6 +2086,7 @@ export default function CustomerDashboard({
         ownerType="player"
         title="Top up Portfolio balance"
         onVerifyRequired={openVerify}
+        onPending={rememberPendingTopUp}
         onSuccess={(wallet) => {
           if (!shouldLoadFromApi && wallet) {
             setCashBalance(`$${wallet.balance.toFixed(2)}`)

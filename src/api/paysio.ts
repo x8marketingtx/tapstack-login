@@ -199,7 +199,7 @@ export async function chargePaysioPayment(payload: {
   if (!charged.clickId) {
     throw new Error('Paysio did not return a payment id.')
   }
-  return waitForPaysioCredit(charged.clickId)
+  return charged
 }
 
 const CARD_APPEARANCE = {

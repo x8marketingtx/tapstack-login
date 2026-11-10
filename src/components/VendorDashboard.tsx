@@ -1384,7 +1384,25 @@ export default function VendorDashboard({
         title="Top up USDC wallet"
         onVerifyRequired={openVerify}
         onSuccess={(wallet) => {
-          if (wallet) setWalletBalance(`$${wallet.balance.toFixed(2)}`)
+          if (wallet) {
+            setWalletBalance(`$${wallet.balance.toFixed(2)}`)
+            return
+          }
+          void tapstackApi
+            .vendorDashboard()
+            .then((dash) => {
+              const amount = dash?.wallet?.amount
+              if (typeof amount === 'number') {
+                setWalletBalance(
+                  amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' }),
+                )
+              } else if (typeof dash?.wallet?.balance === 'string') {
+                setWalletBalance(dash.wallet.balance)
+              }
+            })
+            .catch(() => {
+              /* keep current balance until the next dashboard load */
+            })
         }}
       />
     </div>

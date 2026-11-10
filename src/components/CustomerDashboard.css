@@ -1616,6 +1616,47 @@
   color: #dc2626;
 }
 
+.activity-item--pending {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.activity-pending-spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fde68a;
+  border-top-color: #d97706;
+  border-radius: 50%;
+  animation: activity-spin 0.75s linear infinite;
+}
+
+.activity-date--pending {
+  color: #d97706;
+  font-weight: 700;
+}
+
+.activity-amount--pending {
+  color: #92400e;
+}
+
+.activity-pending-pill {
+  margin-top: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@keyframes activity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .bottom-nav {
   position: absolute;
   right: 0;

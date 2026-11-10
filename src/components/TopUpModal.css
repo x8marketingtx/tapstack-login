@@ -366,3 +366,61 @@
   margin: 8px 0 12px;
   min-height: 120px;
 }
+
+.topup-checking {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 18px 8px 8px;
+}
+
+.topup-checking-spin {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 14px;
+  border: 3px solid #d1fae5;
+  border-top-color: #059669;
+  border-radius: 50%;
+  animation: topup-spin 0.75s linear infinite;
+}
+
+.topup-checking-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.topup-checking-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: #111827;
+}
+
+.topup-checking-copy {
+  margin: 0 0 18px;
+  max-width: 280px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.topup-checking .topup-submit {
+  max-width: 280px;
+}
+
+@keyframes topup-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
