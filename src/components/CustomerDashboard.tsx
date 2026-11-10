@@ -656,32 +656,57 @@ function GamesHome({
 
       <div className="games-home-main">
         <section className="vendors-section">
-          <div className="vendors-title-row">
-            <h2 className="vendors-title">Your Vendors</h2>
+          <div className="vendors-head">
+            <div className="vendors-head-row">
+              <h2 className="vendors-title">Your Vendors</h2>
+              {vendors.length > 0 ? (
+                <span className="vendors-count">{vendors.length}</span>
+              ) : null}
+            </div>
             {vendors.length > 0 ? (
-              <input
-                type="search"
-                className="vendors-title-search"
-                placeholder="Search vendors"
-                value={vendorSearch}
-                onChange={(event) => {
-                  setVendorSearch(event.target.value)
-                  setVendorsExpanded(false)
-                }}
-                aria-label="Search vendors"
-              />
-            ) : null}
+              <label className="vendors-search">
+                <svg className="vendors-search-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.7" />
+                  <path d="M12.2 12.2 L15.25 15.25" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="search"
+                  placeholder="Search vendors"
+                  value={vendorSearch}
+                  onChange={(event) => {
+                    setVendorSearch(event.target.value)
+                    setVendorsExpanded(false)
+                  }}
+                  aria-label="Search vendors"
+                />
+                {vendorSearch ? (
+                  <button
+                    type="button"
+                    className="vendors-search-clear"
+                    aria-label="Clear search"
+                    onClick={() => {
+                      setVendorSearch('')
+                      setVendorsExpanded(false)
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </label>
+            ) : (
+              <p className="vendors-subtitle">Add a vendor with an invite code to get started</p>
+            )}
           </div>
-          <p className="vendors-subtitle">
-            {vendors.length === 0
-              ? 'Add a vendor by name to get started'
-              : 'Tap to view games & manage your Game IDs'}
-          </p>
 
           {vendors.length === 0 ? (
             <div className="vendors-empty">
               <p className="vendors-empty-title">No vendors yet</p>
-              <p className="vendors-empty-copy">Type a vendor name above and tap Go to add them.</p>
+              <p className="vendors-empty-copy">Enter an invite code above and tap Go.</p>
+            </div>
+          ) : searchedVendors.length === 0 ? (
+            <div className="vendors-empty vendors-empty--search">
+              <p className="vendors-empty-title">No matching vendors</p>
+              <p className="vendors-empty-copy">Try a different name.</p>
             </div>
           ) : (
             <>

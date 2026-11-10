@@ -16,6 +16,13 @@ import {
   watchTicketsAdComplete,
 } from '../lib/nitropay'
 import { TapstackTicketIcon } from './TapstackTicketIcon'
+import {
+  TIER_ORDER,
+  TIER_UNLOCK,
+  higherTicketTier,
+  nextTierProgress,
+  tierFromSpend,
+} from '../data/tiers'
 import './GiveawayPage.css'
 
 const CHIPS_PER_TICKET = 6
@@ -42,6 +49,7 @@ type DemoStore = {
   adsDay: string
   adsCount: number
   purchaseSpend: number
+  lifetimeSpend: number
 }
 
 function todayKey() {
@@ -57,6 +65,7 @@ function loadDemo(): DemoStore {
         parsed.adsDay = todayKey()
         parsed.adsCount = 0
       }
+      parsed.lifetimeSpend = Number(parsed.lifetimeSpend) || 0
       return parsed
     }
   } catch {
@@ -76,6 +85,7 @@ function loadDemo(): DemoStore {
     adsDay: todayKey(),
     adsCount: 0,
     purchaseSpend: 0,
+    lifetimeSpend: 0,
   }
 }
 
@@ -142,12 +152,48 @@ function normalizeHowItWorksTierLines(lines: string[], tier: TicketTier): string
   return [...kept, tierLine]
 }
 
+function fallbackTierRates(): NonNullable<GiveawayState['tierRates']> {
+  return (Object.keys(TIER_RATES) as TicketTier[]).map((tier) => {
+    const row = TIER_RATES[tier]
+    return {
+      id: tier,
+      label: row.label,
+      dollars: row.dollars,
+      tickets: row.tickets,
+      summary: `$${row.dollars} → ${row.tickets} ticket${row.tickets === 1 ? '' : 's'}`,
+      unlock: TIER_UNLOCK[tier],
+    }
+  })
+}
+
 function withClientTierRates(state: GiveawayState): GiveawayState {
+  const rates = state.tierRates?.length ? state.tierRates : fallbackTierRates()
+  const current = rates.find((row) => row.id === state.tier)
+  const rate = current
+    ? { dollars: current.dollars, tickets: current.tickets, summary: current.summary }
+    : clientTierRate(state.tier)
+  const toward = Number(state.purchaseSpendTowardNext) || 0
+  const lifetime = Number(state.lifetimeSpend) || 0
+  const progress =
+    state.nextTier !== undefined || state.tierProgressPct !== undefined
+      ? {
+          nextTier: state.nextTier ?? null,
+          nextTierLabel: state.nextTierLabel ?? null,
+          nextTierUnlock: Number(state.nextTierUnlock) || TIER_UNLOCK[state.tier],
+          spendTowardNextTier: Number(state.spendTowardNextTier) || 0,
+          spendNeededForNextTier: Number(state.spendNeededForNextTier) || 0,
+          tierProgressPct: Number(state.tierProgressPct) || 0,
+        }
+      : nextTierProgress(state.tier, lifetime)
   return {
     ...state,
     prize: normalizePrize(state.prize),
-    tierRate: clientTierRate(state.tier),
+    tierRate: rate,
+    purchaseSpendNeeded: Math.max(0, rate.dollars - toward),
     howItWorks: normalizeHowItWorksTierLines(state.howItWorks, state.tier),
+    tierRates: rates,
+    ...progress,
+    lifetimeSpend: lifetime,
   }
 }
 
@@ -198,6 +244,7 @@ function stateFromDemo(store: DemoStore): GiveawayState {
   const drawAtDate = endOfMonthDrawAt()
   const drawAt = drawAtDate.toISOString()
   const deadline = deadlineFromDrawAt(drawAtDate)
+  const progress = nextTierProgress(store.tier, store.lifetimeSpend || 0)
   return {
     chips: store.chips,
     chipsPerTicket: CHIPS_PER_TICKET,
@@ -212,6 +259,8 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     adsPerDay: ADS_PER_DAY,
     purchaseSpendTowardNext: store.purchaseSpend,
     purchaseSpendNeeded: Math.max(0, rate.dollars - store.purchaseSpend),
+    ...progress,
+    lifetimeSpend: store.lifetimeSpend || 0,
     title: 'MONTHLY MEGA DRAW',
     prize: MEGA_DRAW_PRIZE,
     drawDate: formatDrawDate(drawAtDate),
@@ -223,6 +272,9 @@ function stateFromDemo(store: DemoStore): GiveawayState {
       'Watch videos for free entry — each completed video fills 1 chip.',
       `${CHIPS_PER_TICKET} chips = 1 Tapstack Ticket with a random entry number.`,
       tierPurchaseHowItWorksLine(store.tier),
+      progress.nextTier
+        ? `Top up to upgrade: $${progress.spendNeededForNextTier.toFixed(0)} more unlocks ${progress.nextTierLabel}.`
+        : 'Platinum unlocked — best earn rate.',
     ],
   }
 }
@@ -546,6 +598,8 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
     const chipsBefore = state?.chips ?? 0
     try {
       const demo = loadDemo()
+      demo.lifetimeSpend = (demo.lifetimeSpend || 0) + amount
+      demo.tier = higherTicketTier(demo.tier, tierFromSpend(demo.lifetimeSpend))
       const rate = TIER_RATES[demo.tier]
       let chips = 0
       if (amount >= 25) chips += 1
@@ -849,7 +903,31 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
             {state.tierLabel} · {state.tierRate.summary}
           </p>
           <p className="tier-card-sub">
-            ${state.purchaseSpendTowardNext.toFixed(0)} toward next tier award · $
+            {state.nextTier
+              ? `$${Number(state.lifetimeSpend || 0).toFixed(0)} deposited · $${Number(
+                  state.spendNeededForNextTier || 0,
+                ).toFixed(0)} to ${state.nextTierLabel}`
+              : `$${Number(state.lifetimeSpend || 0).toFixed(0)} deposited · Platinum unlocked`}
+          </p>
+          <div
+            className="tier-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(100, Math.max(0, Number(state.tierProgressPct) || 0))}
+            aria-label={
+              state.nextTier
+                ? `Progress toward ${state.nextTierLabel}`
+                : 'Platinum tier complete'
+            }
+          >
+            <div
+              className="tier-progress-fill"
+              style={{ width: `${Math.min(100, Math.max(0, Number(state.tierProgressPct) || 0))}%` }}
+            />
+          </div>
+          <p className="tier-card-ticket-remain">
+            ${state.purchaseSpendTowardNext.toFixed(0)} toward your next ticket · $
             {state.purchaseSpendNeeded.toFixed(0)} to go
           </p>
           <button
@@ -862,17 +940,42 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
           </button>
           {tierHelpOpen ? (
             <ul className="tier-perk-list">
-              {(Object.keys(TIER_RATES) as TicketTier[]).map((tier) => {
-                const rate = TIER_RATES[tier]
-                return (
-                  <li key={tier} className={tier === state.tier ? 'is-current' : undefined}>
-                    <strong>{rate.label}</strong>
-                    <span>
-                      ${rate.dollars} → {rate.tickets} ticket{rate.tickets === 1 ? '' : 's'}
-                    </span>
-                  </li>
-                )
-              })}
+              {(state.tierRates && state.tierRates.length
+                ? state.tierRates
+                : TIER_ORDER.map((tier) => ({
+                    id: tier,
+                    label: TIER_RATES[tier].label,
+                    dollars: TIER_RATES[tier].dollars,
+                    tickets: TIER_RATES[tier].tickets,
+                    summary: `$${TIER_RATES[tier].dollars} → ${TIER_RATES[tier].tickets} ticket${
+                      TIER_RATES[tier].tickets === 1 ? '' : 's'
+                    }`,
+                    unlock: TIER_UNLOCK[tier],
+                  }))
+              ).map((rate) => (
+                <li
+                  key={rate.id}
+                  className={
+                    rate.id === state.tier
+                      ? 'is-current'
+                      : rate.unlocked ||
+                          TIER_ORDER.indexOf(rate.id) <= TIER_ORDER.indexOf(state.tier)
+                        ? 'is-unlocked'
+                        : undefined
+                  }
+                >
+                  <strong>
+                    {rate.label}
+                    {rate.id === state.tier ? ' · current' : ''}
+                  </strong>
+                  <span>
+                    {rate.summary}
+                    {typeof rate.unlock === 'number' && rate.unlock > 0
+                      ? ` · $${rate.unlock.toFixed(0)} deposited`
+                      : ' · start'}
+                  </span>
+                </li>
+              ))}
             </ul>
           ) : null}
         </div>

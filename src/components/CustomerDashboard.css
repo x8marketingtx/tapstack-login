@@ -731,13 +731,116 @@
   flex: 1;
 }
 
+.vendors-head {
+  margin: 0 0 12px;
+}
+
+.vendors-head-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.vendors-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: #111827;
+}
+
+.vendors-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 99px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.vendors-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 8px 0 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.vendors-search:focus-within {
+  border-color: #c4b5fd;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
+
+.vendors-search-icon {
+  flex: none;
+  color: #9ca3af;
+}
+
+.vendors-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 550;
+  color: #111827;
+  outline: none;
+}
+
+.vendors-search input::placeholder {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.vendors-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.vendors-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 99px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.vendors-subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
 .vendors-empty {
-  margin-top: 8px;
+  margin-top: 4px;
   padding: 28px 18px;
   border: 1px dashed #d1d5db;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.7);
   text-align: center;
+}
+
+.vendors-empty--search {
+  padding: 22px 18px;
 }
 
 .vendors-empty-title {
@@ -750,48 +853,6 @@
 .vendors-empty-copy {
   margin: 0;
   font-size: 13px;
-  color: #6b7280;
-}
-
-.vendors-section {
-  flex: 1;
-}
-
-.vendors-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #111827;
-}
-
-.vendors-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 4px;
-}
-
-.vendors-title-search {
-  flex: 1;
-  min-width: 0;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fff;
-  font-size: 13px;
-  color: #111827;
-}
-
-.vendors-title-search:focus {
-  outline: none;
-  border-color: #c4b5fd;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
-}
-
-.vendors-subtitle {
-  margin: 0 0 12px;
-  font-size: 12px;
   color: #6b7280;
 }
 

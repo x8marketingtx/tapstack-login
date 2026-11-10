@@ -50,6 +50,16 @@ export type VendorInvoice = PublicInvoice & {
   wallet?: { balance: number; formatted: string; currency: string }
   canPay?: boolean
   shortfall?: number
+  walletCovered?: number
+  cardDue?: number
+  payRail?: string
+  walletPaid?: number
+  cardPaid?: number
+  claimNote?: string
+  claimSlipId?: number
+  claimSlipUrl?: string
+  claimAt?: string
+  claimRejected?: string
 }
 
 export type WalletTxn = {
@@ -220,6 +230,22 @@ export type GiveawayState = {
   tier: TicketTier
   tierLabel: string
   tierRate: { dollars: number; tickets: number; summary: string }
+  tierRates?: Array<{
+    id: TicketTier
+    label: string
+    dollars: number
+    tickets: number
+    summary: string
+    unlock?: number
+    unlocked?: boolean
+  }>
+  nextTier?: TicketTier | null
+  nextTierLabel?: string | null
+  lifetimeSpend?: number
+  nextTierUnlock?: number
+  spendTowardNextTier?: number
+  spendNeededForNextTier?: number
+  tierProgressPct?: number
   adsWatchedToday: number
   adsRemainingToday: number
   adsPerDay: number
@@ -1432,11 +1458,43 @@ export const tapstackApi = {
     apiRequest<{ invoices: VendorInvoice[]; pending: VendorInvoice[] }>('/vendor/invoices'),
   vendorInvoice: (token: string) =>
     apiRequest<VendorInvoice>(`/vendor/invoices/${encodeURIComponent(token)}`),
-  vendorPayInvoice: (token: string) =>
+  vendorPayInvoice: (token: string, method: 'wallet' | 'paysio' = 'wallet') =>
     apiRequest<{ ok: boolean; paid: boolean; invoice: VendorInvoice }>(
       `/vendor/invoices/${encodeURIComponent(token)}/pay`,
-      { method: 'POST', body: {} },
+      { method: 'POST', body: { method } },
     ),
+  vendorClaimInvoice: async (token: string, payload: { note: string; file: File; agreed: boolean }) => {
+    const base = getApiBase()
+    const auth = getToken()
+    const body = new FormData()
+    body.append('note', payload.note)
+    body.append('file', payload.file)
+    body.append('agreed', payload.agreed ? '1' : '0')
+    const qs =
+      auth && !auth.startsWith('demo:')
+        ? `?access_token=${encodeURIComponent(auth)}`
+        : ''
+    const res = await fetch(`${base}/vendor/invoices/${encodeURIComponent(token)}/claim${qs}`, {
+      method: 'POST',
+      headers: auth
+        ? {
+            Authorization: `Bearer ${auth}`,
+            'X-TapStack-Token': auth,
+            Accept: 'application/json',
+          }
+        : { Accept: 'application/json' },
+      body,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new ApiError(
+        (data as { message?: string }).message || `Claim failed (${res.status})`,
+        res.status,
+        (data as { code?: string }).code,
+      )
+    }
+    return absolutizeMediaTree(data) as { ok: boolean; paid: boolean; invoice: VendorInvoice }
+  },
   vendorWallet: () =>
     apiRequest<{
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
@@ -2518,6 +2576,9 @@ export const tapstackApi = {
         payUrl?: string
         qrUrl?: string
         paidAt?: string
+        payRail?: string
+        claimNote?: string
+        claimSlipUrl?: string
       }>
     }>('/distributor/invoices'),
   distributorInvoice: (id: string) =>
@@ -2538,7 +2599,22 @@ export const tapstackApi = {
       payUrl?: string
       qrUrl?: string
       paidAt?: string
+      payRail?: string
+      claimNote?: string
+      claimSlipUrl?: string
+      walletPaid?: number
+      cardPaid?: number
     }>(`/distributor/invoices/${encodeURIComponent(id)}`),
+  distributorConfirmInvoice: (id: string) =>
+    apiRequest<{ ok: boolean; invoice: VendorInvoice }>(
+      `/distributor/invoices/${encodeURIComponent(id)}/confirm`,
+      { method: 'POST', body: {} },
+    ),
+  distributorRejectInvoice: (id: string, reason?: string) =>
+    apiRequest<{ ok: boolean; invoice: VendorInvoice }>(
+      `/distributor/invoices/${encodeURIComponent(id)}/reject`,
+      { method: 'POST', body: { reason: reason || '' } },
+    ),
   distributorResendInvoice: (id: string) =>
     apiRequest<{
       ok: boolean

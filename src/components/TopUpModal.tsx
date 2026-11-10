@@ -5,7 +5,6 @@ import { fetchPaymentsConfig, type CardProcessor } from '../api/payments'
 import {
   chargePaysioPayment,
   chargeSavedPaysioCard,
-  formatSavedCard,
   listPaysioMethods,
   mountPaysioCardForm,
   mountPaysioWallets,
@@ -14,6 +13,7 @@ import {
 } from '../api/paysio'
 import type { SavedPaymentMethod } from '../api/client'
 import { openWertTopUp, type TopUpOwnerType } from '../api/wert'
+import SavedCardSelect from './SavedCardSelect'
 import TopUpPresetGrid from './TopUpPresetGrid'
 import './TopUpModal.css'
 
@@ -24,6 +24,14 @@ type TopUpModalProps = {
   title?: string
   presets?: number[]
   initialAmount?: number
+  lockAmount?: boolean
+  startOnPay?: boolean
+  hideCrypto?: boolean
+  purpose?: 'topup' | 'invoice'
+  invoiceToken?: string
+  invoiceMix?: boolean
+  submitLabel?: string
+  copy?: string
   onSuccess?: (wallet?: { balance: number; points: number; currency: string }) => void
   onVerifyRequired?: () => void
 }
@@ -43,6 +51,14 @@ export default function TopUpModal({
   ownerType = 'player',
   title = 'Top up wallet',
   initialAmount = 0,
+  lockAmount = false,
+  startOnPay = false,
+  hideCrypto = false,
+  purpose = 'topup',
+  invoiceToken,
+  invoiceMix = false,
+  submitLabel,
+  copy,
   onSuccess,
   onVerifyRequired,
 }: TopUpModalProps) {
@@ -80,12 +96,16 @@ export default function TopUpModal({
 
   useEffect(() => {
     if (!open) return
-    setAmount(initialAmount > 0 ? String(Math.ceil(initialAmount)) : '0')
+    setAmount(
+      initialAmount > 0
+        ? String(lockAmount ? Math.round(initialAmount * 100) / 100 : Math.ceil(initialAmount))
+        : '0',
+    )
     setPostalCode('')
     setError('')
     setStatus('')
     setLoading(false)
-    setStep('amount')
+    setStep(startOnPay && processor === 'paysio' ? 'pay' : 'amount')
     setCardReady(false)
     setCardComplete(false)
     setSavedCards([])
@@ -95,9 +115,10 @@ export default function TopUpModal({
       .then((config) => {
         setProcessor(config.processor)
         setPublishableKey(config.paysio.publishableKey || '')
+        if (startOnPay && config.processor === 'paysio') setStep('pay')
       })
       .catch(() => setProcessor('wert'))
-  }, [open, initialAmount])
+  }, [open, initialAmount, lockAmount, startOnPay])
 
   const numericAmount = Number(amount)
   amountRef.current = Number.isFinite(numericAmount) ? numericAmount : 0
@@ -296,6 +317,9 @@ export default function TopUpModal({
               ownerType,
               postalCode: postalCode.trim() || undefined,
               threeDsTarget: '#paysio-threeds',
+              purpose,
+              invoiceToken,
+              invoiceMix,
             })
           : await tokenizeAndChargeCard({
               publishableKey,
@@ -303,8 +327,11 @@ export default function TopUpModal({
               ownerType,
               postalCode: postalCode.trim() || undefined,
               threeDsTarget: '#paysio-threeds',
+              purpose,
+              invoiceToken,
+              invoiceMix,
             })
-        setStatus('Payment successful. Balance updated.')
+        setStatus(purpose === 'invoice' ? 'Invoice paid.' : 'Payment successful. Balance updated.')
         setLoading(false)
         onSuccess?.(result.wallet)
         window.setTimeout(() => {
@@ -392,7 +419,7 @@ export default function TopUpModal({
       >
         <span className="topup-handle" aria-hidden="true" />
         <div className="topup-header">
-          {processor === 'paysio' && step === 'pay' ? (
+          {processor === 'paysio' && step === 'pay' && !startOnPay ? (
             <button
               type="button"
               className="topup-back"
@@ -416,7 +443,7 @@ export default function TopUpModal({
           </button>
         </div>
 
-        {ownerType === 'vendor' ? (
+        {ownerType === 'vendor' && !hideCrypto ? (
           <div className="topup-methods" role="tablist" aria-label="Top up method">
             <button
               type="button"
@@ -454,13 +481,12 @@ export default function TopUpModal({
           </div>
         ) : (
           <>
-            {step === 'amount' ? (
-              <p className="topup-copy">Added to your Portfolio Balance</p>
-            ) : (
-              <p className="topup-copy">Apple Pay, Google Pay, or card</p>
-            )}
+            <p className="topup-copy">
+              {copy ||
+                (step === 'amount' ? 'Added to your Portfolio Balance' : 'Apple Pay, Google Pay, or card')}
+            </p>
 
-            {step === 'amount' ? <TopUpPresetGrid onAdd={addPreset} /> : null}
+            {step === 'amount' && !lockAmount ? <TopUpPresetGrid onAdd={addPreset} /> : null}
 
             <form className="topup-form" onSubmit={handleSubmit}>
               {step === 'amount' ? (
@@ -478,7 +504,7 @@ export default function TopUpModal({
                 </div>
               ) : (
                 <div className="topup-pay-chip">
-                  Paying ${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}
+                  Paying ${Number.isFinite(numericAmount) ? numericAmount.toFixed(lockAmount ? 2 : 0) : '—'}
                 </div>
               )}
 
@@ -486,36 +512,18 @@ export default function TopUpModal({
                 <>
                   <div ref={walletsRef} id="paysio-wallets" className="topup-wallets" />
                   <p className="topup-or">or card</p>
-                  {savedCards.length > 0 ? (
-                    <div className="topup-saved" role="radiogroup" aria-label="Saved cards">
-                      {savedCards.map((card) => (
-                        <button
-                          key={card.id}
-                          type="button"
-                          className={`topup-saved-card ${cardChoice === card.id ? 'is-active' : ''}`}
-                          onClick={() => {
-                            setCardChoice(card.id)
-                            setError('')
-                          }}
-                        >
-                          <span className="topup-saved-brand">{formatSavedCard(card)}</span>
-                          {card.isDefault ? <span className="topup-saved-meta">Default</span> : null}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className={`topup-saved-card ${cardChoice === 'new' ? 'is-active' : ''}`}
-                        onClick={() => {
-                          setCardChoice('new')
-                          setCardReady(false)
-                          setCardComplete(false)
-                          setError('')
-                        }}
-                      >
-                        <span className="topup-saved-brand">Use a new card</span>
-                      </button>
-                    </div>
-                  ) : null}
+                  <SavedCardSelect
+                    cards={savedCards}
+                    value={cardChoice}
+                    onChange={(next) => {
+                      setCardChoice(next)
+                      setError('')
+                      if (next === 'new') {
+                        setCardReady(false)
+                        setCardComplete(false)
+                      }
+                    }}
+                  />
                   {cardChoice === 'new' ? (
                     <div className="topup-card-panel">
                       <label className="topup-label" htmlFor="paysio-card-number">
@@ -574,7 +582,8 @@ export default function TopUpModal({
                   ? processor === 'paysio'
                     ? 'Confirming payment…'
                     : 'Processing payment…'
-                  : `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
+                  : submitLabel ||
+                    `Pay $${Number.isFinite(numericAmount) ? numericAmount.toFixed(lockAmount ? 2 : 0) : '—'}`}
               </button>
             </form>
           </>

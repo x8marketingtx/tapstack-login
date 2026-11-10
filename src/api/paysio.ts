@@ -170,13 +170,6 @@ export async function waitForPaysioCredit(
   throw new Error('Payment is confirming. Portfolio updates after the success webhook.')
 }
 
-export function formatSavedCard(method: SavedPaymentMethod): string {
-  const brand = method.brand ? method.brand.replace(/_/g, ' ') : 'Card'
-  const last = method.last4 ? `ending ${method.last4}` : 'on file'
-  const exp = method.exp ? ` · ${method.exp}` : ''
-  return `${brand} ${last}${exp}`
-}
-
 export async function listPaysioMethods(
   purpose: 'topup' | 'withdraw' | 'all' = 'topup',
 ): Promise<SavedPaymentMethod[]> {
@@ -195,6 +188,9 @@ export async function chargePaysioPayment(payload: {
   wallet?: Record<string, unknown>
   threeDs?: Record<string, unknown>
   postalCode?: string
+  purpose?: 'topup' | 'invoice'
+  invoiceToken?: string
+  invoiceMix?: boolean
 }): Promise<PaysioChargeResponse> {
   const charged = await apiRequest<PaysioChargeResponse>('/payments/paysio/charge', {
     method: 'POST',
@@ -314,6 +310,9 @@ export async function tokenizeAndChargeCard(opts: {
   email?: string
   postalCode?: string
   threeDsTarget?: string
+  purpose?: 'topup' | 'invoice'
+  invoiceToken?: string
+  invoiceMix?: boolean
 }): Promise<PaysioChargeResponse> {
   const paysio = await getPaysio(opts.publishableKey)
   const { token } = await paysio.createToken()
@@ -334,6 +333,9 @@ export async function tokenizeAndChargeCard(opts: {
     paymentToken: token,
     threeDs,
     postalCode: opts.postalCode,
+    purpose: opts.purpose,
+    invoiceToken: opts.invoiceToken,
+    invoiceMix: opts.invoiceMix,
   })
 }
 
@@ -345,6 +347,9 @@ export async function chargeSavedPaysioCard(opts: {
   email?: string
   postalCode?: string
   threeDsTarget?: string
+  purpose?: 'topup' | 'invoice'
+  invoiceToken?: string
+  invoiceMix?: boolean
 }): Promise<PaysioChargeResponse> {
   const paysio = await getPaysio(opts.publishableKey)
   let threeDs: Record<string, unknown> | undefined
@@ -364,6 +369,9 @@ export async function chargeSavedPaysioCard(opts: {
     paymentMethodId: opts.paymentMethodId,
     threeDs,
     postalCode: opts.postalCode,
+    purpose: opts.purpose,
+    invoiceToken: opts.invoiceToken,
+    invoiceMix: opts.invoiceMix,
   })
 }
 

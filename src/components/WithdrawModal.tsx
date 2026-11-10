@@ -9,9 +9,10 @@ import {
   type SavedPaymentMethod,
 } from '../api/client'
 import { fetchPaymentsConfig } from '../api/payments'
-import { formatSavedCard, mountPaysioCardForm, tokenizePaysioCard } from '../api/paysio'
+import { mountPaysioCardForm, tokenizePaysioCard } from '../api/paysio'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { parseTapstackCash } from '../lib/pointsRedeem'
+import SavedCardSelect from './SavedCardSelect'
 import TopUpPresetGrid from './TopUpPresetGrid'
 import './TopUpModal.css'
 
@@ -558,35 +559,20 @@ export default function WithdrawModal({
 
                   {method === 'card' ? (
                     <>
-                      {savedCards.length > 0 ? (
-                        <div className="topup-saved" role="radiogroup" aria-label="Saved cards">
-                          {savedCards.map((card) => (
-                            <button
-                              key={card.id}
-                              type="button"
-                              className={`topup-saved-card ${cardChoice === card.id ? 'is-active' : ''}`}
-                              onClick={() => {
-                                setCardChoice(card.id)
-                                setError('')
-                              }}
-                            >
-                              <span className="topup-saved-brand">{formatSavedCard(card)}</span>
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            className={`topup-saved-card ${cardChoice === 'new' ? 'is-active' : ''}`}
-                            onClick={() => {
-                              setCardChoice('new')
-                              setCardReady(false)
-                              setCardComplete(false)
-                              setError('')
-                            }}
-                          >
-                            <span className="topup-saved-brand">Use a new card</span>
-                          </button>
-                        </div>
-                      ) : null}
+                      <SavedCardSelect
+                        cards={savedCards}
+                        value={cardChoice}
+                        label="Payout to"
+                        newCardLabel="Use a new card"
+                        onChange={(next) => {
+                          setCardChoice(next)
+                          setError('')
+                          if (next === 'new') {
+                            setCardReady(false)
+                            setCardComplete(false)
+                          }
+                        }}
+                      />
                       {cardChoice === 'new' ? (
                         <div className="topup-card-panel">
                           <label className="topup-label" htmlFor="withdraw-card-number">

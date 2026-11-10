@@ -42,7 +42,7 @@ type EarningsRange = 'today' | '7d' | '30d' | 'custom'
 type AnalyticsRange = '7d' | '30d' | '90d' | 'custom'
 type SettingsSub = 'profile' | 'alerts' | 'security'
 type AnalyticsSub = 'overview' | 'byVendor' | 'byAffiliate'
-type InvoiceFilter = 'all' | 'draft' | 'sent' | 'paid' | 'overdue'
+type InvoiceFilter = 'all' | 'draft' | 'sent' | 'paid' | 'overdue' | 'review'
 
 type AffiliateRow = NonNullable<NonNullable<AnalyticsData>['byAffiliate']>[number]
 
@@ -1848,6 +1848,48 @@ function InvoicesView({
     }
   }
 
+  async function confirmOpened() {
+    if (!opened) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await tapstackApi.distributorConfirmInvoice(opened.id)
+      setOpened((current) =>
+        current
+          ? { ...current, status: result.invoice.status || 'paid', paidAt: result.invoice.paidAt || current.paidAt }
+          : current,
+      )
+      setNotice('Payment confirmed. Invoice marked paid.')
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not confirm payment.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function rejectOpened() {
+    if (!opened) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await tapstackApi.distributorRejectInvoice(opened.id)
+      setOpened((current) =>
+        current
+          ? { ...current, status: result.invoice.status || 'sent' }
+          : current,
+      )
+      setNotice('Payment proof rejected. The vendor can pay again.')
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reject payment.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function copyPayLink() {
     const url = opened?.payUrl
     if (!url) return
@@ -1925,6 +1967,36 @@ function InvoicesView({
             <a className="dist-invoice-pdf" href={opened.pdfUrl} target="_blank" rel="noreferrer">
               View PDF
             </a>
+          ) : null}
+
+          {opened.status === 'review' ? (
+            <div className="dist-invoice-claim">
+              <p className="dist-invoice-label">Vendor payment proof</p>
+              {opened.claimNote ? <p className="dist-invoice-subject">{opened.claimNote}</p> : null}
+              {opened.claimSlipUrl ? (
+                <a className="dist-invoice-pdf" href={opened.claimSlipUrl} target="_blank" rel="noreferrer">
+                  Open screenshot / slip
+                </a>
+              ) : null}
+              <div className="dist-invoice-actions">
+                <button
+                  type="button"
+                  className="dist-btn dist-btn--primary"
+                  disabled={busy}
+                  onClick={() => void confirmOpened()}
+                >
+                  {busy ? 'Saving…' : 'Confirm paid'}
+                </button>
+                <button
+                  type="button"
+                  className="dist-btn dist-btn--ghost"
+                  disabled={busy}
+                  onClick={() => void rejectOpened()}
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
           ) : null}
 
           {error ? <p className="dist-invoice-error">{error}</p> : null}
@@ -2075,7 +2147,7 @@ function InvoicesView({
       {!opened ? (
       <>
       <div className="dist-seg">
-        {(['all', 'draft', 'sent', 'paid', 'overdue'] as InvoiceFilter[]).map((f) => (
+        {(['all', 'draft', 'sent', 'review', 'paid', 'overdue'] as InvoiceFilter[]).map((f) => (
           <button
             key={f}
             type="button"

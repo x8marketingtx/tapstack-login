@@ -1,0 +1,165 @@
+.card-select {
+  position: relative;
+  margin: 0 0 12px;
+}
+
+.card-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.card-select-trigger:hover,
+.card-select-trigger.is-open {
+  border-color: #059669;
+}
+
+.card-select-trigger.is-open {
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+}
+
+.card-select-brand {
+  flex: none;
+  min-width: 44px;
+  padding: 6px 7px;
+  border-radius: 7px;
+  background: #111827;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.card-select-brand.is-visa {
+  background: #1a1f71;
+}
+
+.card-select-brand.is-mastercard {
+  background: #1f1f1f;
+}
+
+.card-select-brand.is-amex {
+  background: #006fcf;
+}
+
+.card-select-brand.is-discover {
+  background: #ff6000;
+}
+
+.card-select-brand.is-new {
+  background: #059669;
+}
+
+.card-select-num {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 750;
+  color: #111827;
+  letter-spacing: 0.04em;
+}
+
+.card-select-exp {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.card-select-chevron {
+  flex: none;
+  margin-left: 4px;
+  color: #9ca3af;
+}
+
+.card-select-trigger.is-open .card-select-chevron {
+  transform: rotate(180deg);
+}
+
+.card-select-menu {
+  z-index: 2;
+  max-height: 220px;
+  margin: 8px 0 0;
+  padding: 6px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+}
+
+.card-select-menu li {
+  margin: 0;
+}
+
+.card-select-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card-select-menu button:hover,
+.card-select-menu button.is-active {
+  background: #ecfdf5;
+}
+
+.card-select-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-select-copy strong {
+  font-size: 14px;
+  font-weight: 750;
+  color: #111827;
+  letter-spacing: 0.04em;
+}
+
+.card-select-copy small {
+  font-size: 11px;
+  font-weight: 650;
+  color: #6b7280;
+}
+
+.card-select-check {
+  color: #059669;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.card-select-menu li:last-child {
+  position: sticky;
+  bottom: 0;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f3f4f6;
+  background: #fff;
+}
+
+.card-select-add {
+  justify-content: center;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 750;
+}

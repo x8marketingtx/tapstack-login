@@ -563,6 +563,28 @@
   color: #374151;
 }
 
+.tier-progress {
+  margin: 10px 0 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.tier-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7c3aed, #2563eb);
+  transition: width 0.35s ease;
+}
+
+.tier-card-ticket-remain {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
 .tier-demo-tools {
   display: flex;
   flex-wrap: wrap;
@@ -865,6 +887,10 @@
 
 .tier-perk-list li.is-current {
   outline: 1px solid #7c3aed;
+  color: #111827;
+}
+
+.tier-perk-list li.is-unlocked {
   color: #111827;
 }
 

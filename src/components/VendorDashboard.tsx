@@ -274,6 +274,34 @@ type VendorHomeStats = {
   customersNewWeek: number
 }
 
+function CopyGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function CheckGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 13.5 9.5 18 19 7"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function VendorHome({
   walletBalance,
   storeName,
@@ -307,18 +335,34 @@ function VendorHome({
 }) {
   const [txPage, setTxPage] = useState(1)
   const pagedTx = pageItems(recentTx, txPage)
-  const [copied, setCopied] = useState<'code' | 'link' | ''>('')
+  const [copied, setCopied] = useState<'code' | 'link' | 'affiliate' | ''>('')
   const [codeDraft, setCodeDraft] = useState(inviteCode)
   const [codeBusy, setCodeBusy] = useState(false)
   const [codeError, setCodeError] = useState('')
+  const [shareOpen, setShareOpen] = useState(false)
   const checkout = directCheckoutLink(inviteCode)
+  const affiliateLink = extras?.signupLinkDisplay || extras?.signupLink || ''
 
   useEffect(() => {
     setCodeDraft(inviteCode)
   }, [inviteCode])
 
-  async function handleCopy(kind: 'code' | 'link') {
-    const value = kind === 'link' ? checkout.url : codeDraft || inviteCode
+  useEffect(() => {
+    if (!shareOpen) return
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setShareOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [shareOpen])
+
+  async function handleCopy(kind: 'code' | 'link' | 'affiliate') {
+    const value =
+      kind === 'link'
+        ? checkout.url
+        : kind === 'affiliate'
+          ? extras?.signupLink || affiliateLink
+          : codeDraft || inviteCode
     if (!value) return
     try {
       await navigator.clipboard.writeText(value)
@@ -357,7 +401,9 @@ function VendorHome({
                 ? 'You have a pending invoice'
                 : `You have ${extras.pendingInvoiceCount} pending invoices`}
             </p>
-            <p className="vendor-invoice-notice-copy">Pay from your vendor balance, or top up first if you are short.</p>
+            <p className="vendor-invoice-notice-copy">
+              Pay from TapStack balance, by card, or send Venmo/PayPal proof.
+            </p>
           </div>
           <button type="button" className="vendor-invoice-notice-btn" onClick={onOpenInvoices}>
             View
@@ -396,9 +442,22 @@ function VendorHome({
               ) : null}
             </span>
             {inviteCode ? (
-              <span className="vendor-store-invite-hint">Players join with your vendor code</span>
+              <span className="vendor-store-invite-hint">Players join with {inviteCode}</span>
             ) : null}
           </div>
+        </button>
+        <button
+          type="button"
+          className="vendor-share-btn"
+          aria-label="Share vendor code and links"
+          onClick={() => setShareOpen(true)}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="18" cy="5" r="3" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="6" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="18" cy="19" r="3" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M8.7 10.7 15.3 6.3M8.7 13.3l6.6 4.4" stroke="currentColor" strokeWidth="1.8" />
+          </svg>
         </button>
       </section>
 
@@ -418,43 +477,124 @@ function VendorHome({
         </section>
       ) : null}
 
-      <section className="vendor-invite-card vendor-invite-card--editable">
-        <div className="vendor-invite-copy">
-          <p className="vendor-invite-label">VENDOR CODE</p>
-          <div className="vendor-invite-edit-row">
-            <input
-              className="vendor-invite-input"
-              value={codeDraft}
-              maxLength={16}
-              spellCheck={false}
-              onChange={(event) => setCodeDraft(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-              aria-label="Vendor code"
-            />
-            <button
-              type="button"
-              className="vendor-invite-btn"
-              disabled={codeBusy || codeDraft.length < 4 || codeDraft === inviteCode}
-              onClick={() => void handleSaveCode()}
-            >
-              {codeBusy ? 'Saving' : 'Save'}
-            </button>
-            <button type="button" className="vendor-invite-btn" onClick={() => void handleCopy('code')}>
-              {copied === 'code' ? 'Copied' : 'Copy'}
-            </button>
-          </div>
-          {codeError ? <p className="vendor-invite-error">{codeError}</p> : null}
-          <p className="vendor-invite-hint">Must be unique — another vendor cannot use the same code.</p>
-          {inviteCode ? (
-            <>
-              <p className="vendor-invite-label vendor-invite-label--sub">DIRECT CHECKOUT LINK</p>
-              <p className="vendor-invite-code vendor-invite-code--link">{checkout.display}</p>
-              <button type="button" className="vendor-invite-btn vendor-invite-btn--link" onClick={() => void handleCopy('link')}>
-                {copied === 'link' ? 'Copied' : 'Copy link'}
+      {shareOpen ? (
+        <div
+          className="vendor-share-overlay"
+          role="presentation"
+          onClick={() => setShareOpen(false)}
+        >
+          <div
+            className="vendor-share-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vendor-share-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="vendor-share-head">
+              <div>
+                <p className="vendor-share-kicker">Share your store</p>
+                <h2 id="vendor-share-title" className="vendor-share-title">
+                  Code & links
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="vendor-share-close"
+                aria-label="Close"
+                onClick={() => setShareOpen(false)}
+              >
+                ×
               </button>
-            </>
-          ) : null}
+            </div>
+            <section className="vendor-invite-card" aria-label="Vendor code">
+              <div className="vendor-invite-row">
+                <label className="vendor-invite-kicker" htmlFor="vendor-code-input">
+                  Code
+                </label>
+                <input
+                  id="vendor-code-input"
+                  className="vendor-invite-input"
+                  value={codeDraft}
+                  maxLength={16}
+                  spellCheck={false}
+                  onChange={(event) => setCodeDraft(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void handleSaveCode()
+                    }
+                  }}
+                  aria-label="Vendor code"
+                />
+                {codeDraft !== inviteCode ? (
+                  <button
+                    type="button"
+                    className="vendor-invite-save"
+                    disabled={codeBusy || codeDraft.length < 4}
+                    onClick={() => void handleSaveCode()}
+                  >
+                    {codeBusy ? '…' : 'Save'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="vendor-invite-icon"
+                  aria-label={copied === 'code' ? 'Vendor code copied' : 'Copy vendor code'}
+                  onClick={() => void handleCopy('code')}
+                >
+                  {copied === 'code' ? <CheckGlyph /> : <CopyGlyph />}
+                </button>
+              </div>
+              {inviteCode ? (
+                <div className="vendor-invite-row">
+                  <span className="vendor-invite-kicker">Link</span>
+                  <button
+                    type="button"
+                    className="vendor-invite-url"
+                    title={checkout.url}
+                    onClick={() => void handleCopy('link')}
+                  >
+                    {checkout.display}
+                  </button>
+                  <button
+                    type="button"
+                    className="vendor-invite-icon"
+                    aria-label={copied === 'link' ? 'Checkout link copied' : 'Copy checkout link'}
+                    onClick={() => void handleCopy('link')}
+                  >
+                    {copied === 'link' ? <CheckGlyph /> : <CopyGlyph />}
+                  </button>
+                </div>
+              ) : null}
+              {affiliateLink ? (
+                <div className="vendor-invite-row">
+                  <span className="vendor-invite-kicker">Join</span>
+                  <button
+                    type="button"
+                    className="vendor-invite-url"
+                    title={extras?.signupLink || affiliateLink}
+                    onClick={() => void handleCopy('affiliate')}
+                  >
+                    {affiliateLink.replace(/^https?:\/\//i, '')}
+                  </button>
+                  <button
+                    type="button"
+                    className="vendor-invite-icon"
+                    aria-label={copied === 'affiliate' ? 'Affiliate link copied' : 'Copy affiliate link'}
+                    onClick={() => void handleCopy('affiliate')}
+                  >
+                    {copied === 'affiliate' ? <CheckGlyph /> : <CopyGlyph />}
+                  </button>
+                </div>
+              ) : null}
+              {codeError ? <p className="vendor-invite-error">{codeError}</p> : null}
+              {codeDraft !== inviteCode && !codeError ? (
+                <p className="vendor-invite-hint">4–16 letters or numbers. Must be unique.</p>
+              ) : null}
+            </section>
+          </div>
         </div>
-      </section>
+      ) : null}
 
       <section className="vendor-wallet-card">
         <div className="vendor-wallet-top">

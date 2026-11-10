@@ -328,6 +328,7 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
   const [openaiKey, setOpenaiKey] = useState('')
   const [openaiBusy, setOpenaiBusy] = useState(false)
   const [openaiMsg, setOpenaiMsg] = useState('')
+  const [proActive, setProActive] = useState(() => Boolean(vendorMembershipCache?.active))
 
   const accentColors = [
     { id: 'purple', value: '#7c3aed' },
@@ -408,6 +409,12 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         setBannerName(p.bannerName || '')
         setBannerRemoved(false)
         setOpenaiConnected(Boolean(p.openaiConnected))
+
+        const membership = settingsRes?.membership || dashRes?.store?.membership || vendorMembershipCache
+        if (membership) {
+          rememberVendorMembership(membership)
+          setProActive(Boolean(membership.active))
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -620,7 +627,7 @@ function ProfileTab({ onGoBilling }: { onGoBilling?: () => void }) {
         </div>
       </div>
 
-      {onGoBilling ? (
+      {onGoBilling && !proActive ? (
         <section className="vendor-settings-go-pro-block" aria-label="TapStack Pro">
           <button type="button" className="vendor-settings-go-pro-banner" onClick={onGoBilling}>
             <span>
