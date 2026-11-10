@@ -92,10 +92,21 @@ export type PayoutProfile = {
   missing: PayoutMissingField[]
 }
 
+export type SavedPaymentMethod = {
+  id: string
+  type: 'card' | 'bank'
+  brand?: string
+  last4?: string
+  exp?: string
+  payoutEligible?: boolean
+  isDefault?: boolean
+}
+
 export type WithdrawPayoutInput = {
   amount: number
   method: 'card' | 'ach'
   paymentToken?: string
+  paymentMethodId?: string
   cardLastFour?: string
   routingNumber?: string
   accountNumber?: string
@@ -1257,7 +1268,12 @@ export const tapstackApi = {
       nftsTotal?: number
       openPayouts?: PayoutClaim[]
       payoutProfile?: PayoutProfile
+      paymentMethods?: SavedPaymentMethod[]
     }>('/customer/wallet'),
+  customerPaymentMethods: (purpose: 'topup' | 'withdraw' | 'all' = 'all') =>
+    apiRequest<{ methods: SavedPaymentMethod[] }>(
+      `/customer/payment-methods?purpose=${encodeURIComponent(purpose)}`,
+    ),
   customerWalletWithdraw: (input: WithdrawPayoutInput) =>
     apiRequest<{
       ok: boolean

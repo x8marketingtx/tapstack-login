@@ -6,9 +6,10 @@ import {
   tapstackApi,
   type PayoutClaim,
   type PayoutMissingField,
+  type SavedPaymentMethod,
 } from '../api/client'
 import { fetchPaymentsConfig } from '../api/payments'
-import { mountPaysioCardForm, tokenizePaysioCard } from '../api/paysio'
+import { formatSavedCard, mountPaysioCardForm, tokenizePaysioCard } from '../api/paysio'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { parseTapstackCash } from '../lib/pointsRedeem'
 import TopUpPresetGrid from './TopUpPresetGrid'
@@ -129,6 +130,8 @@ export default function WithdrawModal({
   const [publishableKey, setPublishableKey] = useState('')
   const [cardReady, setCardReady] = useState(false)
   const [cardComplete, setCardComplete] = useState(false)
+  const [savedCards, setSavedCards] = useState<SavedPaymentMethod[]>([])
+  const [cardChoice, setCardChoice] = useState<'new' | string>('new')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
@@ -146,6 +149,8 @@ export default function WithdrawModal({
     setAccountType('checking')
     setCardReady(false)
     setCardComplete(false)
+    setSavedCards([])
+    setCardChoice('new')
     setError('')
     setStatus('')
     setPayout(null)
@@ -164,11 +169,24 @@ export default function WithdrawModal({
           if (Array.isArray(next)) setMissing(next)
         })
         .catch(() => undefined)
+      void tapstackApi
+        .customerPaymentMethods('withdraw')
+        .then((res) => {
+          const methods = Array.isArray(res.methods) ? res.methods : []
+          setSavedCards(methods)
+          if (methods[0]?.id) setCardChoice(methods[0].id)
+        })
+        .catch(() => undefined)
     }
   }, [open])
 
   useEffect(() => {
     if (!open || step !== 'details' || method !== 'card' || !publishableKey) return
+    if (cardChoice !== 'new') {
+      setCardReady(true)
+      setCardComplete(true)
+      return
+    }
     let cancelled = false
     let unmount: (() => void) | null = null
     setCardReady(false)
@@ -204,7 +222,7 @@ export default function WithdrawModal({
       cancelled = true
       unmount?.()
     }
-  }, [open, step, method, publishableKey])
+  }, [open, step, method, publishableKey, cardChoice])
 
   useEffect(() => {
     if (!open || !payout?.id || !payout.open) return
@@ -235,9 +253,10 @@ export default function WithdrawModal({
   const numericAmount = Number(amount)
   const amountOk =
     Number.isFinite(numericAmount) && numericAmount >= 1 && numericAmount <= available + 0.00001
+  const usingSavedCard = method === 'card' && cardChoice !== 'new'
   const destinationOk =
     method === 'card'
-      ? cardComplete
+      ? usingSavedCard || cardComplete
       : digitsOnly(routingNumber).length === 9 && digitsOnly(accountNumber).length >= 4
   const canContinue = amountOk && !loading
   const profileReady = missing.every((field) => profileValueOk(field.key, profilePatch[field.key] || ''))
@@ -246,7 +265,7 @@ export default function WithdrawModal({
     destinationOk &&
     profileReady &&
     !loading &&
-    (method === 'ach' || Boolean(publishableKey))
+    (method === 'ach' || usingSavedCard || Boolean(publishableKey))
   const done = Boolean(payout)
 
   function addPreset(value: number) {
@@ -289,15 +308,21 @@ export default function WithdrawModal({
       }
 
       let paymentToken: string | undefined
+      let paymentMethodId: string | undefined
       let cardLastFour: string | undefined
       if (method === 'card') {
-        if (!publishableKey) {
-          throw new Error('Paysio card fields are not configured.')
+        if (usingSavedCard) {
+          paymentMethodId = cardChoice
+          cardLastFour = savedCards.find((card) => card.id === cardChoice)?.last4
+        } else {
+          if (!publishableKey) {
+            throw new Error('Paysio card fields are not configured.')
+          }
+          setStatus('Securing card…')
+          const tokenized = await tokenizePaysioCard(publishableKey)
+          paymentToken = tokenized.token
+          cardLastFour = tokenized.last4
         }
-        setStatus('Securing card…')
-        const tokenized = await tokenizePaysioCard(publishableKey)
-        paymentToken = tokenized.token
-        cardLastFour = tokenized.last4
       }
 
       setStatus('Sending payout…')
@@ -305,6 +330,7 @@ export default function WithdrawModal({
         amount: numericAmount,
         method,
         paymentToken,
+        paymentMethodId,
         cardLastFour,
         routingNumber: method === 'ach' ? digitsOnly(routingNumber) : undefined,
         accountNumber: method === 'ach' ? digitsOnly(accountNumber) : undefined,
@@ -531,27 +557,60 @@ export default function WithdrawModal({
                   ) : null}
 
                   {method === 'card' ? (
-                    <div className="topup-card-panel">
-                      <label className="topup-label" htmlFor="withdraw-card-number">
-                        Debit card
-                      </label>
-                      <div id="withdraw-card-number" className="topup-card-field" />
-                      <div className="topup-card-row">
-                        <div>
-                          <label className="topup-label" htmlFor="withdraw-card-expiry">
-                            Expiry
-                          </label>
-                          <div id="withdraw-card-expiry" className="topup-card-field" />
+                    <>
+                      {savedCards.length > 0 ? (
+                        <div className="topup-saved" role="radiogroup" aria-label="Saved cards">
+                          {savedCards.map((card) => (
+                            <button
+                              key={card.id}
+                              type="button"
+                              className={`topup-saved-card ${cardChoice === card.id ? 'is-active' : ''}`}
+                              onClick={() => {
+                                setCardChoice(card.id)
+                                setError('')
+                              }}
+                            >
+                              <span className="topup-saved-brand">{formatSavedCard(card)}</span>
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={`topup-saved-card ${cardChoice === 'new' ? 'is-active' : ''}`}
+                            onClick={() => {
+                              setCardChoice('new')
+                              setCardReady(false)
+                              setCardComplete(false)
+                              setError('')
+                            }}
+                          >
+                            <span className="topup-saved-brand">Use a new card</span>
+                          </button>
                         </div>
-                        <div>
-                          <label className="topup-label" htmlFor="withdraw-card-cvc">
-                            CVC
+                      ) : null}
+                      {cardChoice === 'new' ? (
+                        <div className="topup-card-panel">
+                          <label className="topup-label" htmlFor="withdraw-card-number">
+                            Debit card
                           </label>
-                          <div id="withdraw-card-cvc" className="topup-card-field" />
+                          <div id="withdraw-card-number" className="topup-card-field" />
+                          <div className="topup-card-row">
+                            <div>
+                              <label className="topup-label" htmlFor="withdraw-card-expiry">
+                                Expiry
+                              </label>
+                              <div id="withdraw-card-expiry" className="topup-card-field" />
+                            </div>
+                            <div>
+                              <label className="topup-label" htmlFor="withdraw-card-cvc">
+                                CVC
+                              </label>
+                              <div id="withdraw-card-cvc" className="topup-card-field" />
+                            </div>
+                          </div>
+                          {!cardReady ? <p className="topup-status">Loading card fields…</p> : null}
                         </div>
-                      </div>
-                      {!cardReady ? <p className="topup-status">Loading card fields…</p> : null}
-                    </div>
+                      ) : null}
+                    </>
                   ) : (
                     <>
                       <label className="topup-label" htmlFor="withdraw-routing">

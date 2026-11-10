@@ -1,4 +1,4 @@
-import { apiRequest, type VendorMembership } from './client'
+import { apiRequest, type SavedPaymentMethod, type VendorMembership } from './client'
 import type { TopUpOwnerType } from './wert'
 
 export type PaysioSessionResponse = {
@@ -62,7 +62,8 @@ type PaysioInstance = {
   threeDS: () => {
     authenticate: (opts: {
       amount: number
-      token: string
+      token?: string
+      paymentMethodId?: string
       email?: string
       iframeTarget?: string
     }) => Promise<Record<string, unknown>>
@@ -169,10 +170,27 @@ export async function waitForPaysioCredit(
   throw new Error('Payment is confirming. Portfolio updates after the success webhook.')
 }
 
+export function formatSavedCard(method: SavedPaymentMethod): string {
+  const brand = method.brand ? method.brand.replace(/_/g, ' ') : 'Card'
+  const last = method.last4 ? `ending ${method.last4}` : 'on file'
+  const exp = method.exp ? ` · ${method.exp}` : ''
+  return `${brand} ${last}${exp}`
+}
+
+export async function listPaysioMethods(
+  purpose: 'topup' | 'withdraw' | 'all' = 'topup',
+): Promise<SavedPaymentMethod[]> {
+  const res = await apiRequest<{ methods?: SavedPaymentMethod[] }>(
+    `/payments/paysio/methods?purpose=${encodeURIComponent(purpose)}`,
+  )
+  return Array.isArray(res.methods) ? res.methods : []
+}
+
 export async function chargePaysioPayment(payload: {
   amount: number
   ownerType?: TopUpOwnerType
   paymentToken?: string
+  paymentMethodId?: string
   paysioWallet?: Record<string, unknown>
   wallet?: Record<string, unknown>
   threeDs?: Record<string, unknown>
@@ -314,6 +332,36 @@ export async function tokenizeAndChargeCard(opts: {
     amount: opts.amount,
     ownerType: opts.ownerType,
     paymentToken: token,
+    threeDs,
+    postalCode: opts.postalCode,
+  })
+}
+
+export async function chargeSavedPaysioCard(opts: {
+  publishableKey: string
+  amount: number
+  paymentMethodId: string
+  ownerType?: TopUpOwnerType
+  email?: string
+  postalCode?: string
+  threeDsTarget?: string
+}): Promise<PaysioChargeResponse> {
+  const paysio = await getPaysio(opts.publishableKey)
+  let threeDs: Record<string, unknown> | undefined
+  try {
+    threeDs = await paysio.threeDS().authenticate({
+      amount: opts.amount,
+      paymentMethodId: opts.paymentMethodId,
+      email: opts.email,
+      iframeTarget: opts.threeDsTarget,
+    })
+  } catch {
+    threeDs = undefined
+  }
+  return chargePaysioPayment({
+    amount: opts.amount,
+    ownerType: opts.ownerType,
+    paymentMethodId: opts.paymentMethodId,
     threeDs,
     postalCode: opts.postalCode,
   })
