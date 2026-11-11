@@ -9,7 +9,7 @@ import {
   type VendorOrderItem,
 } from '../api/client'
 import { decodeIcon } from '../data/vendors'
-import { couponExtra, formatUsd, gameLoadTotal, parseOrderMoney } from '../lib/orderPromo'
+import { couponExtra, formatUsd, gameLoadTotal, gameMoveRoute, isGameMove, parseOrderMoney } from '../lib/orderPromo'
 import './VendorOrderDetailModal.css'
 
 type VendorOrderDetailModalProps = {
@@ -113,6 +113,7 @@ export default function VendorOrderDetailModal({
     !String(order?.fulfilledAt || '').trim()
   const manualLoadCompleteOnListOnly =
     order?.type === 'manual-load' && (status === 'pending' || status === 'failed')
+  const isMove = Boolean(order) && isGameMove(order)
   const isActionable =
     Boolean(order) &&
     (order?.type === 'manual-load' ||
@@ -221,7 +222,7 @@ export default function VendorOrderDetailModal({
                   {decodeIcon(order.icon || '🎮', order.game)}
                 </div>
                 <div className="vod-order-main">
-                  <strong>{order.game || 'Game'}</strong>
+                  <strong>{isMove ? gameMoveRoute(order) : order.game || 'Game'}</strong>
                   <span>
                     {typeLabel(order.type)} · {order.method || '—'} · {order.status}
                   </span>
@@ -253,6 +254,30 @@ export default function VendorOrderDetailModal({
                   </div>
                 </div>
               ) : null}
+              {isMove && (Number(order.fee || 0) > 0 || order.feeFormatted) ? (
+                <div className="vod-fee-box">
+                  <div className="vod-promo-head">
+                    <span className="vod-label">Re-movement fee</span>
+                    <strong>{order.feeFormatted || formatUsd(Number(order.fee || 0))}</strong>
+                  </div>
+                  <div className="vod-promo-rows">
+                    <div>
+                      <span>Credits moved</span>
+                      <span>{order.amount}</span>
+                    </div>
+                    <div>
+                      <span>
+                        Platform fee
+                        {Number(order.feePct || 0) > 0 ? ` (${order.feePct}%)` : ''}
+                      </span>
+                      <span>{order.feeFormatted || formatUsd(Number(order.fee || 0))}</span>
+                    </div>
+                  </div>
+                  <p className="vod-fee-note">
+                    Charged to the store USDC balance. The destination game receives the full move amount.
+                  </p>
+                </div>
+              ) : null}
               {order.error ? <p className="vod-error">{order.error}</p> : null}
             </section>
 
@@ -263,7 +288,9 @@ export default function VendorOrderDetailModal({
                     ? 'Redeem details'
                     : order.type === 'affiliate-payout'
                       ? 'Affiliate payout'
-                      : 'Load details'}
+                      : isMove
+                        ? 'Move details'
+                        : 'Load details'}
                 </h3>
                 {orderAccount?.hasPassword || orderAccount?.password ? (
                   <button
@@ -282,6 +309,14 @@ export default function VendorOrderDetailModal({
               </div>
 
               <div className="vod-account-card vod-load-details">
+                {isMove ? (
+                  <div className="vod-cred-row">
+                    <div>
+                      <span className="vod-label">From → To</span>
+                      <strong>{gameMoveRoute(order)}</strong>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="vod-cred-row">
                   <div>
                     <span className="vod-label">Mobile ID / username</span>
@@ -370,14 +405,19 @@ export default function VendorOrderDetailModal({
                       <p className="vod-auto-hint">
                         {needsGameLoad
                           ? `This order is approved in TapStack but was not sent to the game. Load ${order.amount}${order.couponCredit ? ` + $${Number(order.couponCredit).toFixed(2)} promo` : ''} now.`
-                          : status === 'failed'
-                          ? 'Automation did not finish. Complete this if you loaded the game yourself, or reject it.'
+                          : status === 'failed' || order.error
+                          ? `Automation did not finish${order.error ? `: ${order.error}` : ''}. Retry to send credits to the game, or reject & refund.`
                           : 'Completing this sends the credits (and any promo extra) to the player\u2019s game.'}
                       </p>
                     ) : null}
                     {order.type === 'manual-load' || order.type === 'auto-load' ? (
                       <p className="vod-auto-hint">
                         Reject &amp; refund returns the player&apos;s paid amount (and load fee) to their Portfolio Balance.
+                      </p>
+                    ) : null}
+                    {isMove ? (
+                      <p className="vod-auto-hint">
+                        Completing this move sends credits to the destination game. Reject &amp; refund returns them to the source game and reverses the re-movement fee.
                       </p>
                     ) : null}
                     <label htmlFor="vod-staff-note">
@@ -428,16 +468,20 @@ export default function VendorOrderDetailModal({
                           {actionBusy === 'complete'
                             ? needsGameLoad
                               ? 'Loading to game…'
-                              : 'Completing…'
+                              : order.type === 'auto-load'
+                                ? 'Retrying…'
+                                : 'Completing…'
                             : needsGameLoad
                               ? 'Load to game'
-                              : order.type === 'redeem'
-                                ? 'Complete redeem'
-                                : order.type === 'affiliate-payout'
-                                  ? 'Approve payout'
-                                  : order.type === 'auto-load'
-                                    ? 'Complete load'
-                                    : 'Complete order'}
+                              : order.type === 'auto-load'
+                                ? 'Retry'
+                                : order.type === 'redeem'
+                                  ? 'Complete redeem'
+                                  : order.type === 'affiliate-payout'
+                                    ? 'Approve payout'
+                                    : isMove
+                                      ? 'Complete move'
+                                      : 'Complete order'}
                         </button>
                       ) : null}
                       {!needsGameLoad ? (

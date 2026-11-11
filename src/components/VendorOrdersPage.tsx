@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import { decodeIcon } from '../data/vendors'
-import { couponExtra, formatUsd, gameLoadTotal } from '../lib/orderPromo'
+import { couponExtra, formatUsd, gameLoadTotal, gameMoveRoute, isGameMove } from '../lib/orderPromo'
 import VendorOrderDetailModal from './VendorOrderDetailModal'
 import ActivityPager from './ActivityPager'
 import { MONEY_REFRESH_MS, pageItems, useIntervalRefresh } from '../lib/refresh'
@@ -10,9 +10,9 @@ import { useCustomReportRange } from '../hooks/useCustomReportRange'
 import CustomDateRangeModal from './CustomDateRangeModal'
 import './VendorOrdersPage.css'
 
-type OrdersTab = 'loads' | 'redeems' | 'history'
+type OrdersTab = 'loads' | 'moves' | 'redeems' | 'history'
 type HistoryRange = 'today' | '7d' | '30d' | 'custom'
-type HistoryFilter = 'all' | 'loads' | 'redeems'
+type HistoryFilter = 'all' | 'loads' | 'moves' | 'redeems'
 type OrderStatusFilter = 'all' | 'completed' | 'pending' | 'failed' | 'attention'
 
 const ORDER_STATUS_FILTERS: { id: OrderStatusFilter; label: string }[] = [
@@ -26,6 +26,7 @@ const ORDER_STATUS_FILTERS: { id: OrderStatusFilter; label: string }[] = [
 type OrdersState = {
   manualLoads: VendorOrderItem[]
   autoLoads: VendorOrderItem[]
+  moves: VendorOrderItem[]
   redeems: VendorOrderItem[]
   history: VendorOrderItem[]
   pendingTotal: string
@@ -34,9 +35,22 @@ type OrdersState = {
 const EMPTY_ORDERS: OrdersState = {
   manualLoads: [],
   autoLoads: [],
+  moves: [],
   redeems: [],
   history: [],
   pendingTotal: '$0.00',
+}
+
+function MoveFeeNote({ item }: { item: Pick<VendorOrderItem, 'fee' | 'feeFormatted' | 'feePct'> }) {
+  const fee = Number(item.fee || 0)
+  if (!(fee > 0) && !item.feeFormatted) return null
+  const pct = Number(item.feePct || 0)
+  return (
+    <p className="vendor-order-fee">
+      {item.feeFormatted || formatUsd(fee)}
+      {pct > 0 ? ` · ${pct}% re-movement fee` : ' · re-movement fee'}
+    </p>
+  )
 }
 
 const HISTORY_RANGES: { id: HistoryRange; label: string }[] = [
@@ -109,6 +123,20 @@ function formatSignedAmount(amount: string, positive: boolean): string {
   if (!cleaned) return positive ? '+$0.00' : '-$0.00'
   if (cleaned.startsWith('+') || cleaned.startsWith('-')) return cleaned
   return `${positive ? '+' : '-'}${cleaned.startsWith('$') ? cleaned : `$${cleaned}`}`
+}
+
+function loadKind(item: Pick<VendorOrderItem, 'type'>): 'manual' | 'auto' | null {
+  const type = String(item.type || '').toLowerCase()
+  if (type === 'auto-load') return 'auto'
+  if (type === 'manual-load') return 'manual'
+  return null
+}
+
+function canRetryAutoLoad(item: Pick<VendorOrderItem, 'type' | 'status' | 'error'>): boolean {
+  const type = String(item.type || '').toLowerCase()
+  if (type !== 'auto-load') return false
+  const status = String(item.status || '').toLowerCase()
+  return status === 'failed' || Boolean(item.error)
 }
 
 function orderStatusDisplay(item: Pick<VendorOrderItem, 'status' | 'type' | 'error'>): {
@@ -227,7 +255,8 @@ function LoadsTab({
         <p>Unchecked manual loads &amp; completed redeems auto-move to History at 12:00 AM CST.</p>
       </div>
 
-      <section className="vendor-orders-section">
+      <div className="vendor-orders-load-columns">
+      <section className="vendor-orders-section vendor-orders-section--manual">
         <div className="vendor-orders-section-header">
           <div className="vendor-orders-section-title">
             <span className="vendor-orders-section-icon vendor-orders-section-icon--purple" aria-hidden="true">
@@ -334,17 +363,21 @@ function LoadsTab({
         )}
       </section>
 
-      <section className="vendor-orders-section">
+      <section className="vendor-orders-section vendor-orders-section--auto">
         <div className="vendor-orders-section-header vendor-orders-section-header--subtle">
           <div className="vendor-orders-section-title">
-            <span className="vendor-orders-section-icon" aria-hidden="true">
+            <span className="vendor-orders-section-icon vendor-orders-section-icon--orange" aria-hidden="true">
               ⚡
             </span>
             <span className="vendor-orders-section-name vendor-orders-section-name--muted">
               Automated Loads
             </span>
             <span className="vendor-orders-section-subtitle">
-              {autoLoads.length === 0 ? '· no action needed' : '· tap to complete'}
+              {autoLoads.length === 0
+                ? '· no action needed'
+                : autoLoads.some(canRetryAutoLoad)
+                  ? '· retry failed loads'
+                  : '· tap to complete'}
             </span>
           </div>
           {autoLoads.length > 0 ? (
@@ -356,12 +389,15 @@ function LoadsTab({
           <p className="vendor-orders-empty">No automated loads yet.</p>
         ) : (
           <ul className="vendor-orders-list">
-            {autoLoads.map((load) => (
-              <li key={load.id} className="vendor-order-card">
+            {autoLoads.map((load) => {
+              const retryable = canRetryAutoLoad(load)
+              return (
+              <li key={load.id} className={`vendor-order-card vendor-order-card--auto${retryable ? ' vendor-order-card--retry' : ''}`}>
+                <div className="vendor-order-card-main">
                 <button
                   type="button"
                   className="vendor-order-check"
-                  aria-label={`Complete ${load.name} auto load`}
+                  aria-label={`Open ${load.name} auto load`}
                   disabled={busyId === load.id}
                   onClick={(event) => {
                     event.stopPropagation()
@@ -385,6 +421,7 @@ function LoadsTab({
                     <p className="vendor-order-meta">
                       {[load.game, load.method || 'Auto', load.time].filter(Boolean).join(' · ')}
                     </p>
+                    {load.error ? <p className="vendor-order-error">{load.error}</p> : null}
                     <PromoNote item={load} />
                   </div>
 
@@ -399,11 +436,27 @@ function LoadsTab({
                     <span className="vendor-order-auto-badge">Auto</span>
                   </div>
                 </button>
+                </div>
+                {retryable ? (
+                  <button
+                    type="button"
+                    className="vendor-order-retry"
+                    disabled={busyId === load.id}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onComplete(load.id)
+                    }}
+                  >
+                    {busyId === load.id ? 'Retrying…' : 'Retry'}
+                  </button>
+                ) : null}
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
       </section>
+      </div>
     </div>
   )
 }
@@ -493,6 +546,67 @@ function RedeemsTab({
   )
 }
 
+function MovesTab({
+  moves,
+  onOpenOrder,
+}: {
+  moves: VendorOrderItem[]
+  onOpenOrder: (id: string) => void
+}) {
+  const feePct = moves.find((item) => Number(item.feePct || 0) > 0)?.feePct
+  return (
+    <div className="vendor-orders-content">
+      <div className="vendor-redeems-summary">
+        <div>
+          <h2 className="vendor-redeems-title">Game Moves</h2>
+          <p className="vendor-redeems-subtitle">
+            {moves.length} room-to-room move{moves.length === 1 ? '' : 's'}
+            {Number(feePct || 0) > 0 ? ` · ${feePct}% re-movement fee` : ''}
+          </p>
+        </div>
+      </div>
+
+      {moves.length === 0 ? (
+        <p className="vendor-orders-empty">No pending game moves.</p>
+      ) : (
+        <ul className="vendor-redeems-list">
+          {moves.map((move) => (
+            <li key={move.id} className="vendor-redeem-card">
+              <button
+                type="button"
+                className="vendor-order-open vendor-redeem-open"
+                onClick={() => onOpenOrder(move.id)}
+              >
+                <div className="vendor-order-game-icon" style={{ background: move.iconBg || '#ede9fe' }}>
+                  {decodeIcon(move.icon || '🎮', move.game)}
+                </div>
+
+                <div className="vendor-order-details">
+                  <p className="vendor-order-name">{move.name || 'Player'}</p>
+                  <p className="vendor-order-meta">
+                    {[`#${move.id}`, gameMoveRoute(move), move.time].filter(Boolean).join(' · ')}
+                  </p>
+                  <MoveFeeNote item={move} />
+                  {(move.payoutTags || move.playerTags || []).length > 0 ? (
+                    <p className="vendor-order-tags">
+                      {(move.payoutTags || move.playerTags || []).map((tag) => tag.toUpperCase()).join(' · ')}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="vendor-order-right">
+                  <span className="vendor-redeem-amount">{move.amount}</span>
+                  <OrderStatusBadge item={move} />
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function HistoryTab({
   history,
   onOpenOrder,
@@ -511,13 +625,26 @@ function HistoryTab({
     return history.filter((entry) => {
       if (!inHistoryRange(entry, range, apiCustom)) return false
       if (filter === 'loads') {
-        if (!entry.type.includes('load')) return false
+        if (isGameMove(entry) || !entry.type.includes('load')) return false
+      }
+      if (filter === 'moves') {
+        if (!isGameMove(entry)) return false
       }
       if (filter === 'redeems') {
         if (entry.type !== 'redeem' && entry.type !== 'affiliate-payout') return false
       }
       if (!needle) return true
-      const hay = [entry.name, entry.label, entry.id, entry.game, entry.date, entry.time, entry.mobileId]
+      const hay = [
+        entry.name,
+        entry.label,
+        entry.id,
+        entry.game,
+        entry.fromGameTitle,
+        entry.toGameTitle,
+        entry.date,
+        entry.time,
+        entry.mobileId,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -551,6 +678,7 @@ function HistoryTab({
         >
           <option value="all">All Activity</option>
           <option value="loads">Loads</option>
+          <option value="moves">Game moves</option>
           <option value="redeems">Redeems</option>
         </select>
         <svg className="vendor-history-select-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -592,11 +720,15 @@ function HistoryTab({
         <p className="vendor-orders-empty">No history for this range.</p>
       ) : (
         <ul className="vendor-history-list">
-          {paged.map((entry) => (
+          {paged.map((entry) => {
+            const kind = loadKind(entry)
+            return (
             <li key={entry.id}>
               <button
                 type="button"
-                className="vendor-history-item vendor-history-item--clickable"
+                className={`vendor-history-item vendor-history-item--clickable${
+                  kind ? ` vendor-history-item--${kind}` : ''
+                }`}
                 onClick={() => onOpenOrder(entry.id)}
               >
                 <div className="vendor-history-icon" style={{ background: entry.iconBg || '#ede9fe' }}>
@@ -605,11 +737,24 @@ function HistoryTab({
                 <div className="vendor-order-details">
                   <p className="vendor-history-item-title">
                     {entry.label || entry.type} · {entry.name || 'Player'}
+                    {kind ? (
+                      <span className={`vendor-history-kind vendor-history-kind--${kind}`}>
+                        {kind === 'auto' ? 'Auto' : 'Manual'}
+                      </span>
+                    ) : null}
                   </p>
                   <p className="vendor-order-meta">
-                    {[`#${entry.id}`, entry.game, entry.date, entry.time].filter(Boolean).join(' · ')}
+                    {[
+                      `#${entry.id}`,
+                      isGameMove(entry) ? gameMoveRoute(entry) : entry.game,
+                      entry.date,
+                      entry.time,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                   <PromoNote item={entry} />
+                  {isGameMove(entry) ? <MoveFeeNote item={entry} /> : null}
                 </div>
                 <div className="vendor-order-right">
                   <span
@@ -626,7 +771,8 @@ function HistoryTab({
                 </div>
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
       <ActivityPager page={page} total={filtered.length} onPage={setPage} />
@@ -654,12 +800,15 @@ export default function VendorOrdersPage() {
     }
     try {
       const res = await tapstackApi.vendorOrders()
+      const rawManual = res.manualLoads || []
+      const moves = res.moves || rawManual.filter(isGameMove)
       setOrders({
-        manualLoads: res.manualLoads || [],
+        manualLoads: res.moves ? rawManual : rawManual.filter((item) => !isGameMove(item)),
         autoLoads: (res.autoLoads || []).filter((item) => {
           const status = String(item.status || '').toLowerCase()
           return status !== 'approved' && status !== 'rejected'
         }),
+        moves,
         redeems: res.redeems || [],
         history: res.history || [],
         pendingTotal: res.pendingTotal || '$0.00',
@@ -704,6 +853,7 @@ export default function VendorOrdersPage() {
 
   const tabs: { id: OrdersTab; label: string; count?: number }[] = [
     { id: 'loads', label: 'Loads', count: orders.manualLoads.length },
+    { id: 'moves', label: 'Moves', count: orders.moves.length },
     { id: 'redeems', label: 'Redeems', count: orders.redeems.length },
     { id: 'history', label: 'History' },
   ]
@@ -771,6 +921,9 @@ export default function VendorOrdersPage() {
             }
           }}
         />
+      ) : null}
+      {!loading && activeOrdersTab === 'moves' ? (
+        <MovesTab moves={orders.moves} onOpenOrder={setDetailOrderId} />
       ) : null}
       {!loading && activeOrdersTab === 'redeems' ? (
         <RedeemsTab

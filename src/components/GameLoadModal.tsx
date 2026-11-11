@@ -9,6 +9,7 @@ import './GameLoadModal.css'
 
 const CARD_MIN = 5
 const LOAD_FEE_PCT = 10
+const GAME_TRANSFER_FEE_PCT = 8
 
 function parseMoney(value: string): number {
   const n = Number(String(value).replace(/[^0-9.-]/g, ''))
@@ -132,6 +133,7 @@ export default function GameLoadModal({
   const [status, setStatus] = useState('')
   const [success, setSuccess] = useState<SuccessState | null>(null)
   const [loadFeePct, setLoadFeePct] = useState(LOAD_FEE_PCT)
+  const [gameTransferFeePct, setGameTransferFeePct] = useState(GAME_TRANSFER_FEE_PCT)
   const [playerPaysFee, setPlayerPaysFee] = useState(true)
 
   useEffect(() => {
@@ -149,6 +151,7 @@ export default function GameLoadModal({
     setGameBalance(game.redeemableBalance || game.gameBalance || '—')
     setPayableBalance(game.payableBalance || game.gameBalance || '—')
     setLoadFeePct(LOAD_FEE_PCT)
+    setGameTransferFeePct(GAME_TRANSFER_FEE_PCT)
     setPlayerPaysFee(true)
 
     if (!isApiConfigured()) return
@@ -161,13 +164,16 @@ export default function GameLoadModal({
           game.mode === 'auto'
             ? tapstackApi.vendorGameBalance(vendorId, game.gameKey).catch(() => null)
             : Promise.resolve(null),
-          intent === 'load'
+          intent === 'load' || intent === 'move'
             ? tapstackApi.customerVendorGames(vendorId).catch(() => null)
             : Promise.resolve(null),
         ])
         if (cancelled) return
         if (typeof gamesRes?.loadFeePct === 'number' && Number.isFinite(gamesRes.loadFeePct)) {
           setLoadFeePct(gamesRes.loadFeePct)
+        }
+        if (typeof gamesRes?.gameTransferFeePct === 'number' && Number.isFinite(gamesRes.gameTransferFeePct)) {
+          setGameTransferFeePct(gamesRes.gameTransferFeePct)
         }
         if (typeof gamesRes?.playerPaysLoadFee === 'boolean') {
           setPlayerPaysFee(gamesRes.playerPaysLoadFee)
@@ -220,6 +226,10 @@ export default function GameLoadModal({
   const processingFee =
     !isRedeem && !isMove && playerPaysFee && Number.isFinite(numericAmount) && numericAmount > 0
       ? Math.round(numericAmount * (loadFeePct / 100) * 100) / 100
+      : 0
+  const transferFee =
+    isMove && Number.isFinite(numericAmount) && numericAmount > 0
+      ? Math.round(numericAmount * (gameTransferFeePct / 100) * 100) / 100
       : 0
   const totalDue =
     !isRedeem && !isMove && Number.isFinite(numericAmount) ? Math.round((numericAmount + processingFee) * 100) / 100 : 0
@@ -503,7 +513,9 @@ export default function GameLoadModal({
 
             <p className="game-load-copy">
               {isMove
-                ? 'Transfer credits from this game to another game at the same vendor. No transfer fee.'
+                ? 'Transfer credits from this game to another game at the same vendor. An ' +
+                  String(gameTransferFeePct) +
+                  '% platform fee applies.'
                 : isRedeem
                 ? isManual
                   ? 'Request a redeem from this game. Include your Mobile ID so the vendor can pull the right account.'
@@ -612,6 +624,26 @@ export default function GameLoadModal({
                     $ Credit and freeplay extras are added to this game load, not your Portfolio Balance.
                   </p>
                 </>
+              ) : null}
+
+              {isMove && Number.isFinite(numericAmount) && numericAmount > 0 ? (
+                <div className="game-load-split">
+                  <p className="game-load-split-title">Transfer total</p>
+                  <div className="game-load-split-row">
+                    <span>Amount moved</span>
+                    <strong>{money(numericAmount)}</strong>
+                  </div>
+                  {transferFee > 0 ? (
+                    <div className="game-load-split-row">
+                      <span>Platform fee {gameTransferFeePct}%</span>
+                      <strong>{money(transferFee)}</strong>
+                    </div>
+                  ) : null}
+                  <p className="game-load-split-note">
+                    Destination still receives the full amount. The {gameTransferFeePct}% platform
+                    commission is charged to the store and kept by TapStack.
+                  </p>
+                </div>
               ) : null}
 
               {!isRedeem && !isMove && Number.isFinite(numericAmount) && numericAmount > 0 ? (

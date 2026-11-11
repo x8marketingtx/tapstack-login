@@ -15,6 +15,7 @@ import { gamePlayUrl, openGamePlay } from '../data/gamePlay'
 import { ApiError, getToken, isApiConfigured, tapstackApi, type VendorOrderItem } from '../api/client'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
 import { resolveCustomerWalletDisplay } from '../lib/pointsRedeem'
+import { gameMoveRoute, isGameMove } from '../lib/orderPromo'
 import { MONEY_REFRESH_GAME_LIMIT, MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
 import BottomNav, { type DashboardTab } from './BottomNav'
 import DashboardHeader, { type DashboardHeaderNotifications } from './DashboardHeader'
@@ -28,6 +29,14 @@ import './CustomerDashboard.css'
 import './VendorPage.css'
 
 type GameCredentials = { mobileId: string; password: string }
+type PendingSheet = 'loads' | 'moves'
+
+function pendingOrderTypeLabel(order: VendorOrderItem): string {
+  if (isGameMove(order)) return 'Game move'
+  if (order.type === 'redeem') return 'Redeem'
+  if (order.type === 'auto-load') return 'Auto load'
+  return 'Manual load'
+}
 
 function favoriteGamesStorageKey(vendorId: number | string | null | undefined): string {
   return `tapstack_favorite_games:${vendorId ?? 'unknown'}`
@@ -453,7 +462,8 @@ export default function VendorPage({
     !(isApiConfigured() && Boolean(initialVendor.id)),
   )
   const [pendingOrders, setPendingOrders] = useState<VendorOrderItem[]>([])
-  const [pendingOpen, setPendingOpen] = useState(false)
+  const [pendingMoves, setPendingMoves] = useState<VendorOrderItem[]>([])
+  const [pendingSheet, setPendingSheet] = useState<PendingSheet | null>(null)
   const [pendingLoading, setPendingLoading] = useState(false)
   const [favoriteGames, setFavoriteGames] = useState<Set<string>>(() =>
     loadFavoriteGames(initialVendor.id),
@@ -603,12 +613,16 @@ export default function VendorPage({
   async function refreshPendingOrders(vendorId: number | string, silent = false) {
     if (!isApiConfigured() || !vendorId) {
       setPendingOrders([])
+      setPendingMoves([])
       return
     }
     if (!silent) setPendingLoading(true)
     try {
       const res = await tapstackApi.customerVendorOrders(vendorId)
-      setPendingOrders(res.pending || [])
+      const raw = res.pending || []
+      const moves = res.pendingMoves || raw.filter(isGameMove)
+      setPendingOrders(res.pendingMoves ? raw : raw.filter((item) => !isGameMove(item)))
+      setPendingMoves(moves)
     } catch {
       /* keep previous */
     } finally {
@@ -1197,7 +1211,7 @@ export default function VendorPage({
             type="button"
             className="vendor-pending-btn"
             onClick={() => {
-              setPendingOpen(true)
+              setPendingSheet('loads')
               if (vendor.id) void refreshPendingOrders(vendor.id)
             }}
           >
@@ -1216,6 +1230,36 @@ export default function VendorPage({
             </span>
             {pendingOrders.length > 0 ? (
               <span className="vendor-pending-btn-count">{pendingOrders.length}</span>
+            ) : (
+              <span className="vendor-pending-btn-chevron" aria-hidden="true">
+                →
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="vendor-pending-btn"
+            onClick={() => {
+              setPendingSheet('moves')
+              if (vendor.id) void refreshPendingOrders(vendor.id)
+            }}
+          >
+            <span className="vendor-pending-btn-icon" aria-hidden="true">
+              🔁
+            </span>
+            <span className="vendor-pending-btn-copy">
+              <strong>Game Moves</strong>
+              <small>
+                {pendingLoading
+                  ? 'Checking…'
+                  : pendingMoves.length > 0
+                    ? `${pendingMoves.length} room-to-room move${pendingMoves.length === 1 ? '' : 's'} in progress`
+                    : 'Room-to-room credit moves (Order #)'}
+              </small>
+            </span>
+            {pendingMoves.length > 0 ? (
+              <span className="vendor-pending-btn-count">{pendingMoves.length}</span>
             ) : (
               <span className="vendor-pending-btn-chevron" aria-hidden="true">
                 →
@@ -2061,25 +2105,31 @@ export default function VendorPage({
         onVerifyRequired={onOpenVerify}
       />
 
-      {pendingOpen ? (
+      {pendingSheet ? (
         <div
           className="vendor-pending-overlay"
           role="dialog"
           aria-modal="true"
           aria-labelledby="vendor-pending-title"
-          onClick={() => setPendingOpen(false)}
+          onClick={() => setPendingSheet(null)}
         >
           <div className="vendor-pending-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="vendor-pending-sheet-head">
               <div>
                 <p className="vendor-pending-eyebrow">{vendor.name}</p>
-                <h2 id="vendor-pending-title">Pending Orders</h2>
-                <p className="vendor-pending-sub">Loads and redeems waiting on the vendor</p>
+                <h2 id="vendor-pending-title">
+                  {pendingSheet === 'moves' ? 'Game Moves' : 'Pending Orders'}
+                </h2>
+                <p className="vendor-pending-sub">
+                  {pendingSheet === 'moves'
+                    ? 'Room-to-room credit moves, listed by Order #'
+                    : 'Loads and redeems waiting on the vendor'}
+                </p>
               </div>
               <button
                 type="button"
                 className="vendor-pending-close"
-                onClick={() => setPendingOpen(false)}
+                onClick={() => setPendingSheet(null)}
                 aria-label="Close"
               >
                 ×
@@ -2088,19 +2138,21 @@ export default function VendorPage({
 
             {pendingLoading ? <p className="vendor-pending-empty">Loading…</p> : null}
 
-            {!pendingLoading && pendingOrders.length === 0 ? (
-              <p className="vendor-pending-empty">No pending loads or redeems right now.</p>
+            {!pendingLoading &&
+            (pendingSheet === 'moves' ? pendingMoves : pendingOrders).length === 0 ? (
+              <p className="vendor-pending-empty">
+                {pendingSheet === 'moves'
+                  ? 'No pending game moves right now.'
+                  : 'No pending loads or redeems right now.'}
+              </p>
             ) : null}
 
-            {!pendingLoading && pendingOrders.length > 0 ? (
+            {!pendingLoading &&
+            (pendingSheet === 'moves' ? pendingMoves : pendingOrders).length > 0 ? (
               <ul className="vendor-pending-list">
-                {pendingOrders.map((order) => {
-                  const type =
-                    order.type === 'redeem'
-                      ? 'Redeem'
-                      : order.type === 'auto-load'
-                        ? 'Auto load'
-                        : 'Manual load'
+                {(pendingSheet === 'moves' ? pendingMoves : pendingOrders).map((order) => {
+                  const move = isGameMove(order)
+                  const type = pendingOrderTypeLabel(order)
                   const tone = order.attention || order.status === 'failed' || order.error
                     ? 'attention'
                     : 'pending'
@@ -2115,14 +2167,14 @@ export default function VendorPage({
                       </div>
                       <div className="vendor-pending-main">
                         <div className="vendor-pending-top">
-                          <strong>{order.game || type}</strong>
+                          <strong>{move ? gameMoveRoute(order) : order.game || type}</strong>
                           <span className={`vendor-pending-badge vendor-pending-badge--${tone}`}>
                             {order.statusLabel || (tone === 'attention' ? 'Attention needed' : 'Pending')}
                           </span>
                         </div>
                         <span>
-                          {type}
-                          {order.mobileId ? ` · ${order.mobileId}` : ''}
+                          {move ? `Order #${order.id}` : type}
+                          {!move && order.mobileId ? ` · ${order.mobileId}` : ''}
                           {` · ${order.date} ${order.time}`}
                         </span>
                         {order.note ? <p className="vendor-pending-note">{order.note}</p> : null}

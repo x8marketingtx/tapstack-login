@@ -155,8 +155,17 @@ export function VendorInvoicePayPage({
     }
 
     if (payMethod === 'paysio') {
-      openCard(invoice.amountValue, false)
-      return
+      const cardDue = Number(invoice.cardDue || invoice.shortfall || 0)
+      const walletPaid = Number(invoice.walletCovered || invoice.walletPaid || 0)
+      if (cardDue <= 0.009) {
+        /* wallet covers the invoice — fall through to balance pay */
+      } else if (walletPaid > 0.009) {
+        openCard(cardDue, true)
+        return
+      } else {
+        openCard(invoice.amountValue, false)
+        return
+      }
     }
 
     const cardDue = Number(invoice.cardDue || invoice.shortfall || 0)
@@ -213,10 +222,10 @@ export function VendorInvoicePayPage({
   const payLabel =
     payMethod === 'custom'
       ? 'Submit payment proof'
-      : payMethod === 'paysio'
-        ? `Pay ${invoice?.amount || ''} by card`
-        : short > 0
-          ? `Pay ${balanceLabel} + $${short.toFixed(2)} card`
+      : short > 0
+        ? `Pay ${balanceLabel} + $${short.toFixed(2)} card`
+        : payMethod === 'paysio'
+          ? `Pay ${invoice?.amount || ''} by card`
           : `Pay ${invoice?.amount || ''} from balance`
 
   return (

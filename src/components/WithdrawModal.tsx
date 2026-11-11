@@ -12,6 +12,11 @@ import { fetchPaymentsConfig } from '../api/payments'
 import { mountPaysioCardForm, tokenizePaysioCard } from '../api/paysio'
 import { shouldOpenVerifyFromApiError } from '../lib/verify'
 import { parseTapstackCash } from '../lib/pointsRedeem'
+import {
+  DEFAULT_WITHDRAW_FEES,
+  quoteWithdrawFee,
+  type WithdrawFeeSchedule,
+} from '../lib/withdrawFee'
 import SavedCardSelect from './SavedCardSelect'
 import TopUpPresetGrid from './TopUpPresetGrid'
 import './TopUpModal.css'
@@ -139,6 +144,7 @@ export default function WithdrawModal({
   const [payout, setPayout] = useState<PayoutClaim | null>(null)
   const [missing, setMissing] = useState<PayoutMissingField[]>([])
   const [profilePatch, setProfilePatch] = useState<Record<string, string>>({})
+  const [feeSchedule, setFeeSchedule] = useState<WithdrawFeeSchedule>(DEFAULT_WITHDRAW_FEES)
 
   useEffect(() => {
     if (!open) return
@@ -168,6 +174,14 @@ export default function WithdrawModal({
         .then((res) => {
           const next = res.payoutProfile?.missing
           if (Array.isArray(next)) setMissing(next)
+          const fees = res.withdrawFees
+          if (fees && Number.isFinite(fees.pct)) {
+            setFeeSchedule({
+              pct: fees.pct,
+              flatFee: Number.isFinite(fees.flatFee) ? fees.flatFee : DEFAULT_WITHDRAW_FEES.flatFee,
+              flatMax: Number.isFinite(fees.flatMax) ? fees.flatMax : DEFAULT_WITHDRAW_FEES.flatMax,
+            })
+          }
         })
         .catch(() => undefined)
       void tapstackApi
@@ -252,17 +266,20 @@ export default function WithdrawModal({
   const demoSession = !isApiConfigured() || Boolean(getToken()?.startsWith('demo:'))
   const available = demoSession ? Math.max(parseTapstackCash(cashBalance), 125) : parseTapstackCash(cashBalance)
   const numericAmount = Number(amount)
+  const quote = quoteWithdrawFee(Number.isFinite(numericAmount) ? numericAmount : 0, feeSchedule)
   const amountOk =
     Number.isFinite(numericAmount) && numericAmount >= 1 && numericAmount <= available + 0.00001
+  const payoutOk = quote.payout >= 1
   const usingSavedCard = method === 'card' && cardChoice !== 'new'
   const destinationOk =
     method === 'card'
       ? usingSavedCard || cardComplete
       : digitsOnly(routingNumber).length === 9 && digitsOnly(accountNumber).length >= 4
-  const canContinue = amountOk && !loading
+  const canContinue = amountOk && payoutOk && !loading
   const profileReady = missing.every((field) => profileValueOk(field.key, profilePatch[field.key] || ''))
   const canSubmit =
     amountOk &&
+    payoutOk &&
     destinationOk &&
     profileReady &&
     !loading &&
@@ -300,6 +317,13 @@ export default function WithdrawModal({
           status: 'pending',
           amount: numericAmount,
           amountFormatted: `$${numericAmount.toFixed(2)}`,
+          fee: quote.fee,
+          feeFormatted: `$${quote.fee.toFixed(2)}`,
+          percentFee: quote.percentFee,
+          flatFee: quote.flatFee,
+          feePct: quote.pct,
+          payout: quote.payout,
+          payoutFormatted: `$${quote.payout.toFixed(2)}`,
           method,
           claimUrl: '',
           open: false,
@@ -370,6 +394,7 @@ export default function WithdrawModal({
     }
   }
 
+  const sentAmount = payout?.payoutFormatted || (payout ? `$${Number(payout.payout ?? payout.amount).toFixed(2)}` : '')
   const destination =
     payout?.method === 'ach'
       ? 'your bank'
@@ -420,8 +445,11 @@ export default function WithdrawModal({
           <>
             <p className="topup-copy">
               {payout.status === 'paid'
-                ? `Your ${payout.amountFormatted} is on the way to ${destination}.`
-                : `We're sending ${payout.amountFormatted} to ${destination}. This usually takes a few moments.`}
+                ? `Your ${sentAmount} is on the way to ${destination}.`
+                : `We're sending ${sentAmount} to ${destination}. This usually takes a few moments.`}
+              {payout.fee && payout.fee > 0
+                ? ` A ${payout.feeFormatted || `$${payout.fee.toFixed(2)}`} fee was taken from your ${payout.amountFormatted} withdraw.`
+                : ''}
             </p>
             {error ? <p className="topup-error">{error}</p> : null}
             <button type="button" className="topup-submit" onClick={onClose}>
@@ -433,7 +461,7 @@ export default function WithdrawModal({
             <p className="topup-copy">
               {step === 'amount'
                 ? `Choose card or bank on the next step. Available ${cashBalance}.`
-                : `Sending $${numericAmount.toFixed(0)} to your card or bank.`}
+                : `Sending $${quote.payout.toFixed(2)} to your card or bank after fees.`}
             </p>
 
             {step === 'amount' ? <TopUpPresetGrid onAdd={addPreset} /> : null}
@@ -452,10 +480,12 @@ export default function WithdrawModal({
                     onChange={(event) => setAmount(event.target.value)}
                   />
                 </div>
-              ) : (
+              ) : null}
+
+              {step === 'details' ? (
                 <>
                   <div className="topup-pay-chip">
-                    Redeem ${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}
+                    Redeem ${Number.isFinite(numericAmount) ? numericAmount.toFixed(2) : '—'}
                   </div>
                   <div className="topup-methods" role="radiogroup" aria-label="Redeem method">
                     <button
@@ -636,7 +666,40 @@ export default function WithdrawModal({
                     </>
                   )}
                 </>
-              )}
+              ) : null}
+
+              {Number.isFinite(numericAmount) && numericAmount > 0 ? (
+                <div className="topup-split">
+                  <p className="topup-split-title">You receive</p>
+                  <div className="topup-split-row">
+                    <span>Withdraw</span>
+                    <strong>${quote.amount.toFixed(2)}</strong>
+                  </div>
+                  {quote.percentFee > 0 ? (
+                    <div className="topup-split-row">
+                      <span>Processing {quote.pct}%</span>
+                      <strong>−${quote.percentFee.toFixed(2)}</strong>
+                    </div>
+                  ) : null}
+                  {quote.flatFee > 0 ? (
+                    <div className="topup-split-row">
+                      <span>Small redeem fee (≤ ${quote.flatMax.toFixed(0)})</span>
+                      <strong>−${quote.flatFee.toFixed(2)}</strong>
+                    </div>
+                  ) : null}
+                  <div className="topup-split-row">
+                    <span>Sent to {step === 'amount' ? 'card or bank' : method === 'ach' ? 'bank' : 'card'}</span>
+                    <strong>${quote.payout.toFixed(2)}</strong>
+                  </div>
+                  <p className="topup-split-note">
+                    {amountOk && !payoutOk
+                      ? 'After fees, at least $1.00 must reach your card or bank. Increase the amount.'
+                      : quote.flatFee > 0
+                        ? `${quote.pct}% plus a $${quote.flatFee.toFixed(2)} fee on redeems of $${quote.flatMax.toFixed(0)} or less.`
+                        : `${quote.pct}% processing fee. The rest is sent to your card or bank.`}
+                  </p>
+                </div>
+              ) : null}
 
               {status ? <p className="topup-status">{status}</p> : null}
               {error ? <p className="topup-error">{error}</p> : null}
@@ -650,7 +713,7 @@ export default function WithdrawModal({
                   ? status || 'Sending…'
                   : step === 'amount'
                     ? 'Continue'
-                    : `Send $${Number.isFinite(numericAmount) ? numericAmount.toFixed(0) : '—'}`}
+                    : `Send $${quote.payout.toFixed(2)}`}
               </button>
             </form>
           </>

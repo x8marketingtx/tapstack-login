@@ -105,3 +105,26 @@ svg {
   max-width: 100%;
   height: auto;
 }
+
+html.tapstack-embed .page {
+  padding: 0;
+  background: #f7f6f2;
+}
+
+html.tapstack-embed .phone-frame {
+  max-width: none;
+  max-height: none;
+  height: 100dvh;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+html.tapstack-embed .screen {
+  border-radius: 0;
+  --screen-height: 100dvh;
+}
+
+html.tapstack-embed .pwa-home-banner {
+  display: none;
+}

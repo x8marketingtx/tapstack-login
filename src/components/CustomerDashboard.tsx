@@ -41,6 +41,7 @@ import ProfilePage, {
   type PlayerProfile,
 } from './ProfilePage'
 import VerifyPage, { VerifyBanner } from './VerifyPage'
+import PwaHomeBanner from './PwaHomeBanner'
 import {
   needsVerification,
   rememberVerifyReturn,
@@ -55,7 +56,7 @@ import {
   parseLocation,
   vendorPathId,
 } from '../lib/routing'
-import { clearPlayerAffiliateRef, consumePendingPlayVendor, detectNewPlayerAffiliates, getPlayerAffiliateRef, peekPendingPlayVendor, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
+import { clearPlayerAffiliateRef, consumePendingPlayVendor, detectNewPlayerAffiliates, getPlayerAffiliateRef, notifyPlayHost, peekPendingPlayVendor, rememberPlayerAffiliateIds, setPlayerAffiliateRef, type PlayerAffiliateWelcome } from '../lib/affiliate'
 import { clearVendorBalanceCache } from '../lib/vendorBalanceCache'
 import { resolveCustomerWalletDisplay } from '../lib/pointsRedeem'
 import { MONEY_REFRESH_MS, useIntervalRefresh } from '../lib/refresh'
@@ -610,6 +611,8 @@ function GamesHome({
   return (
     <div className="games-home-desktop">
       <div className="games-home-sidebar">
+        <PwaHomeBanner />
+
         <section className="balance-card" aria-busy={loading || undefined}>
           <div className="balance-card-main">
             <div className="balance-copy">
@@ -1160,24 +1163,28 @@ export default function CustomerDashboard({
   }, [])
 
   useEffect(() => {
-    if (!pendingVendorId) return
-    const match = matchVendorFromList(vendors, pendingVendorId)
-    if (match) {
-      consumePendingPlayVendor()
-      setSelectedVendor(match)
-      setShowProfile(false)
-      setPendingVendorId(null)
+    const code = (pendingVendorId || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (!code) return
+
+    if (!shouldLoadFromApi) {
+      const match = matchVendorFromList(vendors, code)
+      if (match) {
+        consumePendingPlayVendor()
+        setSelectedVendor(match)
+        setShowProfile(false)
+        setPendingVendorId(null)
+      }
       return
     }
-    if (!shouldLoadFromApi || linkingPlayVendor) return
-    const code = pendingVendorId.trim().toUpperCase()
-    if (!code) return
+
     let cancelled = false
     setLinkingPlayVendor(true)
+    setAddError('')
     ;(async () => {
       try {
         const res = await tapstackApi.linkVendor(code, getPlayerAffiliateRef() || undefined)
         if (cancelled) return
+        if (getPlayerAffiliateRef()) clearPlayerAffiliateRef()
         consumePendingPlayVendor()
         const next = vendorFromApi(res.vendor)
         const list = Array.isArray(res.vendors) ? res.vendors.map(vendorFromApi) : null
@@ -1190,9 +1197,19 @@ export default function CustomerDashboard({
         setSelectedVendor(next)
         setShowProfile(false)
         setPendingVendorId(null)
+        notifyPlayHost('vendor-linked', {
+          vendorId: next.id,
+          vendorName: next.name,
+          code: next.code || code,
+        })
         navigate({ portal: 'customer', tab: 'games', vendorId: vendorPathId(next) }, 'replace')
-      } catch {
-        if (!cancelled) setPendingVendorId(null)
+      } catch (err) {
+        if (cancelled) return
+        consumePendingPlayVendor()
+        setPendingVendorId(null)
+        const message = err instanceof ApiError ? err.message : 'Could not add this vendor from the shared link.'
+        setAddError(message)
+        notifyPlayHost('error', { message, code })
       } finally {
         if (!cancelled) setLinkingPlayVendor(false)
       }
@@ -1200,7 +1217,7 @@ export default function CustomerDashboard({
     return () => {
       cancelled = true
     }
-  }, [vendors, pendingVendorId])
+  }, [pendingVendorId])
 
   useEffect(() => {
     if (showVerify) {
@@ -1964,7 +1981,7 @@ export default function CustomerDashboard({
                   if (addError) setAddError('')
                 }}
                 onAddVendor={handleAddVendor}
-                addingVendor={addingVendor}
+                addingVendor={addingVendor || linkingPlayVendor}
                 addError={addError}
                 vendors={vendors}
                 favoriteKeys={favoriteKeys}

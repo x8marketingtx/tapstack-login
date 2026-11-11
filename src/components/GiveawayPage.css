@@ -894,6 +894,102 @@
   color: #111827;
 }
 
+.tier-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #374151;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.tier-quote-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tier-quote-prefix {
+  font-weight: 800;
+  color: #111827;
+}
+
+.tier-quote input {
+  width: 88px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 750;
+}
+
+.tier-quote-result {
+  min-width: 0;
+  color: #6d28d9;
+  font-weight: 750;
+}
+
+.tier-rate-table-wrap {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.tier-rate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tier-rate-table caption {
+  caption-side: top;
+  text-align: left;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.tier-rate-table th,
+.tier-rate-table td {
+  padding: 8px 6px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  font-weight: 650;
+  color: #4b5563;
+}
+
+.tier-rate-table thead th {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.tier-rate-table tbody th {
+  font-weight: 750;
+  color: #111827;
+}
+
+.tier-rate-table tr.is-current {
+  background: rgba(124, 58, 237, 0.1);
+}
+
+.tier-rate-table tr.is-current th,
+.tier-rate-table tr.is-current td {
+  color: #5b21b6;
+}
+
+.tier-rate-table tr.is-unlocked th,
+.tier-rate-table tr.is-unlocked td {
+  color: #111827;
+}
+
 .ticket-modal {
   position: fixed;
   inset: 0;

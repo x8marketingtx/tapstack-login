@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import tapstackIcon from '../assets/tapstack-icon.png'
 import { ApiError, applyAuthSession, clearSession, isApiConfigured, setDemoSession, tapstackApi } from '../api/client'
-import { getPendingVendorJoin, getPendingVendorJoinName } from '../lib/affiliate'
+import { getPendingVendorJoin, getPendingVendorJoinName, peekPendingPlayVendor } from '../lib/affiliate'
 import { peekPendingInvoiceToken, payPathForToken } from '../lib/invoicePay'
 import { LegalLinks, type InfoPage } from './LegalPage'
 import SmsConsentCheckbox, { SmsShareNote } from './SmsConsentCheckbox'
@@ -341,7 +341,11 @@ function PlayersLogin({
           <img src={tapstackIcon} alt="" className="tapstack-icon" aria-hidden="true" />
           <TapStackLogo height={56} />
         </div>
-        <p className="subtitle">Log in to your wallet</p>
+        <p className="subtitle">
+          {peekPendingPlayVendor()
+            ? 'Log in and this vendor will be added to your game rooms.'
+            : 'Log in to your wallet'}
+        </p>
       </div>
 
       <div className="login-panel">

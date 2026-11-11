@@ -18,10 +18,14 @@ import {
 import { TapstackTicketIcon } from './TapstackTicketIcon'
 import {
   TIER_ORDER,
+  TIER_RATES,
   TIER_UNLOCK,
   higherTicketTier,
   nextTierProgress,
+  quoteTicketPurchase,
   tierFromSpend,
+  tierLabel,
+  tierRateSummary,
 } from '../data/tiers'
 import './GiveawayPage.css'
 
@@ -33,14 +37,6 @@ const MEGA_DRAW_TAGLINE =
 const DEMO_STORAGE_KEY = 'tapstack_giveaway_demo_v1'
 /** Used when NitroPay is blocked (ad blocker) or running off tapstack.io. */
 const FALLBACK_AD_VIDEO_SRC = '/demo-ad.mp4'
-
-const TIER_RATES: Record<TicketTier, { label: string; dollars: number; tickets: number }> = {
-  bronze: { label: 'Bronze', dollars: 40, tickets: 1 },
-  silver: { label: 'Silver', dollars: 30, tickets: 1 },
-  gold: { label: 'Gold', dollars: 25, tickets: 1 },
-  diamond: { label: 'Diamond', dollars: 20, tickets: 3 },
-  platinum: { label: 'Platinum', dollars: 20, tickets: 6 },
-}
 
 type DemoStore = {
   chips: number
@@ -128,13 +124,12 @@ function clientTierRate(tier: TicketTier): GiveawayState['tierRate'] {
   return {
     dollars: rate.dollars,
     tickets: rate.tickets,
-    summary: `$${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}`,
+    summary: tierRateSummary(tier),
   }
 }
 
 function tierPurchaseHowItWorksLine(tier: TicketTier): string {
-  const rate = TIER_RATES[tier]
-  return `Purchases also earn tickets by your ${rate.label} tier: $${rate.dollars} → ${rate.tickets} ticket${rate.tickets === 1 ? '' : 's'}.`
+  return `Purchases also earn tickets by your ${tierLabel(tier)} tier: ${tierRateSummary(tier)}.`
 }
 
 /** Keep info-box purchase bullets aligned with TIER_RATES (e.g. Gold $25 → 1 ticket). */
@@ -153,14 +148,14 @@ function normalizeHowItWorksTierLines(lines: string[], tier: TicketTier): string
 }
 
 function fallbackTierRates(): NonNullable<GiveawayState['tierRates']> {
-  return (Object.keys(TIER_RATES) as TicketTier[]).map((tier) => {
+  return TIER_ORDER.map((tier) => {
     const row = TIER_RATES[tier]
     return {
       id: tier,
       label: row.label,
       dollars: row.dollars,
       tickets: row.tickets,
-      summary: `$${row.dollars} → ${row.tickets} ticket${row.tickets === 1 ? '' : 's'}`,
+      summary: tierRateSummary(tier),
       unlock: TIER_UNLOCK[tier],
     }
   })
@@ -311,7 +306,8 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const tierSectionRef = useRef<HTMLElement | null>(null)
   const yourTicketsRef = useRef<HTMLElement | null>(null)
-  const [tierHelpOpen, setTierHelpOpen] = useState(false)
+  const [tierHelpOpen, setTierHelpOpen] = useState(true)
+  const [quoteAmount, setQuoteAmount] = useState('')
   const maxWatchedRef = useRef(0)
   const celebrateTimer = useRef<number | null>(null)
   const finishingRef = useRef(false)
@@ -600,15 +596,9 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
       const demo = loadDemo()
       demo.lifetimeSpend = (demo.lifetimeSpend || 0) + amount
       demo.tier = higherTicketTier(demo.tier, tierFromSpend(demo.lifetimeSpend))
-      const rate = TIER_RATES[demo.tier]
-      let chips = 0
-      if (amount >= 25) chips += 1
-      let spend = demo.purchaseSpend + amount
-      while (spend >= rate.dollars) {
-        spend -= rate.dollars
-        chips += rate.tickets * CHIPS_PER_TICKET
-      }
-      demo.purchaseSpend = spend
+      const quote = quoteTicketPurchase(demo.tier, amount, demo.purchaseSpend)
+      const chips = quote.tickets * CHIPS_PER_TICKET
+      demo.purchaseSpend = quote.leftover
       const result = applyChips(demo, chips, 'purchase')
       saveDemo(result.store)
       applyAward(stateFromDemo(result.store), result.newTickets, chipsBefore)
@@ -643,6 +633,22 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
   }
 
   const displayChips = flashChips ?? state.chips
+  const quoteTyped = Number(quoteAmount)
+  const quoteUsd =
+    quoteAmount.trim() !== '' && Number.isFinite(quoteTyped) ? quoteTyped : state.tierRate.dollars
+  const purchaseQuote = quoteTicketPurchase(state.tier, quoteUsd, state.purchaseSpendTowardNext)
+  const rateRows =
+    state.tierRates && state.tierRates.length
+      ? state.tierRates
+      : TIER_ORDER.map((tier) => ({
+          id: tier,
+          label: TIER_RATES[tier].label,
+          dollars: TIER_RATES[tier].dollars,
+          tickets: TIER_RATES[tier].tickets,
+          summary: tierRateSummary(tier),
+          unlock: TIER_UNLOCK[tier],
+          unlocked: TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(state.tier),
+        }))
 
   return (
     <div className="giveaway-page">
@@ -927,57 +933,84 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
             />
           </div>
           <p className="tier-card-ticket-remain">
-            ${state.purchaseSpendTowardNext.toFixed(0)} toward your next ticket · $
+            ${state.purchaseSpendTowardNext.toFixed(0)} of ${state.tierRate.dollars.toFixed(0)} toward{' '}
+            {state.tierRate.tickets} ticket{state.tierRate.tickets === 1 ? '' : 's'} · $
             {state.purchaseSpendNeeded.toFixed(0)} to go
           </p>
+          <label className="tier-quote">
+            <span>Tickets at your {state.tierLabel} rate</span>
+            <span className="tier-quote-row">
+              <span className="tier-quote-prefix">$</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputMode="decimal"
+                placeholder={String(state.tierRate.dollars)}
+                value={quoteAmount}
+                onChange={(event) => setQuoteAmount(event.target.value)}
+                aria-label="Purchase amount in dollars"
+              />
+              <span className="tier-quote-result">
+                {purchaseQuote.tickets <= 0
+                  ? `$${purchaseQuote.needed.toFixed(0)} more for ${purchaseQuote.ticketsPer} ticket${
+                      purchaseQuote.ticketsPer === 1 ? '' : 's'
+                    }`
+                  : `${purchaseQuote.tickets} ticket${purchaseQuote.tickets === 1 ? '' : 's'} at ${state.tierLabel}`}
+              </span>
+            </span>
+          </label>
           <button
             type="button"
             className="tier-upgrade-toggle"
             aria-expanded={tierHelpOpen}
             onClick={() => setTierHelpOpen((open) => !open)}
           >
-            {tierHelpOpen ? 'Hide tier perks' : 'What each tier gets'}
+            {tierHelpOpen ? 'Hide level table' : 'Show level table'}
           </button>
           {tierHelpOpen ? (
-            <ul className="tier-perk-list">
-              {(state.tierRates && state.tierRates.length
-                ? state.tierRates
-                : TIER_ORDER.map((tier) => ({
-                    id: tier,
-                    label: TIER_RATES[tier].label,
-                    dollars: TIER_RATES[tier].dollars,
-                    tickets: TIER_RATES[tier].tickets,
-                    summary: `$${TIER_RATES[tier].dollars} → ${TIER_RATES[tier].tickets} ticket${
-                      TIER_RATES[tier].tickets === 1 ? '' : 's'
-                    }`,
-                    unlock: TIER_UNLOCK[tier],
-                    unlocked: TIER_ORDER.indexOf(tier) <= TIER_ORDER.indexOf(state.tier),
-                  }))
-              ).map((rate) => (
-                <li
-                  key={rate.id}
-                  className={
-                    rate.id === state.tier
-                      ? 'is-current'
-                      : rate.unlocked ||
-                          TIER_ORDER.indexOf(rate.id) <= TIER_ORDER.indexOf(state.tier)
-                        ? 'is-unlocked'
-                        : undefined
-                  }
-                >
-                  <strong>
-                    {rate.label}
-                    {rate.id === state.tier ? ' · current' : ''}
-                  </strong>
-                  <span>
-                    {rate.summary}
-                    {typeof rate.unlock === 'number' && rate.unlock > 0
-                      ? ` · $${rate.unlock.toFixed(0)} deposited`
-                      : ' · start'}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="tier-rate-table-wrap">
+              <table className="tier-rate-table">
+                <caption>Tickets received by player level</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Level</th>
+                    <th scope="col">Spend</th>
+                    <th scope="col">Tickets</th>
+                    <th scope="col">Unlock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rateRows.map((rate) => (
+                    <tr
+                      key={rate.id}
+                      className={
+                        rate.id === state.tier
+                          ? 'is-current'
+                          : rate.unlocked ||
+                              TIER_ORDER.indexOf(rate.id) <= TIER_ORDER.indexOf(state.tier)
+                            ? 'is-unlocked'
+                            : undefined
+                      }
+                    >
+                      <th scope="row">
+                        {rate.label}
+                        {rate.id === state.tier ? ' · current' : ''}
+                      </th>
+                      <td>${Number(rate.dollars).toFixed(0)}</td>
+                      <td>
+                        {rate.tickets} ticket{Number(rate.tickets) === 1 ? '' : 's'}
+                      </td>
+                      <td>
+                        {typeof rate.unlock === 'number' && rate.unlock > 0
+                          ? `$${rate.unlock.toFixed(0)} deposited`
+                          : 'Start'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </div>
         {!useApi ? (
@@ -995,11 +1028,21 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
                 ))}
               </select>
             </label>
-            <button type="button" className="tier-demo-buy" onClick={() => demoPurchase(25)} disabled={busy}>
-              Simulate $25 purchase
+            <button
+              type="button"
+              className="tier-demo-buy"
+              onClick={() => demoPurchase(state.tierRate.dollars)}
+              disabled={busy}
+            >
+              Simulate ${state.tierRate.dollars} purchase
             </button>
-            <button type="button" className="tier-demo-buy" onClick={() => demoPurchase(40)} disabled={busy}>
-              Simulate $40 purchase
+            <button
+              type="button"
+              className="tier-demo-buy"
+              onClick={() => demoPurchase(state.tierRate.dollars * 2)}
+              disabled={busy}
+            >
+              Simulate ${state.tierRate.dollars * 2} purchase
             </button>
           </div>
         ) : null}

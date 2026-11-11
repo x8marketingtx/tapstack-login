@@ -27,7 +27,14 @@ import {
   type SessionRole,
 } from './api/client'
 import { clearVendorGamesCache } from './components/VendorSettingsPage'
-import { consumePendingVendorJoin, peekPendingPlayVendor, setPendingPlayVendor } from './lib/affiliate'
+import {
+  applyPlayEmbedClass,
+  capturePlayCheckoutFromLocation,
+  consumePendingVendorJoin,
+  notifyPlayHost,
+  peekPendingPlayVendor,
+  setPendingPlayVendor,
+} from './lib/affiliate'
 import { peekPendingInvoiceToken, setPendingInvoiceToken } from './lib/invoicePay'
 import { isLocationVerificationEnabled } from './lib/verify'
 import { useIdleLogout } from './lib/idleLogout'
@@ -128,7 +135,10 @@ function App() {
   const [view, setView] = useState<AppView>(() => {
     migrateLegacyHash()
     const incoming = parseLocation()
-    if (incoming.portal === 'play') setPendingPlayVendor(incoming.code)
+    if (incoming.portal === 'play') {
+      setPendingPlayVendor(incoming.code)
+      capturePlayCheckoutFromLocation()
+    }
     if (incoming.portal === 'invoice') setPendingInvoiceToken(incoming.token)
     return resolveView(getViewFromLocation(), getSessionRole())
   })
@@ -164,6 +174,7 @@ function App() {
     if (role === 'player') {
       const playCode = peekPendingPlayVendor()
       if (playCode) {
+        notifyPlayHost('authenticated', { role: 'player', code: playCode })
         setView('customer')
         navigate({ portal: 'customer', tab: 'games', vendorId: playCode }, 'replace')
         return
@@ -292,6 +303,11 @@ function App() {
   useIdleLogout(goToLogin, Boolean(sessionRole) && isDashboardView(view))
 
   useEffect(() => {
+    applyPlayEmbedClass()
+    notifyPlayHost('ready', { path: window.location.pathname })
+  }, [])
+
+  useEffect(() => {
     migrateLegacyHash()
     applyDocumentTitle(parseLocation())
 
@@ -311,11 +327,13 @@ function App() {
       const route = parseLocation()
       if (route.portal === 'play') {
         setPendingPlayVendor(route.code)
+        capturePlayCheckoutFromLocation()
         if (role === 'player') {
           navigate({ portal: 'customer', tab: 'games', vendorId: route.code }, 'replace')
           setView('customer')
           return
         }
+        setUserType('players')
         navigate({ portal: 'login' }, 'replace')
         setView('login')
         return
@@ -377,6 +395,7 @@ function App() {
         const current = parseLocation()
         if (current.portal === 'play') {
           setPendingPlayVendor(current.code)
+          capturePlayCheckoutFromLocation()
           if (nextRole === 'player') {
             navigate({ portal: 'customer', tab: 'games', vendorId: current.code }, 'replace')
             setView('customer')

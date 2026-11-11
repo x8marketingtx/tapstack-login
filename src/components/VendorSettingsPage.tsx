@@ -16,15 +16,16 @@ import { confirmPaysioPayment } from '../api/paysio'
 import './VendorSettingsPage.css'
 import { PendingImageUpload, type PendingImageUploadHandle } from './ImageUploadAgreement'
 import TapStackProBenefits from './TapStackProBenefits'
-import { directCheckoutLink } from '../lib/affiliate'
+import { checkoutEmbedUrl, directCheckoutLink } from '../lib/affiliate'
 
-type SettingsTab = 'profile' | 'games' | 'billing' | 'staff'
+type SettingsTab = 'profile' | 'games' | 'billing' | 'staff' | 'api'
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'profile', label: 'Profile' },
   { id: 'games', label: 'Games' },
   { id: 'billing', label: 'Billing' },
   { id: 'staff', label: 'Staff' },
+  { id: 'api', label: 'API' },
 ]
 
 function normalizeAlertEmails(value: unknown): string[] {
@@ -1815,6 +1816,176 @@ function GamesTab({ onGoBilling }: { onGoBilling?: () => void }) {
   )
 }
 
+function moneyLabel(value: number): string {
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function ApiDocsTab() {
+  const [code, setCode] = useState('')
+  const [copied, setCopied] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    const pick = (value: unknown) =>
+      String(value || '')
+        .replace(/^@/, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+    Promise.all([
+      tapstackApi.vendorSettings().catch(() => null),
+      tapstackApi.vendorDashboard().catch(() => null),
+    ]).then(([settingsRes, dashRes]) => {
+      if (cancelled) return
+      const fromSettings = pick(settingsRes?.profile?.inviteCode || settingsRes?.profile?.code)
+      const fromDash = pick(dashRes?.store?.inviteCode || dashRes?.store?.code)
+      setCode(fromSettings || fromDash)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const checkout = directCheckoutLink(code || 'YOURCODE')
+  const embed = checkoutEmbedUrl(code || 'YOURCODE')
+  const origin = checkout.url.replace(/\/play\/[^/]+$/i, '')
+  const listenerSnippet = `window.addEventListener('message', (event) => {
+  if (event.origin !== '${origin}') return
+  const data = event.data || {}
+  if (data.source !== 'tapstack') return
+  if (data.event === 'vendor-linked') {
+    // Player is logged in and this store is on their game-room list.
+  }
+})`
+
+  async function copy(kind: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(kind)
+      window.setTimeout(() => setCopied(''), 1600)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div className="vendor-settings-content">
+      <div className="vendor-settings-games-toolbar">
+        <div>
+          <h2 className="vendor-settings-games-heading">API Doc</h2>
+          <p className="vendor-settings-games-meta">
+            Drop players into TapStack checkout from your site. After they log in, your store is added to
+            their game rooms automatically.
+          </p>
+        </div>
+      </div>
+
+      <section className="vendor-settings-panel">
+        <h3 className="vendor-settings-panel-title">Checkout URL</h3>
+        <p className="vendor-settings-info-help">
+          Send players to this link (button, QR, SMS, or email). They log in or sign up, then your vendor
+          is attached to their game-room list.
+        </p>
+        <div className="vendor-api-code-row">
+          <code className="vendor-api-code">{checkout.url}</code>
+          <button
+            type="button"
+            className="vendor-settings-copy-btn"
+            disabled={!code}
+            onClick={() => void copy('redirect', checkout.url)}
+          >
+            {copied === 'redirect' ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <pre className="vendor-api-pre">{`<a href="${checkout.url}">Play now</a>`}</pre>
+        <button
+          type="button"
+          className="vendor-api-copy-link"
+          onClick={() => void copy('anchor', `<a href="${checkout.url}">Play now</a>`)}
+        >
+          {copied === 'anchor' ? 'Copied snippet' : 'Copy redirect snippet'}
+        </button>
+      </section>
+
+      <section className="vendor-settings-panel">
+        <h3 className="vendor-settings-panel-title">Iframe embed</h3>
+        <p className="vendor-settings-info-help">
+          Host checkout on your own page. Use <code>embed=1</code> so the TapStack chrome fits inside the
+          frame. Payments and login stay on the TapStack origin.
+        </p>
+        <div className="vendor-api-code-row">
+          <code className="vendor-api-code">{embed.url}</code>
+          <button
+            type="button"
+            className="vendor-settings-copy-btn"
+            disabled={!code}
+            onClick={() => void copy('embed', embed.url)}
+          >
+            {copied === 'embed' ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+        <pre className="vendor-api-pre">{embed.iframeSnippet}</pre>
+        <button
+          type="button"
+          className="vendor-api-copy-link"
+          onClick={() => void copy('iframe', embed.iframeSnippet)}
+        >
+          {copied === 'iframe' ? 'Copied snippet' : 'Copy iframe snippet'}
+        </button>
+      </section>
+
+      <section className="vendor-settings-panel">
+        <h3 className="vendor-settings-panel-title">Query parameters</h3>
+        <ul className="vendor-api-list">
+          <li>
+            <code>embed=1</code> — compact iframe layout
+          </li>
+          <li>
+            Path <code>/play/{'{CODE}'}</code> — your vendor code (same as Settings → Profile)
+          </li>
+        </ul>
+      </section>
+
+      <section className="vendor-settings-panel">
+        <h3 className="vendor-settings-panel-title">Player auto-add</h3>
+        <p className="vendor-settings-info-help">
+          A logged-in player hitting your checkout link is linked with{' '}
+          <code>POST /wp-json/tapstack/v1/customer/vendors/link</code>. You do not call this from your
+          site; TapStack does it after login. Body:
+        </p>
+        <pre className="vendor-api-pre">{`{ "vendorCode": "${code || 'YOURCODE'}" }`}</pre>
+      </section>
+
+      <section className="vendor-settings-panel">
+        <h3 className="vendor-settings-panel-title">postMessage events</h3>
+        <p className="vendor-settings-info-help">
+          The iframe posts to <code>window.parent</code>. Always check <code>event.origin</code> and{' '}
+          <code>data.source === "tapstack"</code>.
+        </p>
+        <ul className="vendor-api-list">
+          <li>
+            <code>ready</code> — checkout frame loaded
+          </li>
+          <li>
+            <code>authenticated</code> — player signed in
+          </li>
+          <li>
+            <code>vendor-linked</code> — store added to their game rooms (
+            <code>vendorId</code>, <code>vendorName</code>, <code>code</code>)
+          </li>
+        </ul>
+        <pre className="vendor-api-pre">{listenerSnippet}</pre>
+        <button
+          type="button"
+          className="vendor-api-copy-link"
+          onClick={() => void copy('listener', listenerSnippet)}
+        >
+          {copied === 'listener' ? 'Copied snippet' : 'Copy listener snippet'}
+        </button>
+      </section>
+    </div>
+  )
+}
+
 function BillingTab() {
   const [minRedeem, setMinRedeem] = useState('10')
   const [maxRedeem, setMaxRedeem] = useState('500')
@@ -1844,8 +2015,10 @@ function BillingTab() {
   const [saveError, setSaveError] = useState('')
   const [saveOk, setSaveOk] = useState(false)
   const [membership, setMembership] = useState<VendorMembership | null>(null)
+  const [walletBalance, setWalletBalance] = useState(0)
   const [subscribeBusy, setSubscribeBusy] = useState(false)
   const [subscribeError, setSubscribeError] = useState('')
+  const [subscribeConfirm, setSubscribeConfirm] = useState(false)
 
   function applyGames(games: Partial<VendorRedeemSettings> | null | undefined) {
     if (!games) return
@@ -1898,13 +2071,18 @@ function BillingTab() {
             /* keep defaults */
           }
         } else {
-          const settings = await tapstackApi.vendorSettings().catch(() => null)
+          const [settings, walletRes] = await Promise.all([
+            tapstackApi.vendorSettings().catch(() => null),
+            tapstackApi.vendorWallet().catch(() => null),
+          ])
           if (!cancelled) {
             applyGames(settings?.games)
             if (settings?.membership) {
               rememberVendorMembership(settings.membership)
               setMembership(settings.membership)
             }
+            const balance = Number(walletRes?.wallet?.balance)
+            if (Number.isFinite(balance)) setWalletBalance(Math.max(0, balance))
             if (settings?.payinCaps) {
               setPayinCaps({
                 auto: settings.payinCaps.auto,
@@ -1988,12 +2166,14 @@ function BillingTab() {
     const token = getToken()
     if (!isApiConfigured() || token?.startsWith('demo:')) {
       setSubscribeError('Connect Paysio in WordPress TapStack settings to start Pro checkout.')
+      setSubscribeConfirm(false)
       return
     }
     setSubscribeBusy(true)
     try {
       const returnUrl = `${window.location.origin}/vendor/settings?pro=1`
       const res = await tapstackApi.vendorSubscribePro(returnUrl)
+      setSubscribeConfirm(false)
       if (res.paidFromWallet) {
         if (res.membership) {
           rememberVendorMembership(res.membership)
@@ -2009,6 +2189,7 @@ function BillingTab() {
       setSubscribeError('Paysio did not return a checkout URL.')
     } catch (err) {
       setSubscribeError(err instanceof ApiError ? err.message : 'Could not start Pro checkout.')
+      setSubscribeConfirm(false)
     } finally {
       setSubscribeBusy(false)
     }
@@ -2084,6 +2265,21 @@ function BillingTab() {
       block: 'start',
     })
   }
+  const proPrice = membership?.price || 0
+  const walletCovered = Math.max(
+    0,
+    Math.round((membership?.walletPaid ?? Math.min(walletBalance, proPrice)) * 100) / 100,
+  )
+  const cardDue = Math.max(
+    0,
+    Math.round((membership?.cardDue ?? Math.max(0, proPrice - walletCovered)) * 100) / 100,
+  )
+  const walletConfirmCopy =
+    cardDue <= 0.009
+      ? `We'll charge ${moneyLabel(walletCovered)} from your TapStack wallet. No card needed.`
+      : walletCovered > 0.009
+        ? `We'll use ${moneyLabel(walletCovered)} from your TapStack wallet first, then charge ${moneyLabel(cardDue)} to your card.`
+        : `Your wallet balance is ${moneyLabel(walletBalance)}. We'll charge ${moneyLabel(proPrice)} to your card.`
 
   return (
     <div className="vendor-settings-content">
@@ -2100,7 +2296,8 @@ function BillingTab() {
             <div>
               <h3 className="vendor-settings-games-card-title">{membership.name}</h3>
               <p className="vendor-settings-games-card-desc">
-                Monthly vendor membership billed through Paysio. Price is set by TapStack.
+                Monthly vendor membership. Wallet balance is used first; any remainder is charged to
+                your card.
               </p>
             </div>
             <span
@@ -2138,7 +2335,7 @@ function BillingTab() {
               type="button"
               className="vendor-settings-save-btn"
               disabled={subscribeBusy || loading || !membership.configured}
-              onClick={() => void handleSubscribe()}
+              onClick={() => setSubscribeConfirm(true)}
             >
               {subscribeBusy
                 ? 'Opening checkout…'
@@ -2483,8 +2680,8 @@ function BillingTab() {
             </label>
             <p className="vendor-settings-panel-help">
               {Number(loadbackFeePct) >= 100
-                ? 'You cover the full processing fee. Players are not charged extra on loads.'
-                : `You cover ${money(loadbackFeePct)}% of the processing fee. Players pay the rest.`}
+                ? 'You cover the full processing fee on the cash load amount. Promo extras and auto-load platform fees are not included.'
+                : `You cover ${money(loadbackFeePct)}% of the processing fee on the cash load amount. Players pay the rest. Promo extras are not included.`}
             </p>
           </>
         ) : null}
@@ -2605,6 +2802,55 @@ function BillingTab() {
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
+
+      {subscribeConfirm && membership
+        ? createPortal(
+            <div
+              className="ts-leave-overlay"
+              role="presentation"
+              onClick={() => {
+                if (!subscribeBusy) setSubscribeConfirm(false)
+              }}
+            >
+              <div
+                className="ts-leave-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="vendor-pro-confirm-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <h2 id="vendor-pro-confirm-title" className="ts-leave-title">
+                  Are you sure?
+                </h2>
+                <p className="ts-leave-copy">
+                  Subscribe to {membership.name} for {membership.priceFormatted}/mo?
+                </p>
+                <p className="ts-leave-copy">{walletConfirmCopy}</p>
+                <div className="ts-leave-actions">
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--ghost"
+                    disabled={subscribeBusy}
+                    onClick={() => setSubscribeConfirm(false)}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    className="ts-leave-btn ts-leave-btn--primary"
+                    disabled={subscribeBusy}
+                    onClick={() => void handleSubscribe()}
+                  >
+                    {subscribeBusy ? 'Registering…' : 'Yes'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.querySelector('.vendor-dashboard') ??
+              document.querySelector('.screen') ??
+              document.body,
+          )
+        : null}
     </div>
   )
 }
@@ -3151,6 +3397,7 @@ function VendorStoreSettingsPage({ initialTab }: { initialTab?: SettingsTab }) {
     if (initialTab) return initialTab
     const params = new URLSearchParams(window.location.search)
     if (params.get('tab') === 'billing' || params.has('pro')) return 'billing'
+    if (params.get('tab') === 'api') return 'api'
     return 'profile'
   })
 
@@ -3189,6 +3436,9 @@ function VendorStoreSettingsPage({ initialTab }: { initialTab?: SettingsTab }) {
       </div>
       <div role="tabpanel" hidden={activeTab !== 'staff'}>
         <StaffTab />
+      </div>
+      <div role="tabpanel" hidden={activeTab !== 'api'}>
+        <ApiDocsTab />
       </div>
     </div>
   )

@@ -51,34 +51,97 @@ const PLAYER_AFFILIATE_REF_KEY = 'tapstack_player_affiliate_ref'
 /** @deprecated Cleared for legacy player-join behavior. */
 const PENDING_PLAYER_JOIN_KEY = 'tapstack_pending_player_join'
 
+const PLAY_EMBED_KEY = 'tapstack_play_embed'
+
+function readStoredPlayVendor(): string {
+  try {
+    const session = (sessionStorage.getItem(PENDING_PLAY_VENDOR_KEY) || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+    if (session) return session
+    return (localStorage.getItem(PENDING_PLAY_VENDOR_KEY) || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+  } catch {
+    return ''
+  }
+}
+
 export function setPendingPlayVendor(code: string): void {
   const clean = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   if (!clean) return
   try {
     sessionStorage.setItem(PENDING_PLAY_VENDOR_KEY, clean)
+    localStorage.setItem(PENDING_PLAY_VENDOR_KEY, clean)
   } catch {
     /* ignore */
   }
 }
 
 export function consumePendingPlayVendor(): string {
+  const raw = readStoredPlayVendor()
   try {
-    const raw = sessionStorage.getItem(PENDING_PLAY_VENDOR_KEY) || ''
-    if (raw) sessionStorage.removeItem(PENDING_PLAY_VENDOR_KEY)
-    return raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+    sessionStorage.removeItem(PENDING_PLAY_VENDOR_KEY)
+    localStorage.removeItem(PENDING_PLAY_VENDOR_KEY)
   } catch {
-    return ''
+    /* ignore */
   }
+  return raw
 }
 
 export function peekPendingPlayVendor(): string {
+  return readStoredPlayVendor()
+}
+
+export function capturePlayCheckoutFromLocation(search = window.location.search): void {
   try {
-    return (sessionStorage.getItem(PENDING_PLAY_VENDOR_KEY) || '')
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '')
+    const params = new URLSearchParams(search)
+    if (params.get('embed') === '1' || params.get('iframe') === '1') {
+      sessionStorage.setItem(PLAY_EMBED_KEY, '1')
+    }
   } catch {
-    return ''
+    /* ignore */
+  }
+  applyPlayEmbedClass()
+}
+
+export function isPlayEmbed(): boolean {
+  try {
+    if (sessionStorage.getItem(PLAY_EMBED_KEY) === '1') return true
+    const params = new URLSearchParams(window.location.search)
+    return params.get('embed') === '1' || params.get('iframe') === '1'
+  } catch {
+    return false
+  }
+}
+
+export function applyPlayEmbedClass(): void {
+  if (typeof document === 'undefined') return
+  document.documentElement.classList.toggle('tapstack-embed', isPlayEmbed())
+}
+
+export function notifyPlayHost(event: string, detail: Record<string, unknown> = {}): void {
+  if (typeof window === 'undefined' || window.parent === window) return
+  window.parent.postMessage(
+    {
+      source: 'tapstack',
+      event,
+      ...detail,
+    },
+    '*',
+  )
+}
+
+export function checkoutEmbedUrl(code: string): { url: string; display: string; iframeSnippet: string } {
+  const checkout = directCheckoutLink(code)
+  const url = `${checkout.url}?embed=1`
+  const host = url.replace(/^https?:\/\//i, '')
+  return {
+    url,
+    display: host,
+    iframeSnippet: `<iframe\n  src="${url}"\n  title="TapStack checkout"\n  width="100%"\n  height="720"\n  frameborder="0"\n  allow="payment *; clipboard-write"\n></iframe>`,
   }
 }
 

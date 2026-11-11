@@ -15,3 +15,21 @@ export function formatUsd(amount: number): string {
 export function gameLoadTotal(item: { amount: string; couponCredit?: number }): number {
   return parseOrderMoney(item.amount) + couponExtra(item)
 }
+
+export function isGameMove(item: { type?: string; sameVendorTransfer?: boolean } | null | undefined): boolean {
+  const type = String(item?.type || '').toLowerCase()
+  return type === 'game-transfer' || Boolean(item?.sameVendorTransfer)
+}
+
+export function gameMoveRoute(item: {
+  fromGameTitle?: string
+  toGameTitle?: string
+  fromGameKey?: string
+  toGameKey?: string
+  game?: string
+}): string {
+  const from = item.fromGameTitle || item.fromGameKey || 'Game'
+  const to = item.toGameTitle || item.game || item.toGameKey || 'Game'
+  if (from === to) return from
+  return `${from} → ${to}`
+}

@@ -6,18 +6,18 @@
 
 .vendor-settings-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0;
   border-bottom: 1px solid #e5e7eb;
 }
 
 .vendor-settings-tab {
   position: relative;
-  padding: 10px 8px 12px;
+  padding: 10px 4px 12px;
   border: none;
   background: none;
   color: #9ca3af;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -1463,7 +1463,7 @@
 .ts-leave-overlay {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 120;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1539,6 +1539,68 @@
   border-color: #fecaca;
   background: #dc2626;
   color: #fff;
+}
+
+.ts-leave-btn--primary {
+  border-color: #7c3aed;
+  background: #7c3aed;
+  color: #fff;
+}
+
+.vendor-api-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.vendor-api-code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #334155;
+}
+
+.vendor-api-pre {
+  margin: 0 0 10px;
+  padding: 12px;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.vendor-api-copy-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #7c3aed;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vendor-api-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.vendor-api-list code {
+  font-size: 12px;
 }
 
 .ts-leave-btn:disabled {

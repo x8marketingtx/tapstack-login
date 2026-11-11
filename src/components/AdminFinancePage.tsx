@@ -1399,7 +1399,12 @@ function FinanceFeesTab({
   const [maintenanceMode, setMaintenanceMode] = useState(false)
   const [depositFee, setDepositFee] = useState('2')
   const [redeemFee, setRedeemFee] = useState('2')
+  const [withdrawFee, setWithdrawFee] = useState('4')
+  const [withdrawFlatFee, setWithdrawFlatFee] = useState('2')
+  const [withdrawFlatMax, setWithdrawFlatMax] = useState('50')
   const [transferFee, setTransferFee] = useState('2')
+  const [autoLoadFee, setAutoLoadFee] = useState('1')
+  const [gameTransferFee, setGameTransferFee] = useState('8')
   const [playerRankUpgrade, setPlayerRankUpgrade] = useState('9.99')
   const [vendorGameAutomation, setVendorGameAutomation] = useState('999')
   const [vendorProMembership, setVendorProMembership] = useState('999')
@@ -1422,7 +1427,12 @@ function FinanceFeesTab({
     setMaintenanceMode(Boolean(fees.maintenanceMode))
     setDepositFee(String(fees.depositFeePct ?? 10))
     setRedeemFee(String(fees.redeemFeePct ?? 2))
+    setWithdrawFee(String(fees.withdrawFeePct ?? 4))
+    setWithdrawFlatFee(String(fees.withdrawFlatFee ?? 2))
+    setWithdrawFlatMax(String(fees.withdrawFlatMax ?? 50))
     setTransferFee(String(fees.transferFeePct ?? fees.depositFeePct ?? 2))
+    setAutoLoadFee(String(fees.autoLoadFeePct ?? 1))
+    setGameTransferFee(String(fees.gameTransferFeePct ?? 8))
     setPlayerRankUpgrade(String(fees.playerRankUpgradeMo ?? 9.99))
     setVendorGameAutomation(String(fees.vendorGameAutomationMo ?? 999))
     setVendorProMembership(String(fees.vendorProMembershipMo ?? 999))
@@ -1437,7 +1447,7 @@ function FinanceFeesTab({
     const depositVolume = Number(finance?.feeEstimate?.depositVolume ?? 0)
     const redeemVolume = Number(finance?.feeEstimate?.redeemVolume ?? 0)
     const depositPct = Number(depositFee)
-    const redeemPct = Number(redeemFee)
+    const redeemPct = Number(withdrawFee)
     const safeDepositPct = Number.isFinite(depositPct) ? Math.max(0, depositPct) : 0
     const safeRedeemPct = Number.isFinite(redeemPct) ? Math.max(0, redeemPct) : 0
 
@@ -1457,7 +1467,7 @@ function FinanceFeesTab({
       depositVolume,
       redeemVolume,
     }
-  }, [depositFee, finance?.feeEstimate, redeemFee])
+  }, [depositFee, finance?.feeEstimate, withdrawFee])
 
   function markDirty<T>(setter: (value: T) => void) {
     return (value: T) => {
@@ -1474,7 +1484,12 @@ function FinanceFeesTab({
     }
     const depositFeePct = Number(depositFee)
     const redeemFeePct = Number(redeemFee)
+    const withdrawFeePct = Number(withdrawFee)
+    const withdrawFlat = Number(withdrawFlatFee)
+    const withdrawMax = Number(withdrawFlatMax)
     const transferFeePct = Number(transferFee)
+    const autoLoadFeePct = Number(autoLoadFee)
+    const gameTransferFeePct = Number(gameTransferFee)
     const playerRankUpgradeMo = Number(playerRankUpgrade)
     const vendorGameAutomationMo = Number(vendorGameAutomation)
     const vendorProMembershipMo = Number(vendorProMembership)
@@ -1483,7 +1498,7 @@ function FinanceFeesTab({
     const roomThreshold = Number(gameRoomThreshold)
     const roomDays = Number(gameRoomWindowDays)
     if (
-      ![depositFeePct, redeemFeePct, transferFeePct, playerRankUpgradeMo, vendorGameAutomationMo, vendorProMembershipMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
+      ![depositFeePct, redeemFeePct, withdrawFeePct, withdrawFlat, withdrawMax, transferFeePct, autoLoadFeePct, gameTransferFeePct, playerRankUpgradeMo, vendorGameAutomationMo, vendorProMembershipMo, autoPayin, staffPayin, roomThreshold, roomDays].every(
         (n) => Number.isFinite(n) && n >= 0,
       )
     ) {
@@ -1517,7 +1532,12 @@ function FinanceFeesTab({
       maintenanceMode,
       depositFeePct,
       redeemFeePct,
+      withdrawFeePct,
+      withdrawFlatFee: withdrawFlat,
+      withdrawFlatMax: withdrawMax,
       transferFeePct,
+      autoLoadFeePct,
+      gameTransferFeePct,
       playerRankUpgradeMo,
       vendorGameAutomationMo,
       vendorProMembershipMo,
@@ -1700,20 +1720,58 @@ function FinanceFeesTab({
           </label>
 
           <label className="admin-finance-fees-field">
-            <span className="admin-finance-fees-field-label">Redeem Fee %</span>
+            <span className="admin-finance-fees-field-label">Withdraw / Redeem Fee %</span>
             <div className="admin-finance-fees-percent-wrap">
               <input
                 type="number"
                 className="admin-finance-fees-percent-input"
-                value={redeemFee}
-                onChange={(event) => markDirty(setRedeemFee)(event.target.value)}
+                value={withdrawFee}
+                onChange={(event) => markDirty(setWithdrawFee)(event.target.value)}
                 min="0"
                 step="0.1"
               />
               <span className="admin-finance-fees-percent-suffix">%</span>
             </div>
             <span className="admin-finance-fees-field-help admin-finance-fees-field-help--red">
-              Charged on each redeem / payout
+              Taken from TapStack balance to card or bank
+            </span>
+          </label>
+        </div>
+
+        <div className="admin-finance-fees-input-row">
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Small withdraw extra</span>
+            <div className="admin-finance-fees-money-wrap">
+              <span className="admin-finance-fees-money-prefix">$</span>
+              <input
+                type="number"
+                className="admin-finance-fees-money-input"
+                value={withdrawFlatFee}
+                onChange={(event) => markDirty(setWithdrawFlatFee)(event.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <span className="admin-finance-fees-field-help">
+              Added on top of the % when the redeem is at or under the amount below
+            </span>
+          </label>
+
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Small withdraw at or under</span>
+            <div className="admin-finance-fees-money-wrap">
+              <span className="admin-finance-fees-money-prefix">$</span>
+              <input
+                type="number"
+                className="admin-finance-fees-money-input"
+                value={withdrawFlatMax}
+                onChange={(event) => markDirty(setWithdrawFlatMax)(event.target.value)}
+                min="0"
+                step="1"
+              />
+            </div>
+            <span className="admin-finance-fees-field-help">
+              $50 or less also pays the extra $2
             </span>
           </label>
         </div>
@@ -1733,7 +1791,45 @@ function FinanceFeesTab({
               <span className="admin-finance-fees-percent-suffix">%</span>
             </div>
             <span className="admin-finance-fees-field-help">
-              Charged when moving money between vendors. Same-vendor game-to-game moves are free.
+              Charged when moving money between vendors.
+            </span>
+          </label>
+
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Auto-load Fee %</span>
+            <div className="admin-finance-fees-percent-wrap">
+              <input
+                type="number"
+                className="admin-finance-fees-percent-input"
+                value={autoLoadFee}
+                onChange={(event) => markDirty(setAutoLoadFee)(event.target.value)}
+                min="0"
+                step="0.1"
+              />
+              <span className="admin-finance-fees-percent-suffix">%</span>
+            </div>
+            <span className="admin-finance-fees-field-help admin-finance-fees-field-help--green">
+              Taken from the vendor on each auto-load and kept in the platform reserve
+            </span>
+          </label>
+        </div>
+
+        <div className="admin-finance-fees-input-row">
+          <label className="admin-finance-fees-field">
+            <span className="admin-finance-fees-field-label">Game-room Transfer Fee %</span>
+            <div className="admin-finance-fees-percent-wrap">
+              <input
+                type="number"
+                className="admin-finance-fees-percent-input"
+                value={gameTransferFee}
+                onChange={(event) => markDirty(setGameTransferFee)(event.target.value)}
+                min="0"
+                step="0.1"
+              />
+              <span className="admin-finance-fees-percent-suffix">%</span>
+            </div>
+            <span className="admin-finance-fees-field-help admin-finance-fees-field-help--green">
+              8% platform commission on game-to-game moves, kept in the platform reserve
             </span>
           </label>
         </div>

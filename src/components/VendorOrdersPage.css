@@ -27,7 +27,7 @@
 
 .vendor-orders-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -38,11 +38,11 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 8px 12px;
+  padding: 10px 4px 12px;
   border: none;
   background: none;
   color: #9ca3af;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -54,9 +54,9 @@
 .vendor-orders-tab--active::after {
   content: '';
   position: absolute;
-  right: 16px;
+  right: 8px;
   bottom: 0;
-  left: 16px;
+  left: 8px;
   height: 2px;
   border-radius: 999px;
   background: #7c3aed;
@@ -168,6 +168,55 @@
   font-size: 12px;
 }
 
+.vendor-orders-section-icon--orange {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #ffedd5;
+  font-size: 12px;
+}
+
+.vendor-orders-load-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .vendor-orders-load-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .vendor-orders-load-columns .vendor-orders-section-header--subtle {
+    margin-top: 0;
+  }
+
+  .vendor-orders-section--manual,
+  .vendor-orders-section--auto {
+    min-width: 0;
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+  }
+
+  .vendor-orders-section--manual {
+    background: #faf8ff;
+    border-color: #ddd6fe;
+  }
+
+  .vendor-orders-section--auto {
+    background: #fffaf5;
+    border-color: #fed7aa;
+  }
+}
+
 .vendor-orders-section-name {
   font-size: 14px;
   font-weight: 700;
@@ -224,6 +273,55 @@
 
 .vendor-order-card--manual {
   align-items: flex-start;
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
+.vendor-order-card--auto {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.vendor-order-card--retry {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.vendor-order-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.vendor-order-error {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 650;
+  color: #b91c1c;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.vendor-order-retry {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.vendor-order-retry:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .vendor-order-card--clickable,
@@ -267,6 +365,16 @@
 .vendor-history-item--clickable:hover,
 .vendor-redeem-open:hover {
   background: #f8fafc;
+}
+
+.vendor-order-card--manual.is-openable:hover,
+.vendor-history-item--manual:hover {
+  background: #ede9fe;
+}
+
+.vendor-order-card--auto:hover,
+.vendor-history-item--auto:hover {
+  background: #ffedd5;
 }
 
 .vendor-history-item--clickable {
@@ -387,6 +495,14 @@
   font-size: 11px;
   font-weight: 700;
   color: #c2410c;
+  line-height: 1.35;
+}
+
+.vendor-order-fee {
+  margin: 3px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6d28d9;
   line-height: 1.35;
 }
 
@@ -651,6 +767,37 @@
   border: 1px solid #e5e7eb;
 }
 
+.vendor-history-item--manual {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+
+.vendor-history-item--auto {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.vendor-history-kind {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.vendor-history-kind--manual {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.vendor-history-kind--auto {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
 .vendor-history-icon {
   display: flex;
   align-items: center;
@@ -667,6 +814,10 @@
   font-size: 13px;
   font-weight: 600;
   color: #111827;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
 }
 
 .vendor-history-amount {

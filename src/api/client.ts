@@ -78,6 +78,13 @@ export type PayoutClaim = {
   status: string
   amount: number
   amountFormatted: string
+  fee?: number
+  feeFormatted?: string
+  percentFee?: number
+  flatFee?: number
+  feePct?: number
+  payout?: number
+  payoutFormatted?: string
   method?: string
   rail?: string
   firstName?: string
@@ -441,7 +448,12 @@ export type AdminFees = {
   maintenanceMode: boolean
   depositFeePct: number
   redeemFeePct: number
+  withdrawFeePct?: number
+  withdrawFlatFee?: number
+  withdrawFlatMax?: number
   transferFeePct?: number
+  autoLoadFeePct?: number
+  gameTransferFeePct?: number
   playerRankUpgradeMo: number
   vendorGameAutomationMo: number
   vendorProMembershipMo?: number
@@ -819,10 +831,15 @@ export type VendorOrderItem = {
   payoutTags?: string[]
   fromGameKey?: string
   toGameKey?: string
+  fromGameTitle?: string
+  toGameTitle?: string
   sameVendorTransfer?: boolean
   couponCode?: string
   couponCredit?: number
   fulfilledAt?: string
+  fee?: number
+  feeFormatted?: string
+  feePct?: number
   attention?: boolean
   statusLabel?: string
 }
@@ -1286,6 +1303,15 @@ export const tapstackApi = {
   customerActivity: () => apiRequest<{ activity: unknown[] }>('/customer/activity'),
   customerNotifications: () =>
     apiRequest<{ notifications: PlayerNotification[] }>('/customer/notifications'),
+  pwaConfig: () =>
+    apiRequest<{ vapidPublicKey: string; push: boolean }>('/pwa/config', { auth: false }),
+  savePushSubscription: (input: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    apiRequest<{ ok: boolean }>('/customer/push-subscription', {
+      method: 'PUT',
+      body: input,
+    }),
+  deletePushSubscription: () =>
+    apiRequest<{ ok: boolean }>('/customer/push-subscription', { method: 'DELETE' }),
   customerWallet: () =>
     apiRequest<{
       wallet: { id: number; balance: number; formatted: string; points: number; currency: string }
@@ -1295,6 +1321,7 @@ export const tapstackApi = {
       openPayouts?: PayoutClaim[]
       payoutProfile?: PayoutProfile
       paymentMethods?: SavedPaymentMethod[]
+      withdrawFees?: { pct: number; flatFee: number; flatMax: number }
     }>('/customer/wallet'),
   customerPaymentMethods: (purpose: 'topup' | 'withdraw' | 'all' = 'all') =>
     apiRequest<{ methods: SavedPaymentMethod[] }>(
@@ -1509,6 +1536,7 @@ export const tapstackApi = {
       manualLoads: VendorOrderItem[]
       autoLoads: VendorOrderItem[]
       loads?: VendorOrderItem[]
+      moves?: VendorOrderItem[]
       redeems: VendorOrderItem[]
       history: VendorOrderItem[]
       pendingTotal: string
@@ -2026,6 +2054,7 @@ export const tapstackApi = {
       games: Array<VendorGameRecord & { connected?: boolean; playerMobileId?: string | null }>
       loadFeePct?: number
       playerPaysLoadFee?: boolean
+      gameTransferFeePct?: number
     }>(`/customer/vendors/${vendorId}/games`),
   connectVendorGame: (
     vendorId: number | string,
@@ -2132,7 +2161,9 @@ export const tapstackApi = {
     apiRequest<{
       ok: boolean
       pending: VendorOrderItem[]
+      pendingMoves?: VendorOrderItem[]
       pendingCount: number
+      movesCount?: number
       orders: VendorOrderItem[]
     }>(`/customer/vendors/${vendorId}/orders`),
   customerOrderDetail: (orderId: number | string) =>
@@ -2810,6 +2841,9 @@ export type VendorMembership = {
   renewsAt?: string
   currentPeriodEnd?: string
   subscriptionId?: string
+  walletBalance?: number
+  walletPaid?: number
+  cardDue?: number
 }
 
 export type VendorGameRecord = {
