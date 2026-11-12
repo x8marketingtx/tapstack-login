@@ -31,7 +31,7 @@ function isStandalone(): boolean {
   return false
 }
 
-function isIos(): boolean {
+export function isIos(): boolean {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
   if (/iPad|iPhone|iPod/i.test(ua)) return true
@@ -117,6 +117,10 @@ export async function registerTapstackServiceWorker(): Promise<void> {
   }
 }
 
+export function hasDeferredInstallPrompt(): boolean {
+  return Boolean(deferredPrompt)
+}
+
 export async function promptAddToHomeScreen(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
   if (!deferredPrompt) return 'unavailable'
   const prompt = deferredPrompt
@@ -126,32 +130,6 @@ export async function promptAddToHomeScreen(): Promise<'accepted' | 'dismissed' 
   if (choice.outcome === 'accepted') markPwaInstalled()
   notify()
   return choice.outcome
-}
-
-export function canWebShare(): boolean {
-  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false
-  try {
-    return typeof navigator.canShare !== 'function' || navigator.canShare({ url: window.location.href })
-  } catch {
-    return true
-  }
-}
-
-/** Opens the native share sheet (iOS Safari: choose Add to Home Screen there). */
-export async function shareForHomeScreen(): Promise<'shared' | 'cancelled' | 'unavailable'> {
-  if (!canWebShare()) return 'unavailable'
-  try {
-    const url = window.location.href
-    await navigator.share({
-      title: document.title || 'TapStack',
-      text: 'TapStack — play, load, and manage your games.',
-      url,
-    })
-    return 'shared'
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') return 'cancelled'
-    return 'unavailable'
-  }
 }
 
 export function isLikelyInAppBrowser(): boolean {
