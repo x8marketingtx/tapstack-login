@@ -205,13 +205,41 @@ function applyChips(store: DemoStore, count: number, source: string) {
   }
 }
 
-function endOfMonthDrawAt(): Date {
-  const now = new Date()
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 20, 0, 0, 0)
-  if (end.getTime() <= now.getTime()) {
-    return new Date(now.getFullYear(), now.getMonth() + 2, 0, 20, 0, 0, 0)
+/** Last instant of the current monthly draw window (local midnight when the month ends). */
+function endOfMonthDrawAt(now = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0)
+}
+
+function lastDayOfMonth(now = new Date()): Date {
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0, 12, 0, 0, 0)
+}
+
+type MegaDrawCountdown = {
+  days: number
+  hours: number
+  minutes: number
+  seconds: number
+  ended: boolean
+}
+
+function megaDrawCountdownSnapshot(now = new Date()): MegaDrawCountdown {
+  const target = endOfMonthDrawAt(now)
+  const ms = target.getTime() - now.getTime()
+  if (ms <= 0) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, ended: true }
   }
-  return end
+  const totalSec = Math.floor(ms / 1000)
+  return {
+    days: Math.floor(totalSec / 86400),
+    hours: Math.floor((totalSec % 86400) / 3600),
+    minutes: Math.floor((totalSec % 3600) / 60),
+    seconds: totalSec % 60,
+    ended: false,
+  }
+}
+
+function padCountdownUnit(value: number): string {
+  return String(value).padStart(2, '0')
 }
 
 function formatDrawDate(date: Date): string {
@@ -239,6 +267,7 @@ function stateFromDemo(store: DemoStore): GiveawayState {
   const drawAtDate = endOfMonthDrawAt()
   const drawAt = drawAtDate.toISOString()
   const deadline = deadlineFromDrawAt(drawAtDate)
+  const drawDisplayDate = lastDayOfMonth()
   const progress = nextTierProgress(store.tier, store.lifetimeSpend || 0)
   return {
     chips: store.chips,
@@ -258,7 +287,7 @@ function stateFromDemo(store: DemoStore): GiveawayState {
     lifetimeSpend: store.lifetimeSpend || 0,
     title: 'MONTHLY MEGA DRAW',
     prize: MEGA_DRAW_PRIZE,
-    drawDate: formatDrawDate(drawAtDate),
+    drawDate: formatDrawDate(drawDisplayDate),
     drawAt,
     deadlineDays: deadline.days,
     deadlineLabel: deadline.label,
@@ -299,6 +328,7 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
   const [flashChips, setFlashChips] = useState<number | null>(null)
   const [completing, setCompleting] = useState(false)
   const [deadlineLabel, setDeadlineLabel] = useState('')
+  const [megaCountdown, setMegaCountdown] = useState(() => megaDrawCountdownSnapshot())
   const [adError, setAdError] = useState('')
   const [adReady, setAdReady] = useState(false)
   const [adPlayer, setAdPlayer] = useState<'nitro' | 'fallback'>('nitro')
@@ -401,16 +431,27 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
   }, [useApi])
 
   useEffect(() => {
-    if (!state?.drawAt) {
-      setDeadlineLabel(state?.deadlineLabel || '')
-      return
+    const tick = () => {
+      const snap = megaDrawCountdownSnapshot()
+      setMegaCountdown(snap)
+      if (snap.ended) {
+        setDeadlineLabel('Ended')
+        return
+      }
+      if (snap.days >= 2) {
+        setDeadlineLabel(`${snap.days} days`)
+      } else if (snap.days === 1) {
+        setDeadlineLabel('1 day')
+      } else if (snap.hours >= 1) {
+        setDeadlineLabel(`${snap.hours}h ${snap.minutes}m`)
+      } else {
+        setDeadlineLabel(`${snap.minutes}m ${snap.seconds}s`)
+      }
     }
-
-    const tick = () => setDeadlineLabel(deadlineFromDrawAt(state.drawAt).label)
     tick()
-    const id = window.setInterval(tick, 60_000)
+    const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
-  }, [state?.drawAt, state?.deadlineLabel])
+  }, [])
 
   useEffect(() => {
     if (!watching) return
@@ -695,14 +736,38 @@ export default function GiveawayPage({ onTicketAwarded }: GiveawayPageProps) {
         </div>
         <p className="mega-draw-prize">{state.prize}</p>
         <p className="mega-draw-desc">{MEGA_DRAW_TAGLINE}</p>
+        <div className="mega-draw-countdown" aria-live="polite">
+          <p className="mega-draw-countdown-title">Time left this month</p>
+          {megaCountdown.ended ? (
+            <p className="mega-draw-countdown-ended">Drawing — new countdown starts soon</p>
+          ) : (
+            <div className="mega-draw-countdown-grid" role="timer">
+              {(
+                [
+                  ['Days', megaCountdown.days],
+                  ['Hrs', megaCountdown.hours],
+                  ['Min', megaCountdown.minutes],
+                  ['Sec', megaCountdown.seconds],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label} className="mega-draw-countdown-unit">
+                  <span className="mega-draw-countdown-digit">
+                    {label === 'Days' ? String(value) : padCountdownUnit(value)}
+                  </span>
+                  <span className="mega-draw-countdown-unit-label">{label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="mega-draw-meta">
           <div className="mega-draw-meta-box">
             <span className="mega-draw-meta-label">DRAWS</span>
-            <span className="mega-draw-meta-value">{state.drawDate}</span>
+            <span className="mega-draw-meta-value">{formatDrawDate(lastDayOfMonth())}</span>
           </div>
           <div className="mega-draw-meta-box">
             <span className="mega-draw-meta-label">DEADLINE IN</span>
-            <span className="mega-draw-meta-value">{deadlineLabel || state.deadlineLabel}</span>
+            <span className="mega-draw-meta-value">{deadlineLabel}</span>
           </div>
         </div>
       </section>

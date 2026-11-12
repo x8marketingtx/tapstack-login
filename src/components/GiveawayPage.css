@@ -148,6 +148,63 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.mega-draw-countdown {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.mega-draw-countdown-title {
+  margin: 0 0 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(252, 211, 77, 0.95);
+}
+
+.mega-draw-countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mega-draw-countdown-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mega-draw-countdown-digit {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+
+.mega-draw-countdown-unit-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.mega-draw-countdown-ended {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fde68a;
+}
+
 .mega-draw-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;

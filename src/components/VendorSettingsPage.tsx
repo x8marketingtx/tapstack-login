@@ -23,7 +23,7 @@ type SettingsTab = 'profile' | 'games' | 'billing' | 'staff' | 'api'
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
   { id: 'profile', label: 'Profile' },
   { id: 'games', label: 'Games' },
-  { id: 'billing', label: 'Billing' },
+  { id: 'billing', label: 'Auto/Fees' },
   { id: 'staff', label: 'Staff' },
   { id: 'api', label: 'API' },
 ]
