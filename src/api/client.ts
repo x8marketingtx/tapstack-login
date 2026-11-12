@@ -1191,7 +1191,12 @@ export const tapstackApi = {
     }
   },
 
-  updateProfile: (profile: { fullName?: string; email?: string; phone?: string }) =>
+  updateProfile: (profile: {
+    fullName?: string
+    email?: string
+    phone?: string
+    username?: string
+  }) =>
     apiRequest<{ ok: boolean; user: TapstackUser }>('/auth/profile', {
       method: 'POST',
       body: profile,

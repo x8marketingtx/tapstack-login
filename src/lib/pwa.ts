@@ -128,6 +128,38 @@ export async function promptAddToHomeScreen(): Promise<'accepted' | 'dismissed' 
   return choice.outcome
 }
 
+export function canWebShare(): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false
+  try {
+    return typeof navigator.canShare !== 'function' || navigator.canShare({ url: window.location.href })
+  } catch {
+    return true
+  }
+}
+
+/** Opens the native share sheet (iOS Safari: choose Add to Home Screen there). */
+export async function shareForHomeScreen(): Promise<'shared' | 'cancelled' | 'unavailable'> {
+  if (!canWebShare()) return 'unavailable'
+  try {
+    const url = window.location.href
+    await navigator.share({
+      title: document.title || 'TapStack',
+      text: 'TapStack — play, load, and manage your games.',
+      url,
+    })
+    return 'shared'
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') return 'cancelled'
+    return 'unavailable'
+  }
+}
+
+export function isLikelyInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /FBAN|FBAV|Instagram|Twitter|Line\/|Snapchat|LinkedInApp|GSA\/|wv\)/i.test(ua)
+}
+
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4)
   const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'))

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
+  canWebShare,
   enablePushNotifications,
   getPwaMode,
+  isLikelyInAppBrowser,
   markPushPrompt,
   promptAddToHomeScreen,
+  shareForHomeScreen,
   subscribePwa,
   type PwaMode,
 } from '../lib/pwa'
@@ -14,6 +17,7 @@ export default function PwaHomeBanner() {
   const [mode, setMode] = useState<PwaMode>(() => getPwaMode())
   const [iosOpen, setIosOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [shareNote, setShareNote] = useState('')
 
   useEffect(() => subscribePwa(() => setMode(getPwaMode())), [])
 
@@ -21,6 +25,14 @@ export default function PwaHomeBanner() {
 
   async function handleInstall() {
     if (mode === 'ios') {
+      if (canWebShare()) {
+        setBusy(true)
+        setShareNote('')
+        const result = await shareForHomeScreen()
+        setBusy(false)
+        if (result === 'unavailable') setIosOpen(true)
+        return
+      }
       setIosOpen(true)
       return
     }
@@ -28,6 +40,24 @@ export default function PwaHomeBanner() {
     const result = await promptAddToHomeScreen()
     setBusy(false)
     if (result === 'unavailable') setIosOpen(true)
+  }
+
+  async function handleIosShare() {
+    setShareNote('')
+    setBusy(true)
+    const result = await shareForHomeScreen()
+    setBusy(false)
+    if (result === 'unavailable') {
+      setShareNote(
+        isLikelyInAppBrowser()
+          ? 'Open this page in Safari (⋯ menu → Open in Browser), then tap Share.'
+          : 'Share is not available in this browser. Use Safari and tap the Share icon in the toolbar.',
+      )
+    } else if (result === 'cancelled') {
+      setShareNote('Choose Add to Home Screen in the share menu when you are ready.')
+    } else {
+      setShareNote('In the share menu, tap Add to Home Screen, then Add.')
+    }
   }
 
   async function handlePush() {
@@ -86,28 +116,76 @@ export default function PwaHomeBanner() {
             <p className="pwa-ios-handle" />
             <img src="/pwa-192.png" alt="" className="pwa-ios-icon" width={64} height={64} />
             <h2 id="pwa-ios-title">Add to Home Screen</h2>
+            {isLikelyInAppBrowser() ? (
+              <p className="pwa-ios-note pwa-ios-note--warn">
+                You are in an in-app browser. Open TapStack in <strong>Safari</strong> first (⋯ → Open in Browser),
+                then use Share → Add to Home Screen.
+              </p>
+            ) : null}
+            {canWebShare() ? (
+              <button
+                type="button"
+                className="pwa-home-banner-action pwa-ios-share-btn"
+                disabled={busy}
+                onClick={() => void handleIosShare()}
+              >
+                {busy ? '…' : 'Share TapStack'}
+              </button>
+            ) : null}
             <ol className="pwa-ios-steps">
               <li>
-                <span>
-                  Tap the <strong>Share</strong> button
-                </span>
-                <span className="pwa-ios-share" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M12 16V4M12 4l-4 4M12 4l4 4"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M6 14v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-5"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </span>
+                {canWebShare() ? (
+                  <button
+                    type="button"
+                    className="pwa-ios-step-btn"
+                    disabled={busy}
+                    onClick={() => void handleIosShare()}
+                  >
+                    <span>
+                      Tap <strong>Share</strong>
+                    </span>
+                    <span className="pwa-ios-share" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M12 16V4M12 4l-4 4M12 4l4 4"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M6 14v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-5"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <span>
+                      Tap the <strong>Share</strong> button in Safari&apos;s toolbar
+                    </span>
+                    <span className="pwa-ios-share" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M12 16V4M12 4l-4 4M12 4l4 4"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M6 14v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-5"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </span>
+                  </>
+                )}
               </li>
               <li>
                 <span>
@@ -120,6 +198,7 @@ export default function PwaHomeBanner() {
                 </span>
               </li>
             </ol>
+            {shareNote ? <p className="pwa-ios-note">{shareNote}</p> : null}
             <p className="pwa-ios-note">After it is on your home screen, open TapStack from there to turn on alerts.</p>
             <button type="button" className="pwa-home-banner-action pwa-ios-done" onClick={() => setIosOpen(false)}>
               Got it

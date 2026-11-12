@@ -55,6 +55,22 @@ export const DEMO_PLAYER_PROFILE: PlayerProfile = {
   tier: 'bronze',
 }
 
+function normalizeUsernameInput(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  const bare = trimmed.replace(/^@+/, '').toLowerCase()
+  return bare ? `@${bare}` : ''
+}
+
+function usernameApiValue(value: string): string {
+  return value.trim().replace(/^@+/, '').toLowerCase()
+}
+
+function isValidUsername(value: string): boolean {
+  const bare = usernameApiValue(value)
+  return /^[a-z0-9_]{3,24}$/.test(bare)
+}
+
 export function isPlaceholderEmail(email: string): boolean {
   const value = email.toLowerCase()
   return (
@@ -161,6 +177,7 @@ export default function ProfilePage({
   const [passwordSuccess, setPasswordSuccess] = useState('')
   const [editing, setEditing] = useState(false)
   const [fullName, setFullName] = useState(profile.displayName)
+  const [usernameInput, setUsernameInput] = useState(profile.username)
   const [email, setEmail] = useState(
     isPlaceholderEmail(profile.email) ? '' : profile.email,
   )
@@ -180,6 +197,7 @@ export default function ProfilePage({
   useEffect(() => {
     setLocalProfile(profile)
     setFullName(profile.displayName)
+    setUsernameInput(profile.username)
     setEmail(isPlaceholderEmail(profile.email) ? '' : profile.email)
     if (isPlaceholderEmail(profile.email) || profile.displayName.startsWith('Player ')) {
       setEditing(true)
@@ -250,6 +268,7 @@ export default function ProfilePage({
           applyAuthSession(token, res.user)
         }
         setFullName(next.displayName)
+        setUsernameInput(next.username)
         setEmail(isPlaceholderEmail(next.email) ? '' : next.email)
         if (isPlaceholderEmail(next.email) || next.displayName.startsWith('Player ')) {
           setEditing(true)
@@ -268,8 +287,13 @@ export default function ProfilePage({
 
   async function handleSave(event: React.FormEvent) {
     event.preventDefault()
+    const nextUsername = normalizeUsernameInput(usernameInput)
     if (!fullName.trim() || !email.trim().includes('@')) {
       setError('Enter your full name and a real email address.')
+      return
+    }
+    if (!isValidUsername(nextUsername)) {
+      setError('Username must be 3–24 characters: letters, numbers, and underscores only.')
       return
     }
 
@@ -281,6 +305,7 @@ export default function ProfilePage({
         const res = await tapstackApi.updateProfile({
           fullName: fullName.trim(),
           email: email.trim(),
+          username: usernameApiValue(nextUsername),
         })
         const next = profileFromUser(
           res.user,
@@ -301,7 +326,7 @@ export default function ProfilePage({
           displayName: fullName.trim(),
           email: email.trim(),
           initials: initialsFromName(fullName.trim()),
-          username: `@${fullName.trim().toLowerCase().replace(/\s+/g, '_')}`,
+          username: nextUsername,
           avatarBg: palette.avatarBg,
           avatarText: palette.avatarText,
         }
@@ -545,9 +570,22 @@ export default function ProfilePage({
           <div className="profile-card-head">
             <div>
               <h3 className="profile-card-title">Account details</h3>
-              <p className="profile-card-sub">Update your name and email</p>
+              <p className="profile-card-sub">Update your name, username, and email</p>
             </div>
           </div>
+
+          <label className="profile-edit-label" htmlFor="profile-username">
+            Username
+          </label>
+          <input
+            id="profile-username"
+            className="profile-edit-input"
+            value={usernameInput}
+            onChange={(event) => setUsernameInput(event.target.value)}
+            placeholder="@marcus_r"
+            autoComplete="username"
+            spellCheck={false}
+          />
 
           <label className="profile-edit-label" htmlFor="profile-full-name">
             Full name
@@ -583,6 +621,9 @@ export default function ProfilePage({
               onClick={() => {
                 setEditing(false)
                 setError('')
+                setFullName(localProfile.displayName)
+                setUsernameInput(localProfile.username)
+                setEmail(isPlaceholderEmail(localProfile.email) ? '' : localProfile.email)
               }}
             >
               Cancel
